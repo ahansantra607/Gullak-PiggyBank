@@ -1,0 +1,6 @@
+# Gullak keeps all family data on each family's own device (encrypted).
+# Never commit personal backups or recovery codes to this repository.
+*.gullak
+gullak-backup*.json
+gullak-recovery-code*.txt
+.claude/
