@@ -1,354 +1,532 @@
-/* Gullak's money brain for "Hey Gullak". Runs fully in the browser: no AI server, nothing leaves the device.
-   Understands: money maths (SI, CI, compare, EMI, doubling, inflation, %, discount, GST, profit/loss, split, savings plans,
-   unit conversions) with step-by-step working, ~40 money words explained for kids (8–12) and teens (13–18),
-   typos, number words ("five thousand", "2 lakh", "1k"), months/years, and follow-ups ("what about 5 years?"). */
+/* Gullak Coach v2 — browser-only money intelligence.
+   Drop-in replacement for js/coach.js. Depends only on the existing window.G app API.
+   It never calls a server, never writes a transaction without an explicit confirmation,
+   and treats recorded transactions as facts (not guesses).
+*/
 (function (G) {
-  const esc = G.esc;
-  const ctx = G.coachCtx = { last: null, pending: null };
-  const senior = () => !!(G.S.profile && G.S.profile.ageGroup === 'senior');
+  'use strict';
+  if (!G || !G.S) return;
 
-  /* ---------- formatting ---------- */
-  const r2 = (n) => Math.round(n * 100) / 100;
-  const money = (n) => { const v = r2(n); return '₹' + v.toLocaleString('en-IN', { minimumFractionDigits: Number.isInteger(v) ? 0 : 2, maximumFractionDigits: 2 }); };
-  const num = (n) => r2(n).toLocaleString('en-IN', { maximumFractionDigits: 2 });
-  const plural = (n, w) => `${num(n)} ${w}${r2(n) === 1 ? '' : 's'}`;
-  const yearsText = (t) => {
-    if (Number.isInteger(t)) return plural(t, 'year');
-    const m = Math.round(t * 12); return m % 12 === 0 ? plural(m / 12, 'year') : plural(m, 'month') + ` (${num(t)} years)`;
-  };
-  const samosas = (n) => { const k = Math.floor(n / 20); return k > 0 ? `🥟 That's ${k} samosa${k === 1 ? '' : 's'}!` : ''; };
-  const box = (title, lines, result) => `<div class="calc"><div class="calc-t">${title}</div>${lines.map(l => `<div class="calc-l">${l}</div>`).join('')}${result ? `<div class="calc-r">${result}</div>` : ''}</div>`;
+  const legacyAnswer = G.answer; // screens-next.js owns transaction logging and general chat
+  const legacyBrain = G.brain || null;
+  const ctx = G.coachCtx = Object.assign({
+    last: null, pending: null, pendingAction: null, updatedAt: 0, version: 2
+  }, G.coachCtx || {});
 
-  /* ---------- understanding the words ---------- */
-  const TYPOS = {
-    intrest: 'interest', interst: 'interest', intrst: 'interest', intersts: 'interests', intereset: 'interest', interes: 'interest',
-    compund: 'compound', coumpound: 'compound', compond: 'compound', compaund: 'compound', componud: 'compound', cmpound: 'compound',
-    simpel: 'simple', smple: 'simple', simle: 'simple', principle: 'principal', prinicipal: 'principal', pricipal: 'principal',
-    percnt: 'percent', precent: 'percent', pecent: 'percent', persent: 'percent', percentage: 'percent', pct: 'percent',
-    anually: 'annually', anualy: 'annually', annualy: 'annually', yearlly: 'yearly', mnth: 'month', mnths: 'months', mths: 'months',
-    yrs: 'years', yr: 'year', wk: 'week', wks: 'weeks', inflaton: 'inflation', inflasion: 'inflation', discont: 'discount',
-    intrestrate: 'interest rate', emis: 'emi', loans: 'loan', stocks: 'stock', shares: 'share', mutualfund: 'mutual fund', budjet: 'budget', bugdet: 'budget',
-    rupee: 'rs', rupees: 'rs', rs: 'rs', inr: 'rs', bucks: 'rs'
-  };
-  const ONES = { zero: 0, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12,
-    thirteen: 13, fourteen: 14, fifteen: 15, sixteen: 16, seventeen: 17, eighteen: 18, nineteen: 19, twenty: 20, thirty: 30, forty: 40,
-    fifty: 50, sixty: 60, seventy: 70, eighty: 80, ninety: 90 };
-  const SCALE = { hundred: 100, thousand: 1000, lakh: 100000, lakhs: 100000, lac: 100000, crore: 10000000, crores: 10000000 };
-  const wordsToDigits = (t) => {
-    const toks = t.split(/(\s+|-)/); const out = []; let cur = 0, total = 0, inNum = false, buf = [];
-    const flush = () => { if (inNum) out.push(String(total + cur)); else out.push(...buf); cur = 0; total = 0; inNum = false; buf = []; };
-    for (let i = 0; i < toks.length; i++) {
-      const w = toks[i];
-      if (/^\s+$|^-$/.test(w)) { if (inNum) continue; out.push(w); continue; }
-      if (ONES[w] != null) { cur += ONES[w]; inNum = true; continue; }
-      if (SCALE[w] && inNum) { if (SCALE[w] === 100) cur = (cur || 1) * 100; else { total += (cur || 1) * SCALE[w]; cur = 0; } continue; }
-      if (w === 'and' && inNum) continue;
-      if (inNum) { out.push(String(total + cur), ' '); cur = 0; total = 0; inNum = false; }
-      out.push(w);
-    }
-    if (inNum) out.push(String(total + cur));
-    return out.join('').replace(/\s+/g, ' ');
-  };
-  G.normalizeQ = (raw) => {
-    let t = ' ' + String(raw || '').toLowerCase() + ' ';
-    t = t.replace(/₹/g, ' rs ').replace(/[?!"“”]/g, ' ').replace(/(\d),(?=\d)/g, '$1');
-    t = t.replace(/p\.a\.?|per annum/g, ' per year ').replace(/half[\s-]?year(ly)?|semi[\s-]?annual(ly)?|every 6 months|every six months|twice a year/g, ' halfyearly ')
-      .replace(/every 3 months|every three months|quarter(ly)?/g, ' quarterly ');
-    t = t.replace(/[a-z]+/g, (w) => TYPOS[w] || w);
-    t = wordsToDigits(t);
-    t = t.replace(/(\d+(?:\.\d+)?)\s*k\b/g, (_, n) => String(Number(n) * 1000))
-      .replace(/(\d+(?:\.\d+)?)\s*(lakh|lakhs|lac)\b/g, (_, n) => String(Number(n) * 100000))
-      .replace(/(\d+(?:\.\d+)?)\s*(crore|crores|cr)\b/g, (_, n) => String(Number(n) * 10000000))
-      .replace(/(\d)\s*%/g, '$1 percent ').replace(/per cent/g, 'percent');
-    return t.replace(/\s+/g, ' ');
-  };
+  const isSenior = () => !!(G.S.profile && G.S.profile.ageGroup === 'senior');
+  const esc = G.esc || (s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])));
+  const round2 = n => Math.round((Number(n) + Number.EPSILON) * 100) / 100;
+  const finite = n => Number.isFinite(Number(n));
+  const money = n => '₹' + round2(n).toLocaleString('en-IN', { minimumFractionDigits: Number.isInteger(round2(n)) ? 0 : 2, maximumFractionDigits: 2 });
+  const number = n => round2(n).toLocaleString('en-IN', { maximumFractionDigits: 4 });
+  const plural = (n, word) => `${number(n)} ${word}${Math.abs(Number(n)) === 1 ? '' : 's'}`;
+  const safe = (n, min = -1e15, max = 1e15) => finite(n) && Number(n) >= min && Number(n) <= max;
+  const box = (title, rows, result) =>
+    `<div class="calc"><div class="calc-t">${title}</div>${rows.map(x => `<div class="calc-l">${x}</div>`).join('')}${result ? `<div class="calc-r">${result}</div>` : ''}</div>`;
+  const answer = (html, plain, extra = {}) => ({ html, plain: plain || '', ...extra });
+  const invalid = msg => answer(`<p>${msg}</p>`, msg);
 
-  /* pull out amounts, rate, time, how often */
-  G.entities = (t) => {
-    let rest = t; const e = { amounts: [] };
-    const rm = rest.match(/(\d+(?:\.\d+)?)\s*percent/) || rest.match(/rate (?:of )?(?:interest )?(?:is |of |at )?(\d+(?:\.\d+)?)\b(?!\s*(?:years?|months?|weeks?|days?))/);
-    if (rm) { e.rate = Number(rm[1]); rest = rest.replace(rm[0], ' '); }
-    let years = 0, found = false; const units = {};
-    rest = rest.replace(/(\d+(?:\.\d+)?)\s*(years?|months?|weeks?|days?)\b/g, (m, n, u) => {
-      const v = Number(n); found = true; const k = u.replace(/s$/, ''); units[k] = (units[k] || 0) + v;
-      years += k === 'year' ? v : k === 'month' ? v / 12 : k === 'week' ? v / 52 : v / 365; return ' ';
-    });
-    if (found) { e.years = years; e.units = units; }
-    (rest.match(/\d+(?:\.\d+)?/g) || []).forEach(n => e.amounts.push(Number(n)));
-    e.freq = /halfyearly/.test(t) ? 2 : /quarterly/.test(t) ? 4 : /monthly|every month|each month/.test(t) && /compound/.test(t) ? 12 : /daily|every day/.test(t) && /compound/.test(t) ? 365 : null;
-    e.per = /\b(a|per|every|each) week\b|\bweekly\b/.test(t) ? 'week' : /\b(a|per|every|each) month\b|\bmonthly\b/.test(t) ? 'month' : /\b(a|per|every|each) day\b|\bdaily\b/.test(t) ? 'day' : null;
-    return e;
-  };
-
-  /* ---------- calculators ---------- */
-  const need = (type, have, missing, example) => {
-    ctx.pending = { type, have };
-    const names = { P: 'how much money (principal)', R: 'the interest rate (%)', T: 'how long (years or months)' };
-    return { html: `I can work that out! I just need ${missing.map(m => `<b>${names[m] || m}</b>`).join(' and ')}.<br><small>Try: <i>${example}</i></small>`, plain: 'I need a bit more information.' };
-  };
-  const calc = {};
-  
-  calc.si = ({ P, R, T }, alsoCI = true) => {
-    const si = P * R * T / 100, A = P + si;
-    let html = box('📘 Simple Interest', [
-      `<b>SI = P × R × T ÷ 100</b>`,
-      `P (money you start with) = ${money(P)}`, `R (rate) = ${num(R)}% a year`, `T (time) = ${yearsText(T)}`,
-      `SI = ${num(P)} × ${num(R)} × ${num(T)} ÷ 100 = <b>${money(si)}</b>`,
-      `Total = ${money(P)} + ${money(si)} = <b>${money(A)}</b>`
-    ], `Interest earned: ${money(si)} · Total: ${money(A)}`);
-    html += `<p>${senior() ? 'Simple interest is paid only on the original amount, so it grows by the same amount every year.' : 'Simple interest is the same "thank-you money" every year, only on the money you first put in.'} ${samosas(si)}</p>`;
-    if (alsoCI && T > 0) { 
-      const A2 = P * Math.pow(1 + R / 100, T); 
-      html += `<p class="small">💡 With <b>compound</b> interest (yearly) you'd get ${money(A2 - P)}, which is ${money(A2 - P - si)} more. Ask me "compare SI and CI"!</p>`; 
-    }
-    ctx.last = { type: 'si', P, R, T };
-    return { html, plain: `Simple interest is ${r2(si)} rupees. Total is ${r2(A)} rupees.` };
-  };
-
-  calc.ci = ({ P, R, T, n }) => {
-    n = n || 1; const per = R / 100 / n, N = n * T; const A = P * Math.pow(1 + per, N), ci = A - P, si = P * R * T / 100;
-    const nName = { 1: 'yearly', 2: 'half-yearly', 4: 'quarterly', 12: 'monthly', 365: 'daily' }[n] || n + '× a year';
-    const lines = [`<b>A = P × (1 + R/100${n > 1 ? '/' + n : ''})<sup>${n > 1 ? n + '×T' : 'T'}</sup></b>`,
-      `P = ${money(P)} · R = ${num(R)}% a year · T = ${yearsText(T)} · added ${nName}`];
-    if (Number.isInteger(N) && N <= 8) {
-      let bal = P;
-      for (let i = 1; i <= N; i++) { 
-        const add = bal * per; 
-        bal += add; 
-        lines.push(`${{ 1: 'Year', 2: 'Half-year', 4: 'Quarter', 12: 'Month' }[n] || 'Step'} ${i}: ${money(bal - add)} + ${num(per * 100)}% (${money(add)}) = <b>${money(bal)}</b>`); 
+  // Number words, including common Indian scales. Numeric digits are left untouched.
+  const WORD_NUM = { zero:0, one:1, two:2, three:3, four:4, five:5, six:6, seven:7, eight:8, nine:9,
+    ten:10, eleven:11, twelve:12, thirteen:13, fourteen:14, fifteen:15, sixteen:16, seventeen:17,
+    eighteen:18, nineteen:19, twenty:20, thirty:30, forty:40, fifty:50, sixty:60, seventy:70,
+    eighty:80, ninety:90 };
+  const SCALES = { hundred:100, thousand:1000, lakh:100000, lakhs:100000, lac:100000, lacs:100000,
+    crore:10000000, crores:10000000 };
+  function wordsToDigits(input) {
+    const tokens = String(input).toLowerCase().match(/[a-z]+|\d+(?:\.\d+)?|[^\w\s]+|\s+/g) || [];
+    const out = []; let cur = 0, total = 0, active = false;
+    const flush = () => { if (active) out.push(String(total + cur)); cur = 0; total = 0; active = false; };
+    for (const token of tokens) {
+      if (/^\s+$/.test(token)) { if (active) continue; out.push(token); continue; }
+      if (Object.prototype.hasOwnProperty.call(WORD_NUM, token)) { cur += WORD_NUM[token]; active = true; continue; }
+      if (Object.prototype.hasOwnProperty.call(SCALES, token) && active) {
+        const scale = SCALES[token];
+        if (scale === 100) cur = (cur || 1) * 100;
+        else { total += (cur || 1) * scale; cur = 0; }
+        continue;
       }
-    } else {
-      lines.push(`A = ${num(P)} × (1 + ${num(per)})<sup>${num(N)}</sup> = <b>${money(A)}</b>`);
+      if (token === 'and' && active) continue;
+      flush(); out.push(token);
     }
-    lines.push(`CI = A − P = ${money(A)} − ${money(P)} = <b>${money(ci)}</b>`);
-    let html = box('📗 Compound Interest', lines, `Interest earned: ${money(ci)} · Total: ${money(A)}`);
-    html += `<p>${senior() ? 'Compound interest earns interest on the interest too. The longer you wait, the faster it grows.' : 'Compound interest is like a snowball ⛄: your interest also earns interest, so it grows faster and faster!'}</p>`;
-    html += `<p class="small">Simple interest would give ${money(si)}, so compounding adds <b>${money(ci - si)}</b> extra.</p>`;
-    ctx.last = { type: 'ci', P, R, T, n };
-    return { html, plain: `Compound interest is ${r2(ci)} rupees. Total is ${r2(A)} rupees.` };
+    flush();
+    return out.join('').replace(/\s+/g, ' ').trim();
+  }
+
+  function normalize(raw) {
+    let t = wordsToDigits(String(raw || '').toLowerCase());
+    t = t.replace(/₹/g, ' rs ').replace(/,/g, '');
+    t = t.replace(/\b(?:rupees?|inr|rs\.?)\b/g, ' rs ');
+    t = t.replace(/\bsemi[- ]?annually\b|\bhalf[- ]?year(?:ly)?\b|\btwice a year\b|\bevery six months\b/g, ' halfyearly ');
+    t = t.replace(/\bp\.a\.?\b|\bper annum\b|\bannually\b|\byearly\b/g, ' per year ');
+    t = t.replace(/\bquarter(?:ly)?\b|\bevery three months\b/g, ' quarterly ');
+    t = t.replace(/\bmonthly\b|\bevery month\b/g, ' monthly ');
+    t = t.replace(/\bdaily\b|\bevery day\b/g, ' daily ');
+    t = t.replace(/\bweekly\b|\bevery week\b/g, ' weekly ');
+    t = t.replace(/%/g, ' percent ').replace(/\bpercent(?:age)?\b|\bpct\b/g, ' percent ');
+    t = t.replace(/\bcompund\b|\bcompond\b|\bcoumpound\b/g, ' compound ');
+    t = t.replace(/\bintrest\b|\binterst\b|\bintrst\b/g, ' interest ');
+    return t.replace(/\s+/g, ' ').trim();
+  }
+
+  function parseEntities(t) {
+    let rest = t;
+    const e = { amounts: [], rate: null, years: null, freq: null, period: null, rawTime: null };
+    const rate = rest.match(/(?:at|rate(?: of)?|interest(?: rate)?(?: of| at)?)\s*(\d+(?:\.\d+)?)\s*percent|(\d+(?:\.\d+)?)\s*percent/);
+    if (rate) {
+      e.rate = Number(rate[1] || rate[2]);
+      rest = rest.replace(rate[0], ' ');
+    }
+    const timeRe = /(\d+(?:\.\d+)?)\s*(years?|yrs?|months?|mos?|weeks?|wks?|days?)\b/g;
+    let timeMatch, years = 0, foundTime = false;
+    while ((timeMatch = timeRe.exec(rest))) {
+      const v = Number(timeMatch[1]), u = timeMatch[2];
+      foundTime = true; e.rawTime = e.rawTime || [];
+      e.rawTime.push({ value: v, unit: u });
+      if (/^year|^yr/.test(u)) years += v;
+      else if (/^month|^mo/.test(u)) years += v / 12;
+      else if (/^week|^wk/.test(u)) years += v / 52;
+      else years += v / 365;
+    }
+    if (foundTime) e.years = years;
+    rest = rest.replace(timeRe, ' ');
+    e.freq = /\bhalfyearly\b/.test(t) ? 2 : /\bquarterly\b/.test(t) ? 4 :
+      /\bmonthly\b/.test(t) ? 12 : /\bdaily\b/.test(t) ? 365 : /\bweekly\b/.test(t) ? 52 : null;
+    e.period = /\b(last|previous) week\b/.test(t) ? 'lastWeek' : /\bthis week\b/.test(t) ? 'week' :
+      /\byesterday\b/.test(t) ? 'yesterday' : /\btoday\b/.test(t) ? 'today' :
+      /\b(last|previous) month\b/.test(t) ? 'lastMonth' : /\bthis month\b/.test(t) ? 'month' :
+      /\b(all time|ever|lifetime|total)\b/.test(t) ? 'all' : null;
+    (rest.match(/\d+(?:\.\d+)?/g) || []).forEach(x => e.amounts.push(Number(x)));
+    return e;
+  }
+
+  function missingMath(type, have, keys, example) {
+    ctx.pending = { type, have: Object.assign({}, have), at: Date.now() };
+    const names = { P:'starting amount (principal)', R:'annual interest rate (%)', T:'time period',
+      X:'regular saving amount', N:'number of people or parts' };
+    const list = keys.map(k => `<b>${names[k] || k}</b>`).join(' and ');
+    return answer(`I can calculate that. I still need ${list}.<br><small>Example: <i>${esc(example)}</i></small>`,
+      `I still need ${keys.map(k => names[k] || k).join(' and ')}.`);
+  }
+
+  const M = {
+    simpleInterest(P, R, T) {
+      if (![P,R,T].every(finite) || P < 0 || R < 0 || T < 0) throw new Error('Use non-negative principal, rate and time.');
+      const interest = P * (R / 100) * T;
+      return { interest: round2(interest), amount: round2(P + interest) };
+    },
+    compoundInterest(P, R, T, n = 1) {
+      if (![P,R,T,n].every(finite) || P < 0 || R < 0 || T < 0 || n <= 0) throw new Error('Use non-negative values and a compounding frequency greater than zero.');
+      const periods = n * T;
+      if (periods > 100000) throw new Error('That time/frequency combination is too large to calculate safely.');
+      const amount = P * Math.pow(1 + (R / 100) / n, periods);
+      return { amount: round2(amount), interest: round2(amount - P), periods };
+    },
+    emi(P, annualRate, months) {
+      if (![P,annualRate,months].every(finite) || P < 0 || annualRate < 0 || months <= 0 || !Number.isInteger(months))
+        throw new Error('Enter a non-negative loan amount and annual rate, plus a whole number of months.');
+      const r = annualRate / 1200;
+      const payment = r === 0 ? P / months : P * r / (1 - Math.pow(1 + r, -months));
+      return { payment: round2(payment), total: round2(payment * months), interest: round2(payment * months - P) };
+    },
+    discount(price, pct) {
+      if (![price,pct].every(finite) || price < 0 || pct < 0 || pct > 100) throw new Error('Discount must be between 0% and 100%.');
+      return { saving: round2(price * pct / 100), final: round2(price * (1 - pct / 100)) };
+    },
+    gst(price, pct, inclusive = false) {
+      if (![price,pct].every(finite) || price < 0 || pct < 0 || pct > 100) throw new Error('Enter a non-negative price and a tax rate from 0% to 100%.');
+      if (inclusive) { const base = price / (1 + pct / 100); return { base:round2(base), tax:round2(price-base), total:round2(price) }; }
+      const tax = price * pct / 100; return { base:round2(price), tax:round2(tax), total:round2(price+tax) };
+    },
+    percent(pct, value) { if (![pct,value].every(finite)) throw new Error('Enter valid numbers.'); return round2(pct * value / 100); },
+    percentChange(oldValue, newValue) {
+      if (![oldValue,newValue].every(finite) || oldValue === 0) throw new Error('The starting value must not be zero.');
+      return round2((newValue-oldValue) / Math.abs(oldValue) * 100);
+    },
+    profitLoss(cost, selling) {
+      if (![cost,selling].every(finite) || cost <= 0 || selling < 0) throw new Error('Cost price must be greater than zero; selling price cannot be negative.');
+      const diff = selling - cost;
+      return { kind: diff >= 0 ? 'profit' : 'loss', amount:round2(Math.abs(diff)), pct:round2(Math.abs(diff)/cost*100) };
+    },
+    split(total, people) {
+      if (![total,people].every(finite) || total < 0 || people <= 0 || !Number.isInteger(people)) throw new Error('Enter a non-negative total and a whole number of people greater than zero.');
+      return round2(total / people);
+    },
+    average(values) {
+      if (!values.length || values.some(v => !finite(v))) throw new Error('Enter at least one valid number.');
+      return round2(values.reduce((a,b)=>a+b,0) / values.length);
+    },
+    doubleYears(rate, n = 1) {
+      if (!finite(rate) || rate <= 0 || !finite(n) || n <= 0) throw new Error('The annual rate and compounding frequency must be greater than zero.');
+      return Math.log(2) / (n * Math.log(1 + rate / (100*n)));
+    },
+    inflationPrice(price, rate, years) {
+      if (![price,rate,years].every(finite) || price < 0 || rate <= -100 || years < 0) throw new Error('Use a non-negative price and time, and an inflation rate above -100%.');
+      return round2(price * Math.pow(1 + rate/100, years));
+    },
+    sipFutureValue(payment, annualRate, months) {
+      if (![payment,annualRate,months].every(finite) || payment < 0 || annualRate <= -1200 || months < 0 || !Number.isInteger(months))
+        throw new Error('Enter a non-negative monthly deposit, a valid annual rate, and a whole number of months.');
+      const r = annualRate / 1200;
+      if (months === 0) return 0;
+      return round2(r === 0 ? payment * months : payment * ((Math.pow(1+r, months)-1)/r));
+    }
   };
+  G.coachMath = M;
 
-  calc.compare = ({ P, R, T, n }) => {
-    n = n || 1; const rows = []; const maxT = Math.min(Math.max(1, Math.ceil(T)), 10);
-    for (let y = 1; y <= maxT; y++) { 
-      const s = P * R * y / 100, c = P * Math.pow(1 + R / 100 / n, n * y) - P; 
-      rows.push(`<tr><td>${y}</td><td>${money(P + s)}</td><td>${money(P + c)}</td><td class="plus">+${money(c - s)}</td></tr>`); 
+  function yearText(t) {
+    const months = Math.round(t * 12);
+    return months % 12 === 0 ? plural(months / 12, 'year') : plural(months, 'month');
+  }
+
+  function periodRange(period) {
+    const now = new Date(), start = new Date(now), end = new Date(now);
+    if (period === 'today') start.setHours(0,0,0,0);
+    else if (period === 'yesterday') { start.setDate(start.getDate()-1); start.setHours(0,0,0,0); end.setDate(end.getDate()-1); end.setHours(23,59,59,999); }
+    else if (period === 'week' || period === 'lastWeek') {
+      const day = (start.getDay()+6)%7; start.setHours(0,0,0,0); start.setDate(start.getDate()-day-(period==='lastWeek'?7:0));
+      end.setTime(start.getTime()+7*86400000-1);
+    } else if (period === 'month' || period === 'lastMonth') {
+      start.setDate(1); start.setHours(0,0,0,0);
+      if (period === 'lastMonth') start.setMonth(start.getMonth()-1);
+      end.setTime(start.getTime()); end.setMonth(end.getMonth()+1); end.setMilliseconds(-1);
+    } else return { from:0, to:Infinity, label:'all recorded time' };
+    return { from:start.getTime(), to:end.getTime(), label:({today:'today',yesterday:'yesterday',week:'this week',lastWeek:'last week',month:'this month',lastMonth:'last month'})[period] };
+  }
+  function transactionSummary(raw, kind) {
+    const t = normalize(raw), e = parseEntities(t), period = periodRange(e.period || (/month/.test(t) ? 'month' : /\bweek\b/.test(t) ? 'week' : 'all'));
+    const txns = Array.isArray(G.S.txns) ? G.S.txns : [];
+    let list = txns.filter(x => x && Number(x.date) >= period.from && Number(x.date) <= period.to);
+    const cats = G.CATS || {};
+    const category = Object.keys(cats).find(k => {
+      const name = String(cats[k].n || '').toLowerCase();
+      return new RegExp('\\b' + k.replace(/[.*+?^${}()|[\]\\]/g,'\\$&') + '\\b').test(t) || (name && t.includes(name));
+    });
+    if (kind === 'spent') list = list.filter(x => x.type === 'out');
+    else if (kind === 'income') list = list.filter(x => x.type === 'in');
+    if (category) list = list.filter(x => x.category === category || (x.category === 'asked' && category === 'other'));
+    const total = list.reduce((a,x)=>a+(Number(x.amount)||0),0);
+    const rows = {};
+    list.forEach(x => { const k=x.category || 'other'; rows[k]=(rows[k]||0)+(Number(x.amount)||0); });
+    const label = period.label;
+    if (!list.length) return answer(`I don't see any recorded ${kind === 'spent' ? 'spending' : 'income'} for ${label}. I won't guess unrecorded amounts.`,
+      `No recorded ${kind} for ${label}.`);
+    const top = Object.entries(rows).sort((a,b)=>b[1]-a[1])[0];
+    const topName = top ? ((cats[top[0]] && cats[top[0]].n) || top[0]) : '';
+    return answer(box(kind === 'spent' ? '💸 Recorded spending' : '💰 Recorded money in',
+      [`Period: ${label}`, `Transactions counted: ${list.length}`, category ? `Category: ${esc((cats[category] && cats[category].n) || category)}` : `Largest category: ${esc(topName)} (${money(top[1])})`],
+      `Total recorded: ${money(total)}`),
+      `You have ${kind === 'spent' ? 'spent' : 'received'} ${round2(total)} rupees ${label}.`);
+  }
+
+  function findCategory(t) {
+    const cats = G.CATS || {};
+    for (const [id, c] of Object.entries(cats)) {
+      const n = String(c.n || '').toLowerCase();
+      if (new RegExp('\\b' + id.replace(/[.*+?^${}()|[\]\\]/g,'\\$&') + '\\b').test(t) || (n && t.includes(n))) return id;
     }
-    const s = P * R * T / 100, c = P * Math.pow(1 + R / 100 / n, n * T) - P;
-    const html = `<div class="calc"><div class="calc-t">⚖️ Simple vs Compound: ${money(P)} at ${num(R)}%</div>
-      <table class="calc-tab"><tr><th>Year</th><th>Simple</th><th>Compound</th><th>Extra</th></tr>${rows.join('')}</table>
-      <div class="calc-r">After ${yearsText(T)}: SI ${money(s)} vs CI ${money(c)} → compound wins by ${money(c - s)}</div></div>
-      <p>${senior() ? 'SI grows in a straight line; CI curves upward because each year\'s interest joins the principal.' : 'See how compound pulls ahead every year? That\'s why starting to save early is a superpower! 🦸'}</p>`;
-    ctx.last = { type: 'compare', P, R, T, n };
-    return { html, plain: `After ${T} years, simple interest gives ${r2(s)} and compound gives ${r2(c)} rupees.` };
-  };
-
-  calc.emi = ({ P, R, T }) => {
-    const N = Math.round(T * 12), r = R / 12 / 100;
-    const emi = r === 0 ? P / N : P * r * Math.pow(1 + r, N) / (Math.pow(1 + r, N) - 1); const tot = emi * N;
-    const html = box('🏦 Loan EMI (monthly payment)', [`<b>EMI = P × r × (1+r)<sup>N</sup> ÷ ((1+r)<sup>N</sup> − 1)</b>`,
-      `P = ${money(P)} · r = ${num(R)}% ÷ 12 = ${num(r * 100)}% a month · N = ${N} months`,
-      `EMI = <b>${money(emi)}</b> every month`, `You pay back ${money(tot)} in total, so <b>${money(tot - P)}</b> is interest`],
-      `${money(emi)} a month for ${N} months`) + `<p>${senior() ? 'Borrowing costs money: here the extra is the bank\'s charge for lending to you.' : 'A loan means paying back MORE than you borrowed. Saving first is cheaper!'}</p>`;
-    ctx.last = { type: 'emi', P, R, T };
-    return { html, plain: `The EMI is ${r2(emi)} rupees a month. Total interest is ${r2(tot - P)} rupees.` };
-  };
-
-  calc.double = ({ R }) => {
-    const rule = 72 / R, exact = Math.log(2) / Math.log(1 + R / 100);
-    const html = box('⏱️ How long to double?', [`<b>Rule of 72:</b> 72 ÷ ${num(R)} ≈ <b>${num(rule)} years</b>`, `Exact (compound yearly): ${num(exact)} years`],
-      `At ${num(R)}% a year, money doubles in about ${num(Math.round(exact * 10) / 10)} years`) +
-      `<p>${senior() ? 'The Rule of 72 is a quick mental shortcut bankers use.' : 'Magic trick: divide 72 by the rate to guess how long money takes to double! 🪄'}</p>`;
-    ctx.last = { type: 'double', R };
-    return { html, plain: `At ${R} percent, money doubles in about ${Math.round(exact * 10) / 10} years.` };
-  };
-
-  calc.inflation = ({ P, R, T }) => {
-    const f = P * Math.pow(1 + R / 100, T), buys = 100 / Math.pow(1 + R / 100, T);
-    const html = box('🎈 Inflation', [`<b>Future price = Price × (1 + R/100)<sup>T</sup></b>`, `${money(P)} × (1 + ${num(R / 100)})<sup>${num(T)}</sup> = <b>${money(f)}</b>`,
-      `So ₹100 then will buy only what <b>${money(buys)}</b> buys today`], `In ${yearsText(T)}, ${money(P)} of stuff will cost about ${money(f)}`) +
-      `<p>That's why money sitting still slowly loses power. Savings should grow faster than inflation!</p>`;
-    ctx.last = { type: 'inflation', P, R, T };
-    return { html, plain: `It will cost about ${r2(f)} rupees.` };
-  };
-
-  calc.plan = ({ X, per, T, units, target }) => {
-    const perN = { week: 52, month: 12, day: 365 }[per];
-    if (target && !T) {
-      const k = Math.ceil(target / X); const when = new Date(G.now() + k * (per === 'week' ? 7 : per === 'month' ? 30 : 1) * G.DAY);
-      return { html: box('🎯 Savings plan', [`Goal ${money(target)} ÷ ${money(X)} a ${per} = ${num(target / X)}`, `Round up → <b>${plural(k, per)}</b>`],
-        `You'll reach ${money(target)} in ${plural(k, per)} (around ${when.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })})`), plain: `It will take ${k} ${per}s.` };
-    }
-    const periods = units && units[per] != null && Object.keys(units).length === 1 ? units[per] : Math.round(T * perN);
-    const total = X * periods; const match = Number(G.S.settings && G.S.settings.matchPct) || 0;
-    return { html: box('🐷 Savings plan', [`${money(X)} × ${plural(periods, per)} = <b>${money(total)}</b>`,
-      match ? `With your grown-up's ${match}% match: <b>${money(total * (1 + match / 100))}</b>` : `Tip: ask a grown-up for a savings match to grow it faster!`],
-      `You'll have ${money(total)}`) + `<p>${samosas(total)}</p>`, plain: `You will have ${r2(total)} rupees.` };
-  };
-
-  /* ---------- money dictionary ---------- */
-  const KB = [
-    { id: 'si', keys: ['simple interest', 'si'], t: 'Simple interest', k: 'When you keep money in a bank, it pays you a little extra called interest. With <b>simple interest</b> you get the same extra every year, only on the money you first put in.', s: 'Interest calculated only on the principal: SI = P × R × T ÷ 100. It grows linearly.', ex: 'SI on 1000 at 5% for 3 years' },
-    { id: 'ci', keys: ['compound interest', 'ci', 'compounding', 'power of compounding', 'compound'], t: 'Compound interest', k: 'With <b>compound interest</b>, the interest you earn gets added to your money, and next time you earn interest on that too. It grows like a snowball ⛄!', s: 'Interest on principal plus accumulated interest: A = P(1 + r/n)<sup>nt</sup>. Growth is exponential, so time matters most.', ex: 'CI on 5000 at 10% for 2 years' },
-    { id: 'sivsci', keys: ['difference between si and ci', 'si vs ci', 'simple vs compound', 'compound vs simple', 'si and ci', 'simple and compound'], t: 'Simple vs compound', k: 'Simple interest pays the same every year. Compound interest pays interest on the interest, so it gets bigger every year and wins over time!', s: 'SI is linear (P·R·T/100); CI compounds (P(1+r)<sup>t</sup> − P). The gap widens with time and rate.', ex: 'compare SI and CI on 1000 at 10% for 5 years' },
-    { id: 'interest', keys: ['interest', 'interest rate', 'rate of interest'], t: 'Interest', k: '<b>Interest</b> is a "thank-you" payment for using money. A bank pays YOU interest when you save, and YOU pay interest when you borrow.', s: 'The price of money over time, usually a % per year. Savers earn it; borrowers pay it.', ex: 'interest on 2000 at 6% for 2 years' },
-    { id: 'principal', keys: ['principal'], t: 'Principal', k: 'The <b>principal</b> is the money you start with, before any interest is added.', s: 'The original sum deposited or borrowed, on which interest is calculated.' },
-    { id: 'inflation', keys: ['inflation', 'prices go up', 'price rise'], t: 'Inflation', k: '<b>Inflation</b> means prices slowly go up over the years. A samosa that cost ₹5 long ago costs ₹20 now!', s: 'The general rise in prices over time, which reduces what each rupee can buy. India\'s target is about 4% a year.', ex: 'inflation on 100 at 6% for 10 years' },
-    { id: 'budget', keys: ['budget', 'budgeting'], t: 'Budget', k: 'A <b>budget</b> is a plan for your money: how much to spend, how much to save and how much to share, BEFORE you spend it.', s: 'A spending plan. A popular rule is 50/30/20: needs / wants / savings.' },
-    { id: 'saving', keys: ['saving', 'savings', 'why save', 'why should i save'], t: 'Saving', k: '<b>Saving</b> means keeping some money for later instead of spending it now, so you can buy bigger dreams and be ready for surprises.', s: 'Setting aside income for future goals or emergencies. "Pay yourself first": save before you spend.' },
-    { id: 'needwant', keys: ['need and want', 'needs and wants', 'need vs want', 'needs vs wants', 'need or want'], t: 'Needs vs wants', k: 'A <b>need</b> is something you must have (food, school books, medicine). A <b>want</b> is nice to have (toys, games, sweets).', s: 'Needs are essentials; wants are discretionary. Cover needs first, then decide on wants.' },
-    { id: 'loan', keys: ['loan', 'borrow', 'borrowing'], t: 'Loan', k: 'A <b>loan</b> is money you borrow and must give back later, usually with extra money called interest.', s: 'Borrowed money repaid over time with interest. The total cost is always more than the amount borrowed.', ex: 'EMI on 100000 at 10% for 2 years' },
-    { id: 'emi', keys: ['emi', 'instalment', 'installment'], t: 'EMI', k: '<b>EMI</b> means "Equated Monthly Instalment": paying back a loan in equal parts every month.', s: 'A fixed monthly loan repayment covering both principal and interest.', ex: 'EMI on 50000 at 12% for 1 year' },
-    { id: 'debt', keys: ['debt'], t: 'Debt', k: '<b>Debt</b> is money you owe someone. Too much debt is like a heavy backpack 🎒: it slows you down.', s: 'Money owed. Good debt can build assets (education); bad debt funds consumption at high interest.' },
-    { id: 'credit', keys: ['credit card'], t: 'Credit card', k: 'A <b>credit card</b> lets grown-ups buy now and pay the bank later. If they don\'t pay on time, the bank charges a LOT of interest.', s: 'Short-term borrowing. Paying the full bill on time is free; carrying a balance costs ~36–42% a year in India.' },
-    { id: 'debit', keys: ['debit card', 'atm card'], t: 'Debit card', k: 'A <b>debit card</b> spends money that is already in your bank account. No borrowing!', s: 'A card linked to your bank balance; spending is deducted immediately.' },
-    { id: 'bank', keys: ['bank', 'bank account', 'savings account'], t: 'Bank account', k: 'A <b>bank account</b> is a super-safe gullak run by a bank. It keeps your money safe and pays you a little interest.', s: 'A deposit account; savings accounts in India typically pay ~2.5–4% a year and are insured up to ₹5 lakh by DICGC.' },
-    { id: 'fd', keys: ['fixed deposit', 'fd'], t: 'Fixed deposit (FD)', k: 'An <b>FD</b> is when you lock money in a bank for a fixed time. You can\'t touch it, but you get more interest!', s: 'A term deposit with a fixed rate and tenure; usually compounded quarterly.', ex: 'CI on 10000 at 7% for 3 years compounded quarterly' },
-    { id: 'rd', keys: ['recurring deposit', 'rd'], t: 'Recurring deposit (RD)', k: 'An <b>RD</b> is when you put a small fixed amount in the bank every month, and it grows with interest.', s: 'Monthly fixed deposits for a set tenure, building a disciplined savings habit.' },
-    { id: 'sip', keys: ['sip', 'systematic investment plan'], t: 'SIP', k: 'A <b>SIP</b> is putting a small amount into investments every month, like feeding your gullak on a schedule.', s: 'Systematic Investment Plan: regular fixed investments into a mutual fund, averaging out market ups and downs.' },
-    { id: 'mf', keys: ['mutual fund'], t: 'Mutual fund', k: 'A <b>mutual fund</b> is when lots of people put money together and an expert invests it in many companies for them.', s: 'A pooled investment managed professionally, diversified across stocks and/or bonds.' },
-    { id: 'stock', keys: ['stock', 'stock market', 'shares', 'share market', 'sensex', 'nifty'], t: 'Stocks / shares', k: 'A <b>share</b> is a tiny piece of a company. If the company does well, your piece can become worth more!', s: 'Equity ownership in a company. Higher long-term returns than deposits, but prices go up and down.' },
-    { id: 'invest', keys: ['invest', 'investing', 'investment'], t: 'Investing', k: '<b>Investing</b> means putting money somewhere it can grow, like planting a seed 🌱 that becomes a tree.', s: 'Allocating money to assets expected to grow (stocks, funds, bonds) to beat inflation over time.' },
-    { id: 'risk', keys: ['risk', 'risky'], t: 'Risk', k: '<b>Risk</b> means the chance of losing some money. Things that can grow a lot can also fall a lot.', s: 'The uncertainty of returns. Higher expected return usually means higher risk; diversify to reduce it.' },
-    { id: 'insurance', keys: ['insurance'], t: 'Insurance', k: '<b>Insurance</b> is paying a small amount regularly so that if something bad happens, the company helps pay the big cost.', s: 'Risk transfer: small premiums protect against large, unlikely losses (health, life, vehicle).' },
-    { id: 'tax', keys: ['tax', 'taxes', 'income tax'], t: 'Tax', k: '<b>Tax</b> is money people give the government to build roads, schools and hospitals for everyone.', s: 'Compulsory payments to government: direct (income tax) and indirect (GST).' },
-    { id: 'gst', keys: ['gst'], t: 'GST', k: '<b>GST</b> is a tax added to the price of things you buy. Part of what you pay goes to the government.', s: 'Goods and Services Tax, with slabs of 0/5/12/18/28% in India.', ex: 'GST on 500 at 18%' },
-    { id: 'profit', keys: ['profit', 'loss', 'profit and loss'], t: 'Profit & loss', k: 'If you sell something for MORE than you paid, that\'s a <b>profit</b>. If you sell for less, that\'s a <b>loss</b>.', s: 'Profit = Selling price − Cost price; Profit % = Profit ÷ Cost × 100.', ex: 'bought for 200 sold for 250' },
-    { id: 'discount', keys: ['discount', 'sale', 'offer'], t: 'Discount', k: 'A <b>discount</b> means the price is cut. 20% off ₹100 means you pay ₹80.', s: 'Reduction from the marked price: Sale price = MP × (1 − d/100).', ex: '20 percent discount on 1500' },
-    { id: 'percent', keys: ['percent', 'percentage'], t: 'Percent', k: '<b>Percent</b> means "out of 100". 10% of ₹200 = ₹20.', s: 'A ratio per hundred: x% of y = x × y ÷ 100.', ex: 'what is 15 percent of 800' },
-    { id: 'emergency', keys: ['emergency fund', 'emergency'], t: 'Emergency fund', k: 'An <b>emergency fund</b> is money kept aside only for surprises, like a broken bicycle or a lost bus pass.', s: 'Savings covering 3–6 months of expenses, kept liquid for unexpected events.' },
-    { id: 'rule72', keys: ['rule of 72', 'double my money', 'doubling'], t: 'Rule of 72', k: 'The <b>Rule of 72</b>: divide 72 by the interest rate to guess how many years money takes to double!', s: 'Years to double ≈ 72 ÷ annual rate (%). Accurate for rates of about 4–15%.', ex: 'how long to double money at 8%' },
-    { id: 'opportunity', keys: ['opportunity cost'], t: 'Opportunity cost', k: '<b>Opportunity cost</b> is what you give up when you choose something. Buying a game means NOT buying that football.', s: 'The value of the next-best alternative forgone when making a choice.' },
-    { id: 'impulse', keys: ['impulse buying', 'impulse'], t: 'Impulse buying', k: '<b>Impulse buying</b> is buying something suddenly without thinking. The Cool-down Jar 🧊 in Gullak helps stop it!', s: 'Unplanned purchases driven by emotion. A waiting period reduces regret.' },
-    { id: 'scam', keys: ['scam', 'fraud', 'otp', 'pin', 'my pin', 'password', 'cvv', 'phishing', 'hacker', 'stranger asked', 'asked for my'], t: 'Staying safe from scams', k: '🚨 NEVER share a PIN, OTP or password with anyone, even if they say they\'re from a bank. Tell a grown-up right away!', s: 'Banks never ask for OTP/PIN. Verify callers, avoid unknown links, and report fraud to 1930 (India\'s cyber-crime helpline).' },
-    { id: 'upi', keys: ['upi', 'gpay', 'paytm', 'phonepe'], t: 'UPI', k: '<b>UPI</b> lets grown-ups send money instantly using a phone. It\'s real money, so only grown-ups should use it. Gullak uses pretend money only!', s: 'Unified Payments Interface: instant bank-to-bank transfers in India via a UPI ID or QR code.' },
-    { id: 'income', keys: ['income', 'salary', 'earn', 'earning'], t: 'Income', k: '<b>Income</b> is money that comes in: pocket money, gifts or money you earn by helping.', s: 'Money received from work, business, investments or gifts.' },
-    { id: 'expense', keys: ['expense', 'expenses', 'spending'], t: 'Expense', k: 'An <b>expense</b> is money that goes out when you buy something.', s: 'Money spent. Track expenses to see where your money goes. That\'s exactly what Gullak does!' },
-    { id: 'asset', keys: ['asset', 'assets', 'liability', 'liabilities', 'net worth'], t: 'Assets, liabilities & net worth', k: 'An <b>asset</b> is something valuable you own; a <b>liability</b> is money you owe. <b>Net worth</b> = what you own − what you owe.', s: 'Net worth = assets − liabilities. Grow assets, limit liabilities.' },
-    { id: 'charity', keys: ['donate', 'donation', 'charity', 'sharing money'], t: 'Giving', k: 'Giving a little to help others feels great 💛. Many families use 3 jars: Spend, Save and Share.', s: 'Charitable giving is part of healthy money habits; some donations also reduce tax (80G in India).' },
-    { id: 'money', keys: ['what is money', 'why money', 'barter', 'history of money'], t: 'What is money?', k: 'Long ago people swapped things (that\'s <b>barter</b>): a goat for rice! Money made swapping easy, because everyone agrees it has value.', s: 'Money is a medium of exchange, unit of account and store of value, backed in India by the RBI.' },
-    { id: 'rbi', keys: ['rbi', 'reserve bank'], t: 'RBI', k: 'The <b>RBI</b> (Reserve Bank of India) is the bank for all banks. It prints our rupee notes and keeps money safe.', s: 'India\'s central bank: issues currency, sets the repo rate and regulates banks.' },
-    { id: 'delayed', keys: ['delayed gratification', 'patience', 'wait to buy'], t: 'Waiting to buy', k: 'Waiting before buying (<b>delayed gratification</b>) is a money superpower. Often you don\'t even want it later!', s: 'Choosing a larger later reward over a smaller immediate one. It is strongly linked to financial success.' }
-  ];
-
-  const lev = (a, b) => { const m = a.length, n = b.length; if (Math.abs(m - n) > 2) return 9; const d = Array.from({ length: m + 1 }, (_, i) => [i]); for (let j = 1; j <= n; j++) d[0][j] = j;
-    for (let i = 1; i <= m; i++) for (let j = 1; j <= n; j++) d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)); return d[m][n]; };
-  const findConcept = (t) => {
-    const scam = KB.find(c => c.id === 'scam');
-    if (scam.keys.some(k => new RegExp('\\b' + k.replace(/ /g, '\\s+') + '\\b').test(t))) return scam;
-    let best = null, bestLen = 0;
-    KB.forEach(c => c.keys.forEach(k => { if (new RegExp('\\b' + k.replace(/ /g, '\\s+') + '\\b').test(t) && k.length > bestLen) { best = c; bestLen = k.length; } }));
-    if (best) return best;
-    const words = t.trim().split(' ').filter(w => w.length >= 5);
-    KB.forEach(c => c.keys.filter(k => !k.includes(' ') && k.length >= 5).forEach(k => words.forEach(w => { if (!best && lev(w, k) <= (k.length >= 8 ? 2 : 1)) best = c; })));
-    return best;
-  };
-  const explain = (c) => {
-    const html = `<b>📚 ${c.t}</b><br>${senior() ? c.s + '<br><small>' + c.k + '</small>' : c.k}${c.ex ? `<div class="mt"><button class="chip" data-act="chat-say" data-t="${esc(c.ex)}">🧮 Try: ${esc(c.ex)}</button></div>` : ''}`;
-    ctx.last = Object.assign({}, ctx.last || {}, { concept: c.id });
-    return { html, plain: c.t + '. ' + (senior() ? c.s : c.k) };
-  };
-
-  /* ---------- the brain ---------- */
-  const DEF = /\b(what|whats|wat|explain|define|definition|meaning|tell me about|teach me|how does|how do|how to|how can|why|difference|what does|what are|means?|is it|should i|is a|are)\b/;
-  G.brain = (raw) => {
-    const t = G.normalizeQ(raw); const e = G.entities(t);
-    const A = e.amounts; const has = (re) => re.test(t);
-    const SI = has(/\bsimple interest\b|\bsimple\b.*\binterest\b|\bs\.?\s?i\b/), CI = has(/\bcompound(ed|ing)?\b|\bc\.?\s?i\b/);
-    const followUp = has(/^\s*(and|what about|what if|how about|if|now|then|instead|make it|change)\b/) || (t.trim().split(' ').length <= 5 && (e.years != null || e.rate != null) && !A.length);
-
-    if (has(/\b(what can you do|help me|what do you know|commands|abilities)\b/)) return { html: `I can help with: <ul><li>📝 Writing down money: <i>"I spent 40 on ice cream"</i></li><li>🙋 <i>"Can I buy a ₹300 toy?"</i></li><li>🧮 Maths: <i>"SI on 1000 at 5% for 3 years"</i>, <i>"CI on 5000 at 10% for 2 years half-yearly"</i>, <i>"EMI on 50000 at 12% for 1 year"</i>, <i>"20% discount on 1500"</i></li><li>🎯 Plans: <i>"If I save 50 a week, when will I have 2000?"</i></li><li>📚 Words: <i>"What is inflation?"</i>, <i>"What is a SIP?"</i></li></ul>`, plain: 'I can write down money, answer can I buy questions, do money maths, and explain money words.' };
-
-    let base = null;
-    if (ctx.pending && (A.length || e.rate != null || e.years != null)) { base = Object.assign({ type: ctx.pending.type }, ctx.pending.have); ctx.pending = null; }
-    else if (ctx.last && ctx.last.type && followUp && !has(/\b(spent|bought|got|can i)\b/)) base = Object.assign({}, ctx.last);
-    if (base && SI && !CI) base.type = 'si'; if (base && CI && !SI) base.type = 'ci';
-    if (base && has(/compare|both|vs|versus/)) base.type = 'compare';
-
-    const wantsCalc = A.length || e.rate != null || e.years != null;
-    const emiQ = has(/\bemi\b|monthly (payment|instalment)/) || (base && base.type === 'emi');
-    if (emiQ && (wantsCalc || base)) {
-      const P = A[0] || (base && base.P), R = e.rate != null ? e.rate : base && base.R, T = e.years || (base && base.T);
-      const missing = []; if (!(P > 0)) missing.push('P'); if (R == null || !(R >= 0)) missing.push('R'); if (!(T > 0)) missing.push('T');
-      if (missing.length) return need('emi', { P, R, T }, missing, 'EMI on 50000 at 12% for 1 year');
-      return calc.emi({ P, R, T });
-    }
-    if ((has(/\bdoubl(e|ing)\b/) || (base && base.type === 'double')) && (e.rate != null || (base && base.R))) return calc.double({ R: e.rate != null ? e.rate : base.R });
-    if (has(/\binflation\b/) && A.length && e.rate != null && e.years) return calc.inflation({ P: A[0], R: e.rate, T: e.years });
-
-    const interestish = SI || CI || has(/\binterest\b/) || (base && ['si', 'ci', 'compare'].includes(base.type));
-    if (interestish && (wantsCalc || base)) {
-      const type = base ? base.type : (SI && CI) || has(/compare|difference|vs|versus|both/) ? 'compare' : CI ? 'ci' : 'si';
-      const P = A.length ? A[0] : base && base.P, R = e.rate != null ? e.rate : (A.length > 1 && A[1] <= 50 && !e.rate ? A[1] : base && base.R), T = e.years != null ? e.years : base && base.T;
-      const n = e.freq || (base && base.n) || (has(/\bmonthly\b/) && type !== 'si' ? 12 : null);
-      const missing = []; if (!(P > 0)) missing.push('P'); if (!(R > 0)) missing.push('R'); if (!(T > 0)) missing.push('T');
-      if (missing.length) return need(type, { P, R, T, n }, missing, type === 'ci' ? 'CI on 5000 at 10% for 2 years' : 'SI on 1000 at 5% for 3 years');
-      if (P > 1e12 || R > 1000 || T > 200) return { html: 'Whoa, those numbers are HUGE! 😅 Try something smaller, like ₹1000 at 5% for 3 years.', plain: 'Those numbers are too big.' };
-      return calc[type]({ P, R, T, n });
-    }
-
-    let m;
-    if ((m = t.match(/(\d+(?:\.\d+)?) percent (?:of|on) (\d+(?:\.\d+)?)/)) && !has(/discount|off\b|gst|tax|interest/)) {
-      const p = Number(m[1]), v = Number(m[2]); const r = p * v / 100;
-      return { html: box('🔢 Percent', [`${num(p)}% of ${num(v)} = ${num(p)} × ${num(v)} ÷ 100`], `= ${num(r)}`) + `<p class="small">Percent means "out of 100".</p>`, plain: `${p} percent of ${v} is ${r2(r)}.` };
-    }
-    if ((m = t.match(/what (?:percent|part) is (\d+(?:\.\d+)?) (?:of|out of) (\d+(?:\.\d+)?)/)) || (m = t.match(/(\d+(?:\.\d+)?) (?:is what percent|out of) (?:of )?(\d+(?:\.\d+)?)/))) {
-      const a = Number(m[1]), b = Number(m[2]); const r = a / b * 100;
-      return { html: box('🔢 Percent', [`${num(a)} ÷ ${num(b)} × 100`], `= ${num(r)}%`), plain: `${r2(r)} percent.` };
-    }
-    if (has(/discount|\boff\b|sale price/) && e.rate != null && A.length) {
-      const P = A[0], d = e.rate; const cut = P * d / 100;
-      return { html: box('🏷️ Discount', [`Price ${money(P)} · discount ${num(d)}%`, `Discount = ${num(P)} × ${num(d)} ÷ 100 = ${money(cut)}`], `You pay ${money(P - cut)} (you save ${money(cut)})`) + `<p>${samosas(cut) ? 'Saving ' + samosas(cut).replace("That's", 'that\'s') : ''}</p>`, plain: `You pay ${r2(P - cut)} rupees.` };
-    }
-    if (has(/\bgst\b|\btax\b/) && A.length && e.rate != null) {
-      const P = A[0], g = e.rate, tax = P * g / 100;
-      return { html: box('🧾 GST', [`Price ${money(P)} · GST ${num(g)}%`, `GST = ${num(P)} × ${num(g)} ÷ 100 = ${money(tax)}`], `Total to pay: ${money(P + tax)}`), plain: `Total is ${r2(P + tax)} rupees.` };
-    }
-    if ((m = t.match(/(?:bought|cost price|cp|buy)\D{0,20}(\d+(?:\.\d+)?)\D{1,30}(?:sold|selling price|sp|sell)\D{0,20}(\d+(?:\.\d+)?)/))) {
-      const cp = Number(m[1]), sp = Number(m[2]), d = sp - cp; const pct = d / cp * 100;
-      return { html: box(d >= 0 ? '📈 Profit' : '📉 Loss', [`Selling price − cost price = ${money(sp)} − ${money(cp)} = ${money(d)}`, `${d >= 0 ? 'Profit' : 'Loss'} % = ${money(Math.abs(d))} ÷ ${money(cp)} × 100 = ${num(Math.abs(pct))}%`], `${d >= 0 ? 'Profit' : 'Loss'} of ${money(Math.abs(d))} (${num(Math.abs(pct))}%)`), plain: `${d >= 0 ? 'Profit' : 'Loss'} of ${r2(Math.abs(d))} rupees.` };
-    }
-    if (has(/\b(split|share|divide)\b/) && A.length && (m = t.match(/(?:between|among|amongst|by|with) (\d+)|(\d+) (?:friends|people|kids|ways|of us)/))) {
-      const total = A[0], k = Number(m[1] || m[2]); const each = total / k;
-      return { html: box('🍕 Splitting', [`${money(total)} ÷ ${k} = ${money(each)}`], `Each person pays ${money(each)}`), plain: `Each pays ${r2(each)} rupees.` };
-    }
-    if ((m = t.match(/how many (samosas?|ice ?creams?|chocolates?|chores?|pani ?puri|movie tickets?)/)) && A.length) {
-      const id = /samosa/.test(m[1]) ? 'samosa' : /ice/.test(m[1]) ? 'icecream' : /choc/.test(m[1]) ? 'choc' : /chore/.test(m[1]) ? 'chore' : /pani/.test(m[1]) ? 'panipuri' : 'movie';
-      const u = G.inUnits(A[0], id); return { html: `${money(A[0])} = <b>${u.text}</b> ${G.emojiRow(u.n, u.e, 12)}`, plain: `${A[0]} rupees is ${u.text}.` };
-    }
-
-    if ((m = t.match(/how much (?:should|do|must|can|to|will) (?:i )?(?:need to )?save (?:a|per|each|every) (week|month|day) (?:to|for) (?:get|reach|buy|have|collect)?\s*(?:a |an |my )?(?:rs )?(\d+(?:\.\d+)?)/)) && e.years) {
-      const per = m[1], target = Number(m[2]); const unitsN = e.units && Object.keys(e.units).length === 1 && e.units[per] != null ? e.units[per] : null;
-      const periods = Math.max(1, unitsN || Math.round(e.years * { week: 52, month: 12, day: 365 }[per]));
-      return { html: box('🎯 Savings plan', [`${money(target)} ÷ ${plural(periods, per)} = ${money(target / periods)}`], `Save ${money(Math.ceil(target / periods))} every ${per}`), plain: `Save ${Math.ceil(target / periods)} rupees every ${per}.` };
-    }
-    const X = A.length ? A[0] : null;
-    if (e.per && X && has(/\bsave|saving|put away|keep\b/) && !has(/\binterest\b/) && !has(/^\s*how much (should|do|must|can|to|will)/)) {
-      const tg = t.match(/(?:reach|get to|have|for|buy|target|goal of|collect)\s+(?:a |an |my )?(?:rs )?(\d+(?:\.\d+)?)/);
-      const target = A.length > 1 ? A[1] : tg ? Number(tg[1]) : null;
-      if (e.years) return calc.plan({ X, per: e.per, T: e.years, units: e.units });
-      if (target && target !== X) return calc.plan({ X, per: e.per, target });
-      const g = G.activeGoal(); if (g) { const left = Math.max(0, g.target - G.goalSaved(g.id)); return calc.plan({ X, per: e.per, target: left }); }
-    }
-
-    const c = findConcept(t);
-    if (c && (c.id === 'scam' || DEF.test(t) || t.trim().split(' ').length <= 4)) return explain(c);
+    const aliases = { snack:'snacks', food:'snacks', icecream:'snacks', ice:'snacks', toy:'toys', toys:'toys',
+      game:'games', games:'games', book:'school', books:'school', bus:'travel', auto:'travel', movie:'fun' };
+    for (const [word,id] of Object.entries(aliases)) if (new RegExp('\\b'+word+'\\b').test(t)) return id;
     return null;
+  }
+
+  function moneyContext() {
+    const balance = Number(G.balance()) || 0;
+    const inDreams = Number(G.totalInGoals()) || 0;
+    const pending = (G.S.requests || []).filter(r => r.status === 'pending');
+    const pendingTotal = pending.reduce((a,r)=>a+(Number(r.kidPays)||0),0);
+    return { balance, inDreams, pending, pendingTotal };
+  }
+
+  function spendAnswer(raw, t, e, askAdvice) {
+    const nums = e.amounts;
+    const price = nums[0];
+    const { balance, inDreams, pending, pendingTotal } = moneyContext();
+    if (!finite(price) || price < 0) return answer('What price are you thinking about? For example: <i>Should I spend ₹300 on a toy?</i>', 'What price are you thinking about?');
+    const item = (raw.match(/\b(?:on|for|buy)\s+(.+?)(?:\?|$)/i) || [])[1] || 'this';
+    const remaining = balance - price;
+    const g = G.activeGoal();
+    const canCover = price <= balance;
+    const details = [
+      `Recorded spendable balance: ${money(balance)}`,
+      `Proposed price: ${money(price)}`,
+      `After buying: ${money(remaining)}`,
+      `Already set aside in dreams: ${money(inDreams)} (not included in spendable balance)`
+    ];
+    if (pending.length) details.push(`Pending grown-up asks: ${pending.length} (${money(pendingTotal)} requested by you; not deducted until approved)`);
+    if (g) details.push(`Current dream: ${esc(g.name)} — ${money(Math.max(0, g.target - G.goalSaved(g.id)))} still needed`);
+    const note = canCover
+      ? 'The recorded balance can cover this price, but that alone does not mean it is the right choice. Check whether it is a need, whether you have upcoming plans, and whether you still want it after a short wait.'
+      : `The recorded balance is short by ${money(price-balance)}. Gullak does not count future pocket money as money you have today.`;
+    const html = box(askAdvice ? '🤔 Purchase check' : '🧮 Affordability check', details, canCover ? 'The recorded balance covers the price.' : 'The recorded balance does not cover the full price.') +
+      `<p>${note}</p><p class="small">I can only see transactions and goals recorded in this Gullak. Upcoming expenses outside the app may not be included. Ask a trusted grown-up before making a real-money decision.</p>`;
+    return answer(html, `${canCover ? 'Your recorded balance covers' : 'Your recorded balance does not cover'} ${money(price)}. ${note}`);
+  }
+
+  function calculateInterest(type, params) {
+    const { P, R, T, n=1 } = params;
+    const missing = []; if (!(P > 0)) missing.push('P'); if (!(R >= 0)) missing.push('R'); if (!(T > 0)) missing.push('T');
+    if (missing.length) return missingMath(type, params, missing, type === 'ci' ? 'CI on 5000 at 8% for 3 years monthly' : 'SI on 5000 at 8% for 3 years');
+    if (P > 1e12 || R > 1000 || T > 200) return invalid('Those values are outside this learning calculator range. Try a smaller example.');
+    if (type === 'si') {
+      const x=M.simpleInterest(P,R,T);
+      return answer(box('📘 Simple interest', [
+        '<b>SI = P × R × T ÷ 100</b>', `P = ${money(P)}`, `R = ${number(R)}% per year`, `T = ${yearText(T)}`,
+        `SI = ${money(P)} × ${number(R)} × ${number(T)} ÷ 100 = <b>${money(x.interest)}</b>`,
+        `Final amount = principal + interest = <b>${money(x.amount)}</b>`
+      ], `Interest: ${money(x.interest)} · Final amount: ${money(x.amount)}`),
+      `Simple interest is ${x.interest} rupees. The final amount is ${x.amount} rupees.`);
+    }
+    if (type === 'ci' || type === 'compare') {
+      const c=M.compoundInterest(P,R,T,n), s=M.simpleInterest(P,R,T);
+      const label={1:'yearly',2:'half-yearly',4:'quarterly',12:'monthly',52:'weekly',365:'daily'}[n] || `${n} times a year`;
+      const rows=[
+        `P = ${money(P)} · annual nominal rate = ${number(R)}% · time = ${yearText(T)}`,
+        `Compounding: ${label} (${n} periods per year)`,
+        `A = P × (1 + R/(100n))<sup>nT</sup>`,
+        `Compound interest = A − P = <b>${money(c.interest)}</b>`,
+        `Simple interest for comparison = ${money(s.interest)}`
+      ];
+      if (type==='compare') rows.push(`Difference (CI − SI) = ${money(c.interest-s.interest)}`);
+      rows.push(`<small>Assumption: fixed annual nominal rate, constant compounding frequency, no deposits or withdrawals. Fractional periods use the mathematical exponent model.</small>`);
+      return answer(box(type==='compare'?'⚖️ Simple vs compound':'📗 Compound interest',rows,
+        `Final amount: ${money(c.amount)} · Interest: ${money(c.interest)}`),
+        `Compound interest is ${c.interest} rupees. Final amount ${c.amount} rupees.`);
+    }
+  }
+
+  function mathBrain(raw) {
+    const t=normalize(raw), e=parseEntities(t), nums=e.amounts;
+    const has=re=>re.test(t);
+    const shortFollow=/^(?:and |what about |how about |now |then |instead |make it |change it to |what if )/.test(t) && !/\b(?:save|saving|spent|spend|bought|buy|income|received|budget|balance)\b/.test(t);
+    let base=null;
+    if (ctx.pending && Date.now()-ctx.pending.at < 30*60*1000 && (nums.length || e.rate!=null || e.years!=null || e.freq)) {
+      base=Object.assign({},ctx.pending.have,{type:ctx.pending.type}); ctx.pending=null;
+    } else if (ctx.last && shortFollow && (nums.length || e.rate!=null || e.years!=null || e.freq)) {
+      base=Object.assign({},ctx.last);
+    }
+    if (base) {
+      if (nums.length) base.P=nums[0];
+      if (e.rate!=null) base.R=e.rate;
+      if (e.years!=null) base.T=e.years;
+      if (e.freq!=null) base.n=e.freq;
+      if (has(/\bcompare|versus|\bvs\b/)) base.type='compare';
+      if (has(/\bsimple\b/)) base.type='si';
+      if (has(/\bcompound\b/)) base.type='ci';
+      if (['si','ci','compare'].includes(base.type)) return rememberInterest(base.type,base);
+    }
+
+    // Recorded-data questions must be handled before generic math or the legacy coach.
+    if (has(/\bwhat can i spend\b|\bhow much can i spend\b|\bspendable\b|\bavailable to spend\b/)) {
+      const {balance,inDreams,pending,pendingTotal}=moneyContext();
+      const html=box('🐷 Money available in Gullak',[
+        `Current recorded spendable balance: <b>${money(balance)}</b>`,
+        `Already saved in active dreams: ${money(inDreams)} (separate from spendable balance)`,
+        pending.length ? `Pending asks: ${pending.length}, requesting ${money(pendingTotal)} (not yet deducted)` : 'No pending grown-up asks'
+      ],`Recorded spendable balance: ${money(balance)}`)+
+      `<p class="small">This is the amount currently unallocated in Gullak's recorded transactions. The app may not know about upcoming expenses or money you have not entered.</p>`;
+      return answer(html,`You currently have ${round2(balance)} rupees recorded as spendable in Gullak.`);
+    }
+    if (has(/\bshould i spend\b|\bshould i buy\b|\bis it worth\b|\bworth it\b|\bcan i spend\b|\bcan i buy\b|\bcan i afford\b|\bafford\b/)) {
+      if (!nums.length) return answer('What is the price, and what are you thinking of buying? Example: <i>Should I spend ₹300 on a toy?</i>', 'Tell me the price and item.');
+      return spendAnswer(raw,t,e,has(/\bshould|worth\b/));
+    }
+    if (has(/\bwhat have i spent\b|\bhow much did i spend\b|\bhow much have i spent\b|\bwhat did i spend\b|\bspending history\b|\bspent this\b|\bspent last\b/))
+      return transactionSummary(raw,'spent');
+    if (has(/\bhow much (?:money )?(?:did i get|have i received|came in)\b|\bmy income\b|\bmoney received\b/))
+      return transactionSummary(raw,'income');
+
+    // Percentages: order matters (part-of, reverse percentage, then change).
+    let m;
+    if ((m=t.match(/(\d+(?:\.\d+)?)\s*percent\s+(?:of|from)\s+(\d+(?:\.\d+)?)/))) {
+      const pct=Number(m[1]), val=Number(m[2]), out=M.percent(pct,val);
+      return answer(box('🔢 Percentage',[`${number(pct)}% × ${money(val)} ÷ 100`],`= ${money(out)}`),`${number(pct)} percent of ${val} is ${out}.`);
+    }
+    if ((m=t.match(/(?:what percent|what percentage)\s+(?:is\s+)?(\d+(?:\.\d+)?)\s+(?:of|out of)\s+(\d+(?:\.\d+)?)/))) {
+      const pct=Number(m[1])/Number(m[2])*100;
+      if (!Number.isFinite(pct)) return invalid('The total cannot be zero.');
+      return answer(box('🔢 Reverse percentage',[`${number(m[1])} ÷ ${number(m[2])} × 100`],`= ${number(pct)}%`),`${number(pct)} percent.`);
+    }
+    if ((m=t.match(/(\d+(?:\.\d+)?)\s+(?:is what percent|out of)\s+(?:of\s+)?(\d+(?:\.\d+)?)/))) {
+      const a=Number(m[1]), b=Number(m[2]); if (!b) return invalid('The total cannot be zero.');
+      return answer(box('🔢 Reverse percentage',[`${number(a)} ÷ ${number(b)} × 100`],`= ${number(a/b*100)}%`),`${number(a/b*100)} percent.`);
+    }
+    if ((m=t.match(/(?:percent(?:age)?\s+)?change\s+from\s+(\d+(?:\.\d+)?)\s+(?:to|into)\s+(\d+(?:\.\d+)?)/)) ||
+        (m=t.match(/(?:increase|decrease|change)\s+from\s+(\d+(?:\.\d+)?)\s+to\s+(\d+(?:\.\d+)?)/))) {
+      const pct=M.percentChange(Number(m[1]),Number(m[2]));
+      return answer(box('📊 Percentage change',[`Change = ${number(m[2])} − ${number(m[1])}` ,`Percentage change = change ÷ starting value × 100`],`${pct>=0?'Increase':'Decrease'}: ${number(Math.abs(pct))}%`),`The percentage change is ${pct} percent.`);
+    }
+
+    // SI / CI / compare / EMI / doubling / inflation.
+    const si=has(/\bsimple interest\b|\bsi on\b|\bs\.i\.\b/);
+    const ci=has(/\bcompound(?:ed|ing)? interest\b|\bci on\b|\bc\.i\.\b/);
+    const interest=si||ci||has(/\binterest\b/);
+    if (interest && (nums.length || e.rate!=null || e.years!=null || base)) {
+      const type=has(/\bcompare\b|\bversus\b|\bvs\b|\bboth\b|\bdifference between\b/) ? 'compare' : ci ? 'ci' : 'si';
+      const P=nums[0] ?? (ctx.last && ctx.last.P), R=e.rate ?? (nums.length>1 && nums[1]<=100 ? nums[1] : ctx.last && ctx.last.R);
+      const T=e.years ?? (ctx.last && ctx.last.T), n=e.freq ?? (ctx.last && ctx.last.n) ?? 1;
+      return rememberInterest(type,{P,R,T,n});
+    }
+    if (has(/\bemi\b|\bmonthly payment\b|\bloan payment\b/)) {
+      const P=nums[0], R=e.rate, months=e.rawTime && e.rawTime.length ? e.rawTime.reduce((a,x)=>a+x.value*(/^year|^yr/.test(x.unit)?12:/^week|^wk/.test(x.unit)?12/52:/^day/.test(x.unit)?12/365:1),0) : null;
+      if (!(P>0) || R==null || !(months>0)) return missingMath('emi',{P,R,months},[...(P>0?[]:['P']),...(R!=null?[]:['R']),...(months>0?[]:['T'])],'EMI on 50000 at 12% for 18 months');
+      const N=Math.round(months); if (Math.abs(N-months)>1e-8) return invalid('For EMI, give the repayment period in whole months.');
+      const x=M.emi(P,R,N);
+      return answer(box('🏦 Monthly loan payment',[`Loan principal: ${money(P)}`,`Annual nominal rate: ${number(R)}% · Monthly rate: ${number(R/12)}%`,`Number of monthly payments: ${N}`,`EMI = P × r ÷ (1 − (1+r)<sup>−N</sup>)`],`Monthly payment: ${money(x.payment)} · Total interest: ${money(x.interest)} · Total repaid: ${money(x.total)}`),`The monthly payment is ${x.payment} rupees.`);
+    }
+    if (has(/\bdouble\b|\bdoubling\b|\brule of 72\b/) && e.rate!=null) {
+      const n=e.freq||1, exact=M.doubleYears(e.rate,n), quick=72/e.rate;
+      return answer(box('⏱️ Time to double',[`Rule of 72 estimate: 72 ÷ ${number(e.rate)} = ${number(quick)} years`,`Mathematical result at ${n} compounding period(s) per year: ${number(exact)} years`],`About ${number(exact)} years`),`At that rate, doubling takes about ${number(exact)} years in this model.`);
+    }
+    if (has(/\binflation\b|\bfuture price\b/) && nums.length && e.rate!=null && e.years!=null) {
+      const future=M.inflationPrice(nums[0],e.rate,e.years), today=nums[0]/Math.pow(1+e.rate/100,e.years);
+      return answer(box('🎈 Inflation projection',[`Current price: ${money(nums[0])}`,`Assumed inflation: ${number(e.rate)}% per year for ${yearText(e.years)}`,`Future price = current price × (1 + rate)<sup>time</sup>`],`Estimated future price: ${money(future)}`)+`<p class="small">This is a mathematical scenario, not a prediction of actual future prices.</p>`,`At that assumed inflation rate, the price would be about ${future} rupees.`);
+    }
+
+    // Discount and GST. GST-inclusive prices are reverse-calculated, not added twice.
+    if (has(/\bdiscount\b|\boff\b|\bsale price\b/) && nums.length && e.rate!=null) {
+      const x=M.discount(nums[0],e.rate);
+      return answer(box('🏷️ Discount',[`Marked price: ${money(nums[0])}`,`Discount: ${number(e.rate)}% = ${money(x.saving)}`],`Final price: ${money(x.final)} · You save ${money(x.saving)}`),`After the discount, the price is ${x.final} rupees.`);
+    }
+    if (has(/\bgst\b|\btax\b/) && nums.length && e.rate!=null) {
+      const inclusive=has(/\bincluding\b|\binclusive\b|\bwith gst included\b/), x=M.gst(nums[0],e.rate,inclusive);
+      return answer(box('🧾 GST calculation',[inclusive?`GST-inclusive total: ${money(x.total)}`:`Price before GST: ${money(x.base)}`,`GST rate: ${number(e.rate)}%`,`GST amount: ${money(x.tax)}`],`Total: ${money(x.total)} · Before-tax price: ${money(x.base)}`),`GST is ${x.tax} rupees and the total is ${x.total} rupees.`);
+    }
+         // Cost price and selling price.
+    if ((m=t.match(/(?:bought|buy|cost price|cp)\D{0,24}(\d+(?:\.\d+)?)\D{1,32}(?:sold|sell|selling price|sp)\D{0,24}(\d+(?:\.\d+)?)/))) {
+      const x=M.profitLoss(Number(m[1]),Number(m[2]));
+      return answer(box(x.kind==='profit'?'📈 Profit':'📉 Loss',[`Cost price: ${money(m[1])}`,`Selling price: ${money(m[2])}`,`${x.kind} percentage = ${money(x.amount)} ÷ cost price × 100`],`${x.kind}: ${money(x.amount)} (${number(x.pct)}%)`),`${x.kind} is ${x.amount} rupees.`);
+    }
+    if (has(/\bsplit\b|\bdivide equally\b|\beach person\b/) && nums.length) {
+      const k=nums[1] || Number((t.match(/(?:between|among|amongst|ways|people|friends)\s+(\d+)/)||[])[1]);
+      if (!(k>0)) return missingMath('split',{total:nums[0]},['N'],'Split 900 between 4 people');
+      const each=M.split(nums[0],k);
+      return answer(box('🍕 Equal split',[`${money(nums[0])} ÷ ${k} people`],`Each person: ${money(each)}`),`Each person pays ${each} rupees.`);
+    }
+
+    // Regular saving deposits (ordinary annuity; no market return is promised).
+    if (has(/\bsip\b|\brecurring deposit\b|\bsave\b.*\b(?:every|per|a)\s+month\b|\bmonthly saving\b/) && nums.length) {
+      const payment=nums[0], months=e.rawTime ? Math.round(e.rawTime.reduce((a,x)=>a+x.value*(/^year|^yr/.test(x.unit)?12:/^week|^wk/.test(x.unit)?12/52:/^day/.test(x.unit)?12/365:1),0)) : null;
+      const rate=e.rate==null?0:e.rate;
+      if (!(months>0)) return missingMath('sip',{X:payment,R:rate},['T'],'Save 500 every month for 2 years at 6%');
+      const total=M.sipFutureValue(payment,rate,months), principal=payment*months;
+      return answer(box('🌱 Regular monthly savings',[`Monthly deposit: ${money(payment)} · Months: ${months}`,`Total deposited: ${money(principal)}`,`Assumed annual rate: ${number(rate)}%`,`End-of-month deposit model; monthly compounding`],`Projected value: ${money(total)} · Growth in this model: ${money(total-principal)}`)+`<p class="small">Illustration only. The rate is an assumption; real savings or investments can use different rules and may not earn this return.</p>`,`Deposits total ${principal} rupees. The illustrative projected value is ${total} rupees.`);
+    }
+
+    // Goal arithmetic: how much to save each period, or how long a target will take.
+    if (has(/\bsave\b|\bsaving\b|\bput away\b/) && has(/\b(?:week|weekly|month|monthly|day|daily)\b/) && nums.length) {
+      const per = /\b(?:month|monthly)\b/.test(t) ? 'month' : /\b(?:day|daily)\b/.test(t) ? 'day' : 'week';
+      const perCount = { day:365, week:52, month:12 }[per];
+      if (has(/\bhow long\b|\bwhen will\b|\bhow many (?:days|weeks|months)\b|\bto reach\b|\bto get\b/) && nums.length >= 2) {
+        const deposit=nums[0], target=nums[1];
+        if (deposit<=0 || target<0) return invalid('Enter a positive saving amount and a non-negative target.');
+        const count=Math.ceil(target/deposit), years=count/perCount;
+        return answer(box('🎯 Savings target',[`${money(deposit)} saved every ${per}`,`Target: ${money(target)}`,`Periods needed: ${count}`],`About ${plural(count,per)} (${number(years*12)} months)`),`At ${deposit} rupees every ${per}, you need ${count} ${per}s to reach ${target} rupees, before interest.`);
+      }
+      if (has(/\bhow much\b/) && nums.length >= 1 && e.years!=null) {
+        const target=nums[0], periods=Math.max(1,Math.ceil(e.years*perCount)), each=Math.ceil(target/periods);
+        return answer(box('🎯 Savings target',[`Target: ${money(target)}`,`Time: ${yearText(e.years)}`,`Saving periods: ${periods}`],`Save at least ${money(each)} every ${per}`),`Save at least ${each} rupees every ${per}, before interest.`);
+      }
+    }
+
+    // Short financial glossary. This supplements the app's original conversational fallback.
+    const glossary = [
+      [['budget','budgeting'],'Budget','A plan for how money will be used. It separates priorities, spending and saving.'],
+      [['saving','savings'],'Saving','Keeping some money for a future goal instead of using it now.'],
+      [['income','pocket money'],'Income','Money received, such as pocket money, gifts or earnings.'],
+      [['expense','expenses'],'Expense','Money that goes out when something is bought or paid for.'],
+      [['need','needs'],'Need','Something important for health, safety or everyday responsibilities.'],
+      [['want','wants'],'Want','Something nice to have but not essential.'],
+      [['principal'],'Principal','The starting amount on which interest is calculated.'],
+      [['interest rate'],'Interest rate','The percentage charged or earned over a stated time, usually quoted per year.'],
+      [['simple interest'],'Simple interest','Interest calculated only on the original principal: P × R × T ÷ 100.'],
+      [['compound interest','compounding'],'Compound interest','Interest calculated on the principal plus interest already added.'],
+      [['inflation'],'Inflation','A general rise in prices over time, which reduces what the same amount of money can buy.'],
+      [['loan'],'Loan','Money borrowed that must be repaid, usually with interest.'],
+      [['emi'],'EMI','Equated Monthly Instalment: a regular monthly loan repayment.'],
+      [['discount'],'Discount','A reduction from the marked price.'],
+      [['gst'],'GST','Goods and Services Tax, a tax applied to many goods and services in India.'],
+      [['profit'],'Profit','The amount left when selling price is greater than cost price.'],
+      [['loss'],'Loss','The amount lost when selling price is below cost price.'],
+      [['asset'],'Asset','Something valuable a person owns.'],
+      [['liability'],'Liability','A debt or other amount a person owes.'],
+      [['net worth'],'Net worth','Assets minus liabilities.'],
+      [['emergency fund'],'Emergency fund','Money kept aside for unexpected needs.'],
+      [['opportunity cost'],'Opportunity cost','The next-best thing you give up when choosing one option.'],
+      [['mutual fund'],'Mutual fund','A pool of money from investors that is invested according to a fund strategy.'],
+      [['sip'],'SIP','Systematic Investment Plan: a schedule for investing a fixed amount regularly. Returns are not guaranteed.'],
+      [['fixed deposit','fd'],'Fixed deposit','A bank deposit kept for a chosen period at an agreed interest rate and terms.'],
+      [['recurring deposit','rd'],'Recurring deposit','A bank product where a fixed amount is deposited regularly for a set period.'],
+      [['risk'],'Risk','The possibility that an outcome may be different from what was expected, including losing money.'],
+      [['insurance'],'Insurance','A contract that may help cover specified losses in return for a premium.'],
+      [['tax'],'Tax','Money collected by governments to pay for public services.'],
+      [['upi'],'UPI','Unified Payments Interface, an instant bank-transfer system in India. Real payments should be handled with a trusted adult.'],
+      [['rbi'],'RBI','Reserve Bank of India, the country’s central bank.']
+    ];
+    const askedForMeaning=has(/\bwhat is\b|\bwhat does\b|\bmeaning of\b|\bdefine\b|\bexplain\b|\bwhat are\b/);
+    const concept=glossary.find(([keys])=>keys.some(k=>new RegExp('\\b'+k.replace(/[.*+?^${}()|[\\]\\\\]/g,'\\\\$&')+'\\b').test(t)));
+    if (concept && (askedForMeaning || t.trim().split(/\s+/).length<=3)) {
+      const title=concept[1], desc=concept[2];
+      return answer(`<b>📚 ${esc(title)}</b><p>${esc(desc)}</p>`,`${title}. ${desc}`);
+    }
+
+    // General arithmetic, averages and conversions.
+    if ((m=t.match(/(?:average|mean)\s+(?:of\s+)?([\d.\s,]+)$/))) {
+      const values=m[1].split(/[,\s]+/).filter(Boolean).map(Number);
+      return answer(box('📊 Average',[`Numbers: ${values.map(number).join(', ')}`,`Sum: ${number(values.reduce((a,b)=>a+b,0))} ÷ ${values.length}`],`Average: ${number(M.average(values))}`),`The average is ${M.average(values)}.`);
+    }
+    if ((m=t.match(/(?:how many|convert)\s+(\d+(?:\.\d+)?)\s*(rupees?|rs)\s+(?:in|to)\s+(\d+(?:\.\d+)?)\s*(?:rupees?|rs)/))) {
+      const a=Number(m[1]), b=Number(m[3]); return answer(`${money(a)} compared with ${money(b)} is ${number(a/b)} times.`,`${a} divided by ${b} is ${a/b}.`);
+    }
+    if ((m=t.match(/(?:what is|calculate|solve)?\s*(\d+(?:\.\d+)?)\s*([+*/×÷-])\s*(\d+(?:\.\d+)?)/))) {
+      const a=Number(m[1]), b=Number(m[3]), op=m[2]; if (op==='÷' || op==='/') { if (b===0) return invalid('Division by zero is not defined.'); }
+      const out=op==='+'?a+b:op==='-'?a-b:op==='*'||op==='×'?a*b:a/b;
+      return answer(box('🧮 Calculation',[`${number(a)} ${op} ${number(b)}`],`= ${number(out)}`),`${number(out)}.`);
+    }
+    return null;
+  }
+     function rememberInterest(type,p) {
+    const have={P:p.P,R:p.R,T:p.T,n:p.n||1};
+    const missing=[]; if (!(have.P>0)) missing.push('P'); if (!(have.R>=0)) missing.push('R'); if (!(have.T>0)) missing.push('T');
+    if (missing.length) return missingMath(type,have,missing,type==='ci'?'CI on 5000 at 8% for 3 years monthly':'SI on 5000 at 8% for 3 years');
+    const out=calculateInterest(type,have);
+    ctx.last=Object.assign({type},have); ctx.updatedAt=Date.now();
+    return out;
+  }
+
+  function brain(raw) {
+    const t=normalize(raw), e=parseEntities(t), has=re=>re.test(t);
+    const advanced=mathBrain(raw);
+    if (advanced) return advanced;
+    // Preserve the existing money-word dictionary from the original coach if present.
+    if (legacyBrain) return legacyBrain(raw);
+    return null;
+  }
+  G.normalizeQ=normalize;
+  G.entities=parseEntities;
+  G.brain=brain;
+
+  G.answer=(raw,voice)=>{
+    let out=null;
+    try { out=brain(raw); } catch(err) { console.error('Gullak coach:',err); out=invalid('I could not safely calculate that. Please check the numbers and try again.'); }
+    if (!out) return legacyAnswer(raw,voice);
+    G.S.meta.talked=(G.S.meta.talked||0)+1;
+    G.chat.push({from:'pig',html:out.html});
+    if (voice || (G.S.settings && G.S.settings.readAloud)) G.speak(out.plain || 'Here is the calculation.',true);
   };
 
-  const a0 = G.answer;
-  G.answer = (raw, voice) => {
-    let out = null;
-    try { out = G.brain(raw); } catch (err) { console.error(err); out = null; }
-    if (!out) return a0(raw, voice);
-    G.S.meta.talked = (G.S.meta.talked || 0) + 1;
-    G.chat.push({ from: 'pig', html: out.html });
-    if (voice || G.S.settings.readAloud) G.speak(out.plain || out.html, true);
+  // Keep legacy chat actions working, while exposing a safe reset for context.
+  G.resetCoachContext=()=>{
+    ctx.last=null; ctx.pending=null; ctx.pendingAction=null; ctx.updatedAt=0;
   };
-
-  const sc = G.screens.talk; const r0 = sc.render;
-  sc.render = (q) => r0(q).replace(/<div class="chips sugg">[\s\S]*?<\/div>/, `<div class="chips sugg">${['What can you do?', 'SI on 1000 at 5% for 3 years', 'CI on 5000 at 10% for 2 years half-yearly',
-    'Compare SI and CI on 2000 at 8% for 5 years', 'What is inflation?', 'How long to double money at 8%?', 'If I save 50 a week how long to reach 2000?',
-    'EMI on 50000 at 12% for 1 year', '20% discount on 1500', 'Can I buy a ₹300 toy?', 'I spent 40 on ice cream', 'What is a SIP?']
-    .map(x => `<button class="chip" data-act="chat-say" data-t="${esc(x)}">${esc(x)}</button>`).join('')}</div>`);
+  const talk=G.screens && G.screens.talk;
+  if (talk && talk.handlers) {
+    const oldHandlers=talk.handlers;
+    talk.handlers=(q)=>{
+      const h=oldHandlers(q)||{};
+      h['coach-clear-context']=()=>G.resetCoachContext();
+      return h;
+    };
+  }
 })(window.G);
