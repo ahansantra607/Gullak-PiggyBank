@@ -515,7 +515,9 @@
     },
     after: (root) => {
       const inp = G.$('#chat-in', root);
+      if (!inp) return;
       inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); send(inp.value); } });
+      inp.focus()
       scrollChat();
     },
     handlers: () => ({
