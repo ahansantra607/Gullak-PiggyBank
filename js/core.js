@@ -106,11 +106,19 @@ window.G = window.G || {};
 
   /* ---------- derived money maths ---------- */
   /* Spendable money = in − out − moved to dreams + taken back from dreams. (goalSpend comes out of the dream jar.) */
-  G.balance = (s = G.S) => s.txns.reduce((b, t) => {
-    if (t.type === 'in' || t.type === 'fromGoal' || t.type === 'loanIn') return b + t.amount;
-    if (t.type === 'out' || t.type === 'toGoal' || t.type === 'loanPay') return b - t.amount;
-    return b;
-  }, 0);
+  G.balance = (s = G.S) => {
+    // Fail closed if old/corrupt ledger data would make the balance unreliable.
+    if (!s || !Array.isArray(s.txns)) return 0;
+    let balance = 0;
+    for (const t of s.txns) {
+      if (!t || !['in', 'fromGoal', 'loanIn', 'out', 'toGoal', 'loanPay'].includes(t.type)) continue;
+      const amount = Number(t.amount);
+      if (!Number.isSafeInteger(amount) || amount <= 0) return 0;
+      balance += (t.type === 'in' || t.type === 'fromGoal' || t.type === 'loanIn') ? amount : -amount;
+      if (!Number.isSafeInteger(balance)) return 0;
+    }
+    return balance;
+  };
 
   G.goalSaved = (gid, s = G.S) => s.txns.reduce((b, t) => {
     if (t.goalId !== gid) return b;
@@ -305,7 +313,8 @@ window.G = window.G || {};
     if (!Number.isSafeInteger(tx.amount) || tx.amount <= 0) return null;
     // Central guard: all screens, Coach and approval flows use this action.
     if (tx.type === 'out' || tx.type === 'toGoal' || tx.type === 'loanPay') {
-      if (tx.amount > Math.max(0, G.balance())) return null;
+      const available = G.balance();
+      if (!Number.isSafeInteger(available) || available < tx.amount) return null;
     }
     if (tx.type === 'toGoal') {
       const goal = G.S.goals.find(g => g.id === tx.goalId && !g.boughtAt);
