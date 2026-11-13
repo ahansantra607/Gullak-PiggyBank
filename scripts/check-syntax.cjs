@@ -21,12 +21,12 @@ let failed = false;
 for (const file of files.sort()) {
   try {
     new vm.Script(fs.readFileSync(file, 'utf8'), { filename: file });
-    process.stdout.write('OK  ' + file + '\\n');
+    process.stdout.write('OK  ' + file + '\n');
   } catch (error) {
     failed = true;
-    process.stderr.write('FAIL ' + file + ': ' + error.message + '\\n');
+    process.stderr.write('FAIL ' + file + ': ' + error.message + '\n');
   }
 }
 
 if (failed) process.exitCode = 1;
-else process.stdout.write('Syntax check passed for ' + files.length + ' JavaScript files.\\n');
+else process.stdout.write('Syntax check passed for ' + files.length + ' JavaScript files.\n');
