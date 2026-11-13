@@ -309,8 +309,11 @@ window.G = window.G || {};
   A.addTxn = (t) => {
     if (!t || typeof t !== 'object') return null;
     const tx = Object.assign({ id: G.uid(8), date: G.now() }, t);
-    tx.amount = Math.round(Number(tx.amount) || 0);
-    if (!Number.isSafeInteger(tx.amount) || tx.amount <= 0) return null;
+    // Ledger values are whole rupees. Never round malformed input into a valid charge.
+    const amount = Number(tx.amount);
+    if (!Number.isSafeInteger(amount) || amount <= 0) return null;
+    tx.amount = amount;
+    if (!['in', 'out', 'toGoal', 'fromGoal', 'loanIn', 'loanPay'].includes(tx.type)) return null;
     // Central guard: all screens, Coach and approval flows use this action.
     if (tx.type === 'out' || tx.type === 'toGoal' || tx.type === 'loanPay') {
       const available = G.balance();
@@ -318,9 +321,13 @@ window.G = window.G || {};
     }
     if (tx.type === 'toGoal') {
       const goal = G.S.goals.find(g => g.id === tx.goalId && !g.boughtAt);
-      if (!goal || tx.amount > Math.max(0, goal.target - G.goalSaved(goal.id))) return null;
+      if (!goal || !Number.isSafeInteger(goal.target) || goal.target <= 0 ||
+          tx.amount > Math.max(0, goal.target - G.goalSaved(goal.id))) return null;
     }
-    if (tx.type === 'fromGoal' && (!tx.goalId || tx.amount > Math.max(0, G.goalSaved(tx.goalId)))) return null;
+    if (tx.type === 'fromGoal') {
+      const goal = G.S.goals.find(g => g.id === tx.goalId);
+      if (!goal || tx.amount > Math.max(0, G.goalSaved(tx.goalId))) return null;
+    }
     G.S.txns.push(tx); G.save(); return tx;
   };
   /* Save into a dream. If a grown-up set a "match" (like a mini bank bonus), add it too. Returns bonus. */
@@ -329,7 +336,9 @@ window.G = window.G || {};
     const g = G.S.goals.find(x => x.id === gid); if (!g) return 0;
     const saved = G.goalSaved(gid);
     const rem = Math.max(0, g.target - saved);
-    amount = Math.min(Math.round(amount), rem);
+    amount = Number(amount);
+    if (!Number.isSafeInteger(amount) || amount <= 0) return 0;
+    amount = Math.min(amount, rem);
     if (amount <= 0) return 0;
 
     const t = A.addTxn({ type: 'toGoal', amount, goalId: gid }); if (!t) return 0;
@@ -376,11 +385,14 @@ window.G = window.G || {};
 
   /* Apply a grown-up decision to a request. Works for same-device and reply links. */
   A.decide = (reqId, status, note) => {
+    if (!['approved', 'half', 'wait', 'declined'].includes(status)) return { ok: false, why: 'invalid' };
     const r = G.S.requests.find(x => x.id === reqId);
     if (!r) return { ok: false, why: 'missing' };
     if (r.status === 'approved' || r.status === 'declined') return { ok: false, why: 'already', r };
-    const pays = status === 'half' ? Math.round(Number(r.price) / 2) :
-      (status === 'approved' ? Math.round(Number(r.kidPays) || 0) : 0);
+    const rawPays = status === 'half' ? Math.round(Number(r.price) / 2) :
+      (status === 'approved' ? Number(r.kidPays) : 0);
+    if (!Number.isSafeInteger(rawPays) || rawPays < 0) return { ok: false, why: 'invalid' };
+    const pays = rawPays;
     if (pays > Math.max(0, G.balance())) return { ok: false, why: 'insufficient' };
     if (pays > 0 && !A.addTxn({ type: 'out', amount: pays, category: 'asked', needOrWant: r.needOrWant, note: r.item + ' (approved)', requestId: r.id })) {
       return { ok: false, why: 'insufficient' };

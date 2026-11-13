@@ -1,0 +1,26 @@
+name: Gullak checks
+
+on:
+  push:
+    branches: [main, testing]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Syntax and core tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Check JavaScript syntax
+        run: npm run test:syntax
+      - name: Run core tests
+        run: npm test
