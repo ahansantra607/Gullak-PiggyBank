@@ -299,9 +299,19 @@ window.G = window.G || {};
   /* ---------- actions (all mutate G.S then save) ---------- */
   const A = G.act = {};
   A.addTxn = (t) => {
+    if (!t || typeof t !== 'object') return null;
     const tx = Object.assign({ id: G.uid(8), date: G.now() }, t);
     tx.amount = Math.round(Number(tx.amount) || 0);
-    if (tx.amount <= 0) return null;
+    if (!Number.isSafeInteger(tx.amount) || tx.amount <= 0) return null;
+    // Central guard: all screens, Coach and approval flows use this action.
+    if (tx.type === 'out' || tx.type === 'toGoal' || tx.type === 'loanPay') {
+      if (tx.amount > Math.max(0, G.balance())) return null;
+    }
+    if (tx.type === 'toGoal') {
+      const goal = G.S.goals.find(g => g.id === tx.goalId && !g.boughtAt);
+      if (!goal || tx.amount > Math.max(0, goal.target - G.goalSaved(goal.id))) return null;
+    }
+    if (tx.type === 'fromGoal' && (!tx.goalId || tx.amount > Math.max(0, G.goalSaved(tx.goalId)))) return null;
     G.S.txns.push(tx); G.save(); return tx;
   };
   /* Save into a dream. If a grown-up set a "match" (like a mini bank bonus), add it too. Returns bonus. */
@@ -326,7 +336,13 @@ window.G = window.G || {};
     }
     return bonus;
   };
-  A.deleteTxn = (id) => { G.S.txns = G.S.txns.filter(t => t.id !== id); G.save(); };
+  A.deleteTxn = (id) => {
+    const next = G.S.txns.filter(t => t.id !== id);
+    if (next.length === G.S.txns.length) return false;
+    const candidate = Object.assign({}, G.S, { txns: next });
+    if (G.balance(candidate) < 0 || G.S.goals.some(g => G.goalSaved(g.id, candidate) < 0)) return false;
+    G.S.txns = next; G.save(); return true;
+  };
   A.addGoal = (g) => {
     const goal = Object.assign({ id: G.uid(6), createdAt: G.now() }, g);
     goal.target = Math.round(goal.target);
@@ -354,11 +370,14 @@ window.G = window.G || {};
     const r = G.S.requests.find(x => x.id === reqId);
     if (!r) return { ok: false, why: 'missing' };
     if (r.status === 'approved' || r.status === 'declined') return { ok: false, why: 'already', r };
-    r.status = status; r.parentNote = note || ''; r.decidedAt = G.now();
-    if (status === 'half') { r.status = 'approved'; r.kidPays = Math.round(r.price / 2); r.deal = 'half'; }
-    if (r.status === 'approved' && r.kidPays > 0) {
-      A.addTxn({ type: 'out', amount: r.kidPays, category: 'asked', needOrWant: r.needOrWant, note: r.item + ' (approved)', requestId: r.id });
+    const pays = status === 'half' ? Math.round(Number(r.price) / 2) :
+      (status === 'approved' ? Math.round(Number(r.kidPays) || 0) : 0);
+    if (pays > Math.max(0, G.balance())) return { ok: false, why: 'insufficient' };
+    if (pays > 0 && !A.addTxn({ type: 'out', amount: pays, category: 'asked', needOrWant: r.needOrWant, note: r.item + ' (approved)', requestId: r.id })) {
+      return { ok: false, why: 'insufficient' };
     }
+    r.status = status; r.parentNote = note || ''; r.decidedAt = G.now();
+    if (status === 'half') { r.status = 'approved'; r.kidPays = pays; r.deal = 'half'; }
     if (status === 'wait') r.waitUntil = G.now() + 7 * DAY;
     G.save(); return { ok: true, r };
   };
