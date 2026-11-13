@@ -43,7 +43,7 @@ test('spending updates the visible balance and persists after reload', async ({ 
   await expect(page.locator('.bal')).toHaveText('₹80');
   await page.locator('#nav [aria-label="Money"]').click();
   await expect(page.locator('.kv.big b')).toHaveText('₹80');
-  await expect(page.locator('.tx')).toContainText('₹20');
+  await expect(page.locator('.tx').filter({ hasText: 'Snacks' })).toContainText('₹20');
 });
 
 test('the spend form blocks a ₹200 spend when only ₹100 is available', async ({ page }) => {
