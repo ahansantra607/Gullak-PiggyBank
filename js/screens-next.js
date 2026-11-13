@@ -156,7 +156,8 @@
   G.repayLoan = (amount, why) => {
     const l = (S().loans || []).find(x => x.status === 'active'); if (!l) return 0;
     const a = Math.min(Math.round(amount), owed(l), Math.max(0, G.balance())); if (a <= 0) return 0;
-    G.act.addTxn({ type: 'loanPay', amount: a, loanId: l.id, note: why || 'Loan repayment' });
+    const payment = G.act.addTxn({ type: 'loanPay', amount: a, loanId: l.id, note: why || 'Loan repayment' });
+    if (!payment) return 0;
     l.paid += a;
     if (owed(l) <= 0) { l.status = 'repaid'; l.repaidAt = G.now(); G.confetti(); G.sound('win'); setTimeout(() => G.toast('🎉 <b>Debt-free!</b> You paid back Future You. Respect! 🦸', 4000), 400); }
     G.save(); return a;
