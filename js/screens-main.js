@@ -60,8 +60,9 @@
       if (a && !isOut && g) html += `<div class="delay good">⏩ That's <b>${Math.round(a / g.target * 100)}%</b> of your ${esc(g.name)} ${g.emoji}!</div>`;
       if (a && isOut && a > G.balance()) html += `<div class="warn">⚠️ That's more than your Gullak has (${rs(Math.max(0, G.balance()))}). Did you forget to add some money you got?</div>`;
       prev.innerHTML = html;
-      saveBtn.disabled = !(a > 0 && st.cat && (!isOut || st.nw));
-      saveBtn.textContent = !a ? 'Type an amount' : !st.cat ? (isOut ? 'Pick what it was for' : 'Pick where it came from') : (isOut && !st.nw) ? 'Need or want?' : 'Save ' + rs(a);
+      const enoughMoney = !isOut || a <= Math.max(0, G.balance());
+      saveBtn.disabled = !(a > 0 && st.cat && (!isOut || st.nw) && enoughMoney);
+      saveBtn.textContent = !a ? 'Type an amount' : (isOut && !enoughMoney) ? 'Not enough money' : !st.cat ? (isOut ? 'Pick what it was for' : 'Pick where it came from') : (isOut && !st.nw) ? 'Need or want?' : 'Save ' + rs(a);
     };
     G.attachKeypad(m.el, { value: opts.amount || 0, onChange: (v) => { st.amount = v; upd(); } });
   };
@@ -107,7 +108,12 @@
       handlers: {
         ok: () => {
           if (!amt) return;
-          const bonus = dir === 'to' ? G.act.saveToGoal(gid, amt) : (G.act.addTxn({ type: 'fromGoal', amount: amt, goalId: gid }), 0);
+          if (dir === 'to' && amt > Math.max(0, G.balance())) return G.toast('Not enough money in your Gullak.');
+          const savedBefore = G.goalSaved(gid);
+          const moved = dir === 'to' ? G.act.saveToGoal(gid, amt) : G.act.addTxn({ type: 'fromGoal', amount: amt, goalId: gid });
+          if (dir === 'from' && !moved) return G.toast('That amount is no longer in your dream jar.');
+          if (dir === 'to' && G.goalSaved(gid) <= savedBefore) return G.toast('Could not move that amount. Check your balance and dream target.');
+          const bonus = dir === 'to' ? moved : 0;
           if (bonus) setTimeout(() => G.toast(`🤝 Grown-up match: +${rs(bonus)} to your dream!`), 900);
           G.sound(dir === 'to' ? 'coin' : 'pop'); m.close();
           G.toast(dir === 'to' ? `🪙 +${rs(amt)} to your ${esc(g.name)}!` : `Took out ${rs(amt)}. Your ${esc(g.name)} moved back ${G.plural(G.daysBack(amt), 'day')}.`);
@@ -404,7 +410,10 @@
       'custom-unit': () => G.openCustomUnit(),
       in: () => G.openTxn('in'), out: () => G.openTxn('out'),
       del: async (el) => {
-        if (await G.confirm('Delete this?', 'Only delete it if it was a mistake.', 'Delete', 'Keep')) { G.act.deleteTxn(el.dataset.id); G.render(); }
+        if (await G.confirm('Delete this?', 'Only delete it if it was a mistake.', 'Delete', 'Keep')) {
+        if (!G.act.deleteTxn(el.dataset.id)) return G.toast('Cannot delete this entry because it would make your balance or a dream jar negative.');
+        G.render();
+      }
       }
     })
   };
