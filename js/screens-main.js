@@ -32,7 +32,10 @@
         save: () => {
           const note = G.$('#tx-note', m.el).value.trim();
           const t = G.act.addTxn({ type, amount: st.amount, category: st.cat, needOrWant: st.nw || undefined, note });
-          if (!t) return;
+          if (!t) {
+            if (isOut) G.toast(`Not enough money. You have ${rs(Math.max(0, G.balance()))} available, so this spend wasn't added.`);
+            return;
+          }
           m.close();
           if (isOut) {
             G.sound('pop');
@@ -58,9 +61,10 @@
       let html = a ? `<b>${rs(a)}</b> = ${u.text} <span class="erow">${G.emojiRow(u.n, u.e, 10)}</span>` : '<span class="muted">Tap the numbers to type the amount</span>';
       if (a && isOut && g) html += `<div class="delay">⏪ This pushes your <b>${esc(g.name)} ${g.emoji}</b> back <b>${G.plural(G.daysBack(a), 'day')}</b></div>`;
       if (a && !isOut && g) html += `<div class="delay good">⏩ That's <b>${Math.round(a / g.target * 100)}%</b> of your ${esc(g.name)} ${g.emoji}!</div>`;
-      if (a && isOut && a > G.balance()) html += `<div class="warn">⚠️ That's more than your Gullak has (${rs(Math.max(0, G.balance()))}). Did you forget to add some money you got?</div>`;
+      const available = G.balance();
+      if (a && isOut && (!Number.isSafeInteger(available) || a > Math.max(0, available))) html += `<div class="warn">⚠️ That's more than your Gullak has (${rs(Math.max(0, Number.isSafeInteger(available) ? available : 0))}). This spend can't be added.</div>`;
       prev.innerHTML = html;
-      const enoughMoney = !isOut || a <= Math.max(0, G.balance());
+      const enoughMoney = !isOut || (Number.isSafeInteger(available) && a <= Math.max(0, available));
       saveBtn.disabled = !(a > 0 && st.cat && (!isOut || st.nw) && enoughMoney);
       saveBtn.textContent = !a ? 'Type an amount' : (isOut && !enoughMoney) ? 'Not enough money' : !st.cat ? (isOut ? 'Pick what it was for' : 'Pick where it came from') : (isOut && !st.nw) ? 'Need or want?' : 'Save ' + rs(a);
     };
