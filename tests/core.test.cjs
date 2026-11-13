@@ -208,3 +208,46 @@ test('saveToGoal rejects fractional input without changing either balance or goa
   assert.equal(G.balance(), 100);
   assert.equal(G.goalSaved('goal-1'), 0);
 });
+
+test('balance fails closed for unknown ledger records but counts dream purchases safely', () => {
+  const { G } = loadCore();
+  assert.equal(G.balance({ txns: [{ type: 'in', amount: 100 }, { type: 'unknown', amount: 20 }] }), 0);
+  assert.equal(G.balance({ txns: [
+    { type: 'in', amount: 100 },
+    { type: 'toGoal', amount: 100, goalId: 'goal-1' },
+    { type: 'goalSpend', amount: 100, goalId: 'goal-1' }
+  ] }), 0);
+});
+
+test('addGoal rejects invalid and fractional targets without changing state', () => {
+  const { G } = loadCore();
+  resetState(G, 100);
+  assert.equal(G.act.addGoal({ name: 'Book', target: 0 }), null);
+  assert.equal(G.act.addGoal({ name: 'Book', target: 25.5 }), null);
+  assert.equal(G.S.goals.length, 0);
+  assert.ok(G.act.addGoal({ name: 'Book', target: 250 }));
+  assert.equal(G.S.goals.length, 1);
+});
+
+test('buyGoal is idempotent and records a saved dream purchase once', () => {
+  const { G } = loadCore();
+  resetState(G, 200);
+  const goal = G.act.addGoal({ name: 'Book', target: 150 });
+  assert.ok(G.act.addTxn({ type: 'toGoal', amount: 150, goalId: goal.id }));
+  assert.equal(G.act.buyGoal(goal.id), true);
+  assert.equal(G.act.buyGoal(goal.id), false);
+  assert.equal(G.balance(), 50);
+  assert.equal(G.goalSaved(goal.id), 0);
+  assert.equal(G.S.txns.filter(t => t.type === 'goalSpend' && t.goalId === goal.id).length, 1);
+});
+
+test('deleteGoal keeps the goal intact when its saved ledger is invalid', () => {
+  const { G } = loadCore();
+  resetState(G, 100);
+  const goal = G.act.addGoal({ name: 'Book', target: 100 });
+  G.S.txns.push({ id: 'bad-save', type: 'toGoal', amount: 10.5, goalId: goal.id });
+  const before = G.S.txns.length;
+  assert.equal(G.act.deleteGoal(goal.id), false);
+  assert.equal(G.S.goals.some(g => g.id === goal.id), true);
+  assert.equal(G.S.txns.length, before);
+});
