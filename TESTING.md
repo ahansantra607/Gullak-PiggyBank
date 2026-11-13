@@ -15,19 +15,19 @@ npm run test:syntax
 npm run check
 ```
 
-- `npm test` runs the automated core tests using Node's built-in test runner.
+- `npm test` runs the automated core and transaction-flow regression tests using Node's built-in test runner.
 - `npm run test:syntax` parses every JavaScript file under `js/` without executing browser UI code.
 - `npm run check` runs both checks.
 
 ## What is covered now
 
-The initial suite characterizes core ledger behavior: fresh state, balance arithmetic, malformed ledger amounts, transaction persistence, invalid amounts, overspending prevention, exact-balance spending, goal contribution limits, and transaction deletion safeguards.
+Coverage includes balance arithmetic, malformed and unknown ledger entries, transaction persistence, overspending prevention (including the ₹100/₹200 regression), exact-balance spending, loans, goal deposits and withdrawals, goal purchase and deletion, transaction deletion, and purchase approvals.
 
-These are baseline tests, not a complete browser or end-to-end suite. They do not yet simulate real browsers, family encryption flows, multiple tabs, or UI interactions. Those require a later testing layer.
+The transaction integration tests exercise the core action flows together. They are not browser automation: they do not simulate real browser UI, family encryption/sync, multiple tabs, or device-to-device behavior. Those remain separate areas for future testing.
 
 ## Continuous integration
 
-GitHub Actions runs the syntax check and core tests on pushes to `main` or `testing`, and on pull requests targeting `main`.
+GitHub Actions runs the syntax check and all automated tests on pushes to `main` and on pull requests targeting `main`.
 
 ## Adding tests
 
