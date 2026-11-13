@@ -111,21 +111,32 @@ window.G = window.G || {};
     if (!s || !Array.isArray(s.txns)) return 0;
     let balance = 0;
     for (const t of s.txns) {
-      if (!t || !['in', 'fromGoal', 'loanIn', 'out', 'toGoal', 'loanPay'].includes(t.type)) continue;
+      if (!t || typeof t !== 'object') return 0;
       const amount = Number(t.amount);
       if (!Number.isSafeInteger(amount) || amount <= 0) return 0;
+      // Buying a dream spends money that was already removed from the spendable
+      // balance when it was moved into the dream jar.
+      if (t.type === 'goalSpend') continue;
+      if (!['in', 'fromGoal', 'loanIn', 'out', 'toGoal', 'loanPay'].includes(t.type)) return 0;
       balance += (t.type === 'in' || t.type === 'fromGoal' || t.type === 'loanIn') ? amount : -amount;
       if (!Number.isSafeInteger(balance)) return 0;
     }
     return balance;
   };
 
-  G.goalSaved = (gid, s = G.S) => s.txns.reduce((b, t) => {
-    if (t.goalId !== gid) return b;
-    if (t.type === 'toGoal') return b + t.amount;
-    if (t.type === 'fromGoal' || t.type === 'goalSpend') return b - t.amount;
-    return b;
-  }, 0);
+  G.goalSaved = (gid, s = G.S) => {
+    if (!s || !Array.isArray(s.txns)) return NaN;
+    let saved = 0;
+    for (const t of s.txns) {
+      if (!t || t.goalId !== gid) continue;
+      if (!['toGoal', 'fromGoal', 'goalSpend'].includes(t.type)) continue;
+      const amount = Number(t.amount);
+      if (!Number.isSafeInteger(amount) || amount <= 0) return NaN;
+      saved += t.type === 'toGoal' ? amount : -amount;
+      if (!Number.isSafeInteger(saved)) return NaN;
+    }
+    return saved;
+  };
   G.activeGoal = (s = G.S) => s.goals.find(g => g.id === s.activeGoalId && !g.boughtAt) ||
     s.goals.find(g => !g.boughtAt) || null;
   G.goalPct = (g, s = G.S) => g ? G.clamp(Math.round(G.goalSaved(g.id, s) / g.target * 100), 0, 100) : 0;
@@ -321,12 +332,15 @@ window.G = window.G || {};
     }
     if (tx.type === 'toGoal') {
       const goal = G.S.goals.find(g => g.id === tx.goalId && !g.boughtAt);
+      const saved = goal ? G.goalSaved(goal.id) : NaN;
       if (!goal || !Number.isSafeInteger(goal.target) || goal.target <= 0 ||
-          tx.amount > Math.max(0, goal.target - G.goalSaved(goal.id))) return null;
+          !Number.isSafeInteger(saved) || saved < 0 ||
+          tx.amount > Math.max(0, goal.target - saved)) return null;
     }
     if (tx.type === 'fromGoal') {
       const goal = G.S.goals.find(g => g.id === tx.goalId);
-      if (!goal || tx.amount > Math.max(0, G.goalSaved(tx.goalId))) return null;
+      const saved = goal ? G.goalSaved(tx.goalId) : NaN;
+      if (!goal || !Number.isSafeInteger(saved) || saved < tx.amount) return null;
     }
     G.S.txns.push(tx); G.save(); return tx;
   };
@@ -358,29 +372,41 @@ window.G = window.G || {};
     const next = G.S.txns.filter(t => t.id !== id);
     if (next.length === G.S.txns.length) return false;
     const candidate = Object.assign({}, G.S, { txns: next });
-    if (G.balance(candidate) < 0 || G.S.goals.some(g => G.goalSaved(g.id, candidate) < 0)) return false;
+    const balance = G.balance(candidate);
+    if (!Number.isSafeInteger(balance) || balance < 0 ||
+        G.S.goals.some(g => {
+          const saved = G.goalSaved(g.id, candidate);
+          return !Number.isSafeInteger(saved) || saved < 0;
+        })) return false;
     G.S.txns = next; G.save(); return true;
   };
   A.addGoal = (g) => {
-    const goal = Object.assign({ id: G.uid(6), createdAt: G.now() }, g);
-    goal.target = Math.round(goal.target);
+    if (!g || typeof g !== 'object') return null;
+    const target = Number(g.target);
+    if (!Number.isSafeInteger(target) || target <= 0) return null;
+    const goal = Object.assign({ id: G.uid(6), createdAt: G.now() }, g, { target });
     G.S.goals.push(goal); G.S.activeGoalId = goal.id; G.save(); return goal;
   };
   A.buyGoal = (gid) => {
-    const g = G.S.goals.find(x => x.id === gid); if (!g) return;
+    const g = G.S.goals.find(x => x.id === gid && !x.boughtAt);
+    if (!g) return false;
     const saved = G.goalSaved(gid);
+    if (!Number.isSafeInteger(saved) || saved < 0) return false;
     if (saved > 0) G.S.txns.push({ id: G.uid(8), type: 'goalSpend', amount: saved, goalId: gid, category: 'goal', date: G.now(), note: g.name });
     g.boughtAt = G.now();
     const next = G.S.goals.find(x => !x.boughtAt); G.S.activeGoalId = next ? next.id : null;
-    G.save();
+    G.save(); return true;
   };
   A.deleteGoal = (gid) => {
+    const goal = G.S.goals.find(g => g.id === gid);
+    if (!goal) return false;
     const saved = G.goalSaved(gid);
-    if (saved > 0) A.addTxn({ type: 'fromGoal', amount: saved, goalId: gid, note: 'Dream removed' });
+    if (!Number.isSafeInteger(saved) || saved < 0) return false;
+    if (saved > 0 && !A.addTxn({ type: 'fromGoal', amount: saved, goalId: gid, note: 'Dream removed' })) return false;
     G.S.goals = G.S.goals.filter(g => g.id !== gid);
     G.S.txns = G.S.txns.map(t => t.goalId === gid ? Object.assign({}, t, { goalId: null }) : t);
     if (G.S.activeGoalId === gid) G.S.activeGoalId = (G.S.goals.find(g => !g.boughtAt) || {}).id || null;
-    G.save();
+    G.save(); return true;
   };
 
   /* Apply a grown-up decision to a request. Works for same-device and reply links. */
