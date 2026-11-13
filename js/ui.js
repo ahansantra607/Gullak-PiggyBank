@@ -13,6 +13,44 @@
     if (fn) { ev.preventDefault(); fn(el, ev); }
   });
 
+  /* Keep number fields numeric while the user is typing (not just at save time).
+     type="number" still permits exponent/sign characters in several browsers. */
+  const isNumericField = (el) => el instanceof HTMLInputElement && el.type === 'number';
+  const allowsDecimal = (el) => el.step === 'any' || (el.step !== '' && Number(el.step) % 1 !== 0);
+  const cleanNumericValue = (el) => {
+    const decimal = allowsDecimal(el);
+    let value = String(el.value || '').replace(/[^0-9.]/g, '');
+    if (!decimal) value = value.replace(/\\./g, '');
+    else {
+      const dot = value.indexOf('.');
+      if (dot !== -1) value = value.slice(0, dot + 1) + value.slice(dot + 1).replace(/\\./g, '');
+    }
+    if (el.value !== value) {
+      el.value = value;
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+  };
+
+  document.addEventListener('beforeinput', (e) => {
+    const el = e.target;
+    if (!isNumericField(el) || !e.data || !e.inputType.startsWith('insert')) return;
+    if (/^[0-9]+$/.test(e.data)) return;
+    if (allowsDecimal(el) && e.data === '.' && !String(el.value).includes('.')) return;
+    e.preventDefault();
+  }, true);
+
+  document.addEventListener('paste', (e) => {
+    const el = e.target;
+    if (!isNumericField(el)) return;
+    const pasted = (e.clipboardData || window.clipboardData).getData('text');
+    const valid = allowsDecimal(el) ? /^\\d+(\\.\\d*)?$|^\\.\\d+$/.test(pasted.trim()) : /^\\d+$/.test(pasted.trim());
+    if (!valid) e.preventDefault();
+  }, true);
+
+  document.addEventListener('input', (e) => {
+    if (isNumericField(e.target)) cleanNumericValue(e.target);
+  }, true);
+
   /* Scrolling over a focused number box: the opposite of the browser's built-in direction, as requested
      (on the reporter's device the default felt backwards: scrolling down raised the price). Never below the box's min. */
   document.addEventListener('wheel', (e) => {
