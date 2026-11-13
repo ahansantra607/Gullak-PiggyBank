@@ -72,3 +72,23 @@ test('deleting a spend restores the balance without changing other entries', () 
   assert.equal(G.balance(), 250);
   assert.equal(G.S.txns.length, 1);
 });
+
+test('the ₹100 balance cannot accept a ₹200 spend through the transaction action', () => {
+  const G = createApp();
+  G.S.txns.push({ id: 'seed', type: 'in', amount: 100, date: G.now() });
+  const result = G.act.addTxn({ type: 'out', amount: 200, category: 'snacks' });
+  assert.equal(result, null);
+  assert.equal(G.balance(), 100);
+  assert.equal(G.S.txns.filter(t => t.type === 'out').length, 0);
+});
+
+test('a failed dream deletion does not discard the dream or its ledger', () => {
+  const G = createApp();
+  G.S.txns.push({ id: 'seed', type: 'in', amount: 100, date: G.now() });
+  G.S.goals.push({ id: 'goal-1', name: 'Books', target: 100 });
+  G.S.txns.push({ id: 'bad-save', type: 'toGoal', amount: 10.5, goalId: 'goal-1' });
+  const before = G.S.txns.length;
+  assert.equal(G.act.deleteGoal('goal-1'), false);
+  assert.equal(G.S.goals.some(g => g.id === 'goal-1'), true);
+  assert.equal(G.S.txns.length, before);
+});
