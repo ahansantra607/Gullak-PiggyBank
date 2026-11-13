@@ -6,9 +6,13 @@
   "scripts": {
     "test": "node --test",
     "test:syntax": "node scripts/check-syntax.cjs",
-    "check": "npm run test:syntax && npm test"
+    "check": "npm run test:syntax && npm test",
+    "test:browser": "playwright test"
   },
   "engines": {
     "node": ">=20"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.56.1"
   }
 }
