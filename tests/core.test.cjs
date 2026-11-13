@@ -131,3 +131,80 @@ test('deleteTxn removes a transaction when the resulting ledger remains valid', 
   assert.equal(G.balance(), 0);
   assert.equal(G.S.txns.length, 0);
 });
+
+
+test('addTxn rejects fractional rupees instead of rounding them', () => {
+  const { G } = loadCore();
+  resetState(G, 100);
+  assert.equal(G.act.addTxn({ type: 'out', amount: 100.4 }), null);
+  assert.equal(G.act.addTxn({ type: 'out', amount: '99.5' }), null);
+  assert.equal(G.balance(), 100);
+  assert.equal(G.S.txns.length, 1);
+});
+
+test('addTxn rejects unknown transaction types', () => {
+  const { G } = loadCore();
+  resetState(G, 100);
+  assert.equal(G.act.addTxn({ type: 'mystery', amount: 50 }), null);
+  assert.equal(G.balance(), 100);
+  assert.equal(G.S.txns.length, 1);
+});
+
+test('loan repayments cannot exceed available spendable balance', () => {
+  const { G } = loadCore();
+  resetState(G, 100);
+  assert.equal(G.act.addTxn({ type: 'loanPay', amount: 101, loanId: 'loan-1' }), null);
+  assert.ok(G.act.addTxn({ type: 'loanPay', amount: 100, loanId: 'loan-1' }));
+  assert.equal(G.balance(), 0);
+});
+
+test('loan advances increase spendable balance and can be repaid', () => {
+  const { G } = loadCore();
+  resetState(G);
+  assert.ok(G.act.addTxn({ type: 'loanIn', amount: 250, loanId: 'loan-1' }));
+  assert.ok(G.act.addTxn({ type: 'loanPay', amount: 75, loanId: 'loan-1' }));
+  assert.equal(G.balance(), 175);
+});
+
+test('dream withdrawals require an existing goal and cannot exceed its saved amount', () => {
+  const { G } = loadCore();
+  resetState(G, 100);
+  G.S.goals.push({ id: 'goal-1', target: 100, name: 'Book' });
+  assert.equal(G.act.addTxn({ type: 'fromGoal', amount: 1, goalId: 'missing' }), null);
+  assert.equal(G.act.addTxn({ type: 'fromGoal', amount: 1, goalId: 'goal-1' }), null);
+  assert.ok(G.act.addTxn({ type: 'toGoal', amount: 60, goalId: 'goal-1' }));
+  assert.ok(G.act.addTxn({ type: 'fromGoal', amount: 60, goalId: 'goal-1' }));
+  assert.equal(G.balance(), 100);
+  assert.equal(G.goalSaved('goal-1'), 0);
+});
+
+test('approval refuses an unaffordable purchase and leaves the request pending', () => {
+  const { G } = loadCore();
+  resetState(G, 100);
+  G.S.requests.push({ id: 'ask-1', status: 'pending', price: 200, kidPays: 200, item: 'Toy' });
+  const result = G.act.decide('ask-1', 'approved', '');
+  assert.equal(result.ok, false);
+  assert.equal(result.why, 'insufficient');
+  assert.equal(G.S.requests[0].status, 'pending');
+  assert.equal(G.balance(), 100);
+});
+
+test('approval cannot be applied twice or with an unknown decision', () => {
+  const { G } = loadCore();
+  resetState(G, 100);
+  G.S.requests.push({ id: 'ask-1', status: 'pending', price: 40, kidPays: 40, item: 'Toy' });
+  assert.equal(G.act.decide('ask-1', 'unknown', '').ok, false);
+  assert.equal(G.act.decide('ask-1', 'approved', '').ok, true);
+  assert.equal(G.act.decide('ask-1', 'approved', '').why, 'already');
+  assert.equal(G.balance(), 60);
+  assert.equal(G.S.txns.filter(t => t.requestId === 'ask-1').length, 1);
+});
+
+test('saveToGoal rejects fractional input without changing either balance or goal', () => {
+  const { G } = loadCore();
+  resetState(G, 100);
+  G.S.goals.push({ id: 'goal-1', target: 100, name: 'Book' });
+  assert.equal(G.act.saveToGoal('goal-1', 25.5), 0);
+  assert.equal(G.balance(), 100);
+  assert.equal(G.goalSaved('goal-1'), 0);
+});
