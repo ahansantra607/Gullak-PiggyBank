@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   test:
-    name: Syntax and core tests
+    name: Syntax, core and browser tests
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
@@ -20,7 +20,11 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-      - name: Check JavaScript syntax
-        run: npm run test:syntax
-      - name: Run core tests
-        run: npm test
+      - name: Install dependencies
+        run: npm install
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Check JavaScript syntax and core tests
+        run: npm run check
+      - name: Run browser tests
+        run: npm run test:browser
