@@ -32,3 +32,13 @@ GitHub Actions runs the syntax check and all automated tests on pushes to `main`
 ## Adding tests
 
 Add core behavior tests to `tests/` using files named `*.test.cjs`. Keep tests independent: create a fresh Gullak state in each test and avoid depending on test execution order.
+
+
+## Browser tests
+
+- Install dependencies with `npm install`.
+- Install Chromium with `npx playwright install --with-deps chromium`.
+- Run browser tests with `npm run test:browser`.
+- The Playwright suite starts the app through `scripts/serve.cjs` and checks real Chromium UI flows: spending and persistence, blocking an overspend in the form, saving into a dream, and opening Family mode.
+
+The browser suite uses isolated browser contexts and seeded local test data. It does not connect to a real family across separate devices or prove cross-device synchronization; Family mode's encryption and multi-device behavior still need dedicated tests and manual verification.
