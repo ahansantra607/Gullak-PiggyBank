@@ -336,7 +336,9 @@ window.G = window.G || {};
     const g = G.S.goals.find(x => x.id === gid); if (!g) return 0;
     const saved = G.goalSaved(gid);
     const rem = Math.max(0, g.target - saved);
-    amount = Math.min(Math.round(amount), rem);
+    amount = Number(amount);
+    if (!Number.isSafeInteger(amount) || amount <= 0) return 0;
+    amount = Math.min(amount, rem);
     if (amount <= 0) return 0;
 
     const t = A.addTxn({ type: 'toGoal', amount, goalId: gid }); if (!t) return 0;
