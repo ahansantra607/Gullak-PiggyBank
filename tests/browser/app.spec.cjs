@@ -1,6 +1,8 @@
 const { test, expect } = require('@playwright/test');
 
 const seedState = () => {
+  if (sessionStorage.getItem('gullak-test-seeded')) return;
+  sessionStorage.setItem('gullak-test-seeded', '1');
   const now = Date.now();
   localStorage.setItem('gullak:mode', 'individual');
   localStorage.setItem('gullak:v1', JSON.stringify({
@@ -58,6 +60,8 @@ test('the spend form blocks a ₹200 spend when only ₹100 is available', async
 
 test('saving into a dream reduces spendable money and survives reload', async ({ page }) => {
   await page.addInitScript(() => {
+    if (sessionStorage.getItem('gullak-test-seeded')) return;
+    sessionStorage.setItem('gullak-test-seeded', '1');
     const now = Date.now();
     localStorage.setItem('gullak:mode', 'individual');
     localStorage.setItem('gullak:v1', JSON.stringify({
