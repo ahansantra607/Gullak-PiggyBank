@@ -100,9 +100,12 @@ const family = expect(await request("/api/families", {
 const familyId = family.data.family.family_id;
 assert(familyId, "Family creation returned no family ID.");
 
-const codeSearch = expect(await request("/api/families/search?q=" + encodeURIComponent(joinCode), {
-  cookie: member.cookie
-}), 200, "Family invite-code search");
+const directoryBeforeLogin = expect(await request("/api/families"), 200, "Family directory before login");
+assert(directoryBeforeLogin.data.families.some(item => item.family_id === familyId), "Family missing from cloud directory.");
+const pinGate = expect(await request("/api/families/" + familyId + "/vault"), 200, "Shared PIN vault retrieval");
+assert(pinGate.data.exists && pinGate.data.family_key_wrap, "Shared PIN wrapper was not returned.");
+
+const codeSearch = expect(await request("/api/families/search?q=" + encodeURIComponent(joinCode)), 200, "Family PIN search");
 assert(codeSearch.data.families.some(item => item.family_id === familyId),
   "Family invite code did not find the family.");
 
