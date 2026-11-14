@@ -453,7 +453,7 @@
         const username = G.$('#family-account-username')?.value.trim() || '';
         const password = G.$('#family-account-password')?.value || '';
         if (!/^[a-z0-9_]{3,24}$/i.test(username)) return G.toast('Username must be 3–24 letters, numbers or underscores.');
-        if (password.length < 8 || password.length > 128 || !/[a-z]/.test(password) || !/[A-Z]/.test(password) || !/[0-9]/.test(password) || !/[^A-Za-z0-9\\s]/.test(password)) return G.toast('Use at least 8 characters with uppercase, lowercase, a number and a special character.');
+        if (password.length < 8 || password.length > 128 || !/[a-z]/.test(password) || !/[A-Z]/.test(password) || !/[0-9]/.test(password) || !/[^A-Za-z0-9\s]/.test(password)) return G.toast('Use at least 8 characters with uppercase, lowercase, a number and a special character.');
         button.disabled = true; button.textContent = '🔐 Securing Family account…';
         try {
           await G.cloudAccount.connectFamily(username, password, familyAuthMode === 'register');
@@ -489,7 +489,7 @@
   G.screens['family-account'].after = root => {
     const input = G.$('#family-account-password', root), panel = G.$('#family-password-rules', root);
     if (!input || !panel) return;
-    const rules = { length: v => v.length >= 8, upper: v => /[A-Z]/.test(v), lower: v => /[a-z]/.test(v), number: v => /[0-9]/.test(v), special: v => /[^A-Za-z0-9\\s]/.test(v) };
+    const rules = { length: v => v.length >= 8, upper: v => /[A-Z]/.test(v), lower: v => /[a-z]/.test(v), number: v => /[0-9]/.test(v), special: v => /[^A-Za-z0-9\s]/.test(v) };
     const update = () => Object.entries(rules).forEach(([key, test]) => { const row = panel.querySelector('[data-rule="' + key + '"]'); if (!row) return; const good = test(input.value); row.classList.toggle('passed', good); row.querySelector('span').textContent = good ? '✓' : '○'; });
     input.addEventListener('focus', () => { panel.hidden = false; update(); });
     input.addEventListener('input', update);
