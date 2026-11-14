@@ -410,7 +410,8 @@
     const supervisor = meta.members.find(x => x.role === 'supervisor' && x.userId === G.cloudAccount.user.user_id) || meta.members.find(x => x.role === 'supervisor');
     if (!supervisor) throw new Error('No supervisor exists in this backup.');
     supervisor.userId = G.cloudAccount.user.user_id;
-    const code = C.recoveryCode(), salt = C.salt();
+    const pinNumber = C.rand(4).reduce((value, byte) => (value * 256 + byte) >>> 0, 0);
+    const code = String(100000 + (pinNumber % 900000)), salt = C.salt();
     meta.rc = { salt, wrap: await C.wrapWithSecret(C.normCode(code), salt, raw, meta.iter) };
     const created = await G.cloud.createFamily({ name: meta.name, joinCode: code, familyKeyRaw: raw, value: { meta, data: { v: 1, defaults: data.defaults || {}, createdAt: data.createdAt } } });
     meta.cloudId = created.family_id;
@@ -431,7 +432,7 @@
     familyCache.set(meta.cloudId, { meta, fkRaw: raw }); activeFamilyId = meta.cloudId; mode = 'family';
     G.FAM = { meta, fk: key, fkRaw: raw, data, mid: supervisor.id, role: 'supervisor', cloudId: meta.cloudId };
     await G.famSave();
-    G.toast('Family backup imported. Save this new recovery code: ' + code, 8000);
+    G.toast('Family backup imported. Share this new Family PIN with family members: ' + code, 10000);
     G.go('sup');
   }
 
