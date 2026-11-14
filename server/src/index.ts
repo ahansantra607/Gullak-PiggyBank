@@ -732,6 +732,7 @@ export default {
         }
 
         if (path === "/api/families" && request.method === "POST") {
+          if (!user) return json({ error: "Authentication required." }, 401);
           const body = await request.json() as any;
           const name = String(body.name || "").trim();
           const joinCode = String(body.join_code || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
