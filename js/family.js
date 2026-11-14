@@ -59,7 +59,7 @@
   const hasMe = () => { try { const s = JSON.parse(localStorage.getItem('gullak:v1')); return !!(s && s.profile); } catch (e) { return false; } };
   /* Two modes. Data is kept in this browser only ("whoever opens it, their browser keeps it"). */
   const modesHTML = () => `<div class="modes">
-      <button class="mode-card m-me" data-act="mode-me"><span>🧒</span><div><b>Individual</b><small>${hasMe() ? 'Continue my Gullak' : 'One kid on this device. A grown-up sets a PIN first.'}</small></div><i>›</i></button>
+      <button class="mode-card m-me" data-act="mode-me"><span>🧒</span><div><b>Individual</b><small>${hasMe() ? 'Continue my Gullak' : 'One Individual Gullak, securely synced to your cloud account.'}</small></div><i>›</i></button>
       <button class="mode-card m-fam" data-act="mode-fam"><span>👨‍👩‍👧</span><div><b>Family</b><small>Choose your family, pick who you are, enter your PIN. Supervisors approve asks.</small></div><i>›</i></button>
     </div>
     <p class="fine">🔒 No real money, no email, no phone, no real names. Cloud data is encrypted before upload. Keep your recovery code safe.</p>`;
@@ -81,7 +81,7 @@
         <p class="muted">This PIN opens <b>Grown-up mode</b>: approving "Can I buy this?", paying chores, loans and settings. Keep it secret from your kid 🤫</p>
         <div class="pin-dots">${[0, 1, 2, 3].map(i => `<i class="${i < mp.buf.length ? 'on' : ''}"></i>`).join('')}</div>
         <div class="kp-grid pin-grid">${['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', '⌫'].map(k => k ? `<button class="kp-key" data-act="mpin" data-k="${k}">${k}</button>` : '<span></span>').join('')}</div>
-        <p class="fine">Saved only in this browser.</p></section>`,
+        <p class="fine">Your PIN protection syncs with your encrypted Gullak account.</p></section>`,
     handlers: () => ({
       mpin: (el) => {
         const k = el.dataset.k; G.sound('tap');
@@ -254,10 +254,10 @@
       return `${back('👨‍👩‍👧 Choose your family', 'modes')}
         ${list.length ? `<div class="fam-list">${list.map(f => `<button class="fam-tile" data-act="pick" data-id="${f.id}"><span>${esc(f.emoji)}</span><div><b>${esc(f.name)}</b>
           <small>${f.members.map(m => esc(m.avatar)).join(' ')} · ${G.plural(f.members.length, 'member')}</small></div><i>›</i></button>`).join('')}</div>`
-          : `<section class="card center">${G.piggy('calm', 110)}<p>No families on this device yet.</p></section>`}
+          : `<section class="card center">${G.piggy('calm', 110)}<p>No cloud families found yet.</p></section>`}
         <button class="btn primary block big" data-act="go" data-to="fam-create">➕ Create a new family</button>
         <label class="btn soft block file-btn">📂 Open a family backup file<input type="file" id="fam-import" accept=".gullak,application/json,.json" hidden></label>
-        <p class="fine">🔐 Cloud family names are searchable; private family details and money diaries are encrypted in your browser before upload.</p>`;
+        <p class="fine">🔐 Family details and money diaries are encrypted before syncing to Gullak Cloud.</p>`;
     },
     after: (root) => {
       const inp = G.$('#fam-import', root);
@@ -558,7 +558,7 @@
             <button class="btn soft block" data-act="f-export">💾 Save encrypted family file (to move devices)</button>
             <button class="btn ghost block" data-act="go" data-to="modes">🔀 Switch mode</button>
             <button class="btn danger block" data-act="f-delete">🗑️ Delete this family</button></div>
-          <p class="fine">🔐 All money data is encrypted on this device with AES-256. PINs are never stored.</p></section>`;
+          <p class="fine">🔐 All money data is encrypted with AES-256 before cloud sync. PINs are never stored.</p></section>`;
     },
     handlers: () => ({
       lock: () => G.famLock('fam-users'),
@@ -746,7 +746,7 @@
       let html = r0(q);
       if (G.mode() === 'family') {
         return html.replace(/<section class="card"><h3>My data<\/h3>[\s\S]*?<\/section>/, `<section class="card"><h3>👨‍👩‍👧 Family</h3>
-          <p class="small muted">You're in <b>${esc(G.FAM.meta.emoji)} ${esc(G.FAM.meta.name)}</b>. Your money diary is encrypted on this device. Supervisors manage members and PINs.</p>
+          <p class="small muted">You're in <b>${esc(G.FAM.meta.emoji)} ${esc(G.FAM.meta.name)}</b>. Your money diary is encrypted before cloud sync. Supervisors manage members and PINs.</p>
           <div class="col gap"><button class="btn soft block" data-act="fam-switch">👥 Switch user</button><button class="btn ghost block" data-act="go" data-to="modes">🔀 Switch mode</button></div></section>`)
           .replace(/<input class="input" id="s-nick"[^>]*>/, `<input class="input" id="s-nick" maxlength="14" value="${esc(G.S.profile.nickname)}" aria-label="Nickname" disabled>`);
       }
