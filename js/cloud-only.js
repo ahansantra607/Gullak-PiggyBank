@@ -78,10 +78,11 @@
   const routeGuardCloudOnly0 = G.routeGuard;
   G.routeGuard = (name, q) => {
     // These Family cloud entry routes must remain reachable before a family is unlocked.
-    if (mode === 'family' && ['cloud-account', 'cloud-families', 'cloud-family-join'].includes(name)) return null;
+    if (mode === 'family' && name === 'cloud-account') return 'family-account';
+    if (mode === 'family' && ['family-account', 'cloud-families', 'cloud-family-join'].includes(name)) return null;
     const prior = routeGuardCloudOnly0 ? routeGuardCloudOnly0(name, q) : null;
     if (!G.cloudAccount.unlocked && !G.backupTemporary) {
-      if (!['welcome', 'modes', 'cloud-account', 'cloud-families', 'cloud-family-join', 'fam-pick', 'fam-users'].includes(name) && !(mode === 'family' && name === 'fam-create')) return 'cloud-account';
+      if (!['welcome', 'modes', 'cloud-account', 'family-account', 'cloud-families', 'cloud-family-join', 'fam-pick', 'fam-users'].includes(name) && !(mode === 'family' && name === 'fam-create')) return 'cloud-account';
       return prior;
     }
     // Once signed in, the welcome/mode chooser is never a destination.
@@ -276,7 +277,7 @@
       if (!G.cloudAccount.unlocked) {
         G.pendingFamilyMember = { familyId, memberId };
         G.cloudFamilyReturn = 'member';
-        G.go('cloud-account');
+        G.setFamilyAuthMode('login'); G.go('family-account');
         return;
       }
       try { await G.famUnlock(familyId, memberId); }
@@ -363,7 +364,7 @@
   const originalCloudFamilies = G.screens['cloud-families'];
   const oldSelect = originalCloudFamilies.handlers;
   G.screens['cloud-families'].handlers = () => ({
-    'cloud-login': () => G.go('cloud-account'),
+    'cloud-login': () => { G.setFamilyAuthMode('login'); G.go('family-account'); },
     'family-create': () => G.go('fam-create'),
     'family-search': async () => {
       const q = G.$('#cloud-family-query').value.trim();
@@ -430,6 +431,71 @@
     G.go('sup');
   }
 
+  // Dedicated Family identities: these credentials never authenticate in Individual mode.
+  let familyAuthMode = 'login';
+  G.setFamilyAuthMode = next => { familyAuthMode = next === 'register' ? 'register' : 'login'; };
+  G.screens['family-account'] = {
+    bare: true,
+    render: () => `<section class="ob"><header class="page-h"><button class="back" data-act="go" data-to="${G.pendingCloudFamilyCreation ? 'fam-create' : 'fam-pick'}" aria-label="Back">←</button><h1>👨‍👩‍👧 Gullak Family account</h1></header>
+      <section class="card"><h2>${familyAuthMode === 'register' ? 'Create the first Supervisor account' : 'Log in to your Family account'}</h2>
+        <p class="small muted">This is a Family-only login. It is separate from Individual Gullak and cannot open an Individual diary.</p>
+        <label class="label" for="family-account-username">Family username</label>
+        <input class="input" id="family-account-username" maxlength="24" autocomplete="username" placeholder="3–24 letters, numbers or _">
+        <label class="label" for="family-account-password">Account password</label>
+        <input class="input" id="family-account-password" type="password" maxlength="128" autocomplete="${familyAuthMode === 'register' ? 'new-password' : 'current-password'}" placeholder="8+ chars: upper, lower, number & symbol">
+        ${familyAuthMode === 'register' ? '<div id="family-password-rules" class="password-rules" hidden aria-live="polite"><div class="password-rules-title">Password strength checklist</div><div data-rule="length"><span>○</span> At least 8 characters</div><div data-rule="upper"><span>○</span> One uppercase letter</div><div data-rule="lower"><span>○</span> One lowercase letter</div><div data-rule="number"><span>○</span> One number</div><div data-rule="special"><span>○</span> One special character</div></div>' : ''}
+        <button class="btn primary block big" data-act="family-account-connect">${familyAuthMode === 'register' ? 'Create Family Supervisor account' : 'Log in to Family'}</button>
+        <button class="btn ghost block" data-act="family-account-mode">${familyAuthMode === 'register' ? 'I already have a Family account · Log in' : 'Create a new Family account'}</button>
+      </section></section>`,
+    handlers: () => ({
+      'family-account-mode': () => { familyAuthMode = familyAuthMode === 'register' ? 'login' : 'register'; G.render(); },
+      'family-account-connect': async button => {
+        const username = G.$('#family-account-username')?.value.trim() || '';
+        const password = G.$('#family-account-password')?.value || '';
+        if (!/^[a-z0-9_]{3,24}$/i.test(username)) return G.toast('Username must be 3–24 letters, numbers or underscores.');
+        if (password.length < 8 || password.length > 128 || !/[a-z]/.test(password) || !/[A-Z]/.test(password) || !/[0-9]/.test(password) || !/[^A-Za-z0-9\\s]/.test(password)) return G.toast('Use at least 8 characters with uppercase, lowercase, a number and a special character.');
+        button.disabled = true; button.textContent = '🔐 Securing Family account…';
+        try {
+          await G.cloudAccount.connectFamily(username, password, familyAuthMode === 'register');
+          const familyReturn = G.cloudFamilyReturn;
+          G.cloudFamilyReturn = false;
+          if (familyReturn === 'create-finalize' && G.pendingCloudFamilyCreation) {
+            try { await G.completePendingCloudFamilyCreation(); }
+            catch (error) { G.toast(error.message || 'Family creation failed. Your setup has not been discarded.'); G.go('fam-create'); }
+            return;
+          }
+          if (familyReturn === 'member' && G.pendingFamilyMember) {
+            const pending = G.pendingFamilyMember; G.pendingFamilyMember = null;
+            try { await G.famUnlock(pending.familyId, pending.memberId); }
+            catch (error) { G.toast(error.message || 'This account is not linked to the selected Family member.'); G.go('fam-users', { f: pending.familyId }); }
+            return;
+          }
+          if (familyReturn === 'import' && G.pendingCloudFamilyImport) {
+            const pending = G.pendingCloudFamilyImport; G.pendingCloudFamilyImport = null;
+            try { await importCloudFamilyBackup(pending.raw, pending.pass); }
+            catch (error) { G.toast(error.message || 'Family import failed.'); G.go('fam-pick'); }
+            return;
+          }
+          G.go('fam-pick');
+        } catch (error) {
+          G.toast(error.message || 'Could not connect to the Family account.');
+        } finally {
+          button.disabled = false;
+          button.textContent = familyAuthMode === 'register' ? 'Create Family Supervisor account' : 'Log in to Family';
+        }
+      }
+    })
+  };
+  G.screens['family-account'].after = root => {
+    const input = G.$('#family-account-password', root), panel = G.$('#family-password-rules', root);
+    if (!input || !panel) return;
+    const rules = { length: v => v.length >= 8, upper: v => /[A-Z]/.test(v), lower: v => /[a-z]/.test(v), number: v => /[0-9]/.test(v), special: v => /[^A-Za-z0-9\\s]/.test(v) };
+    const update = () => Object.entries(rules).forEach(([key, test]) => { const row = panel.querySelector('[data-rule="' + key + '"]'); if (!row) return; const good = test(input.value); row.classList.toggle('passed', good); row.querySelector('span').textContent = good ? '✓' : '○'; });
+    input.addEventListener('focus', () => { panel.hidden = false; update(); });
+    input.addEventListener('input', update);
+    input.addEventListener('blur', () => { panel.hidden = true; });
+  };
+
   G.screens['cloud-families'].after = () => {
     if (!Array.isArray(G.cloudFamilyResults) && !G.cloudFamilyLoading) {
       G.cloudFamilyLoading = true;
@@ -450,7 +516,7 @@
           'import-cloud-family': async button => {
             const pass = G.$('#cloud-family-import-pass', modal.el).value;
             if (pass.length < 10) return G.toast('Enter the backup passphrase.');
-            if (!G.cloudAccount.unlocked) { G.pendingCloudFamilyImport = { raw: String(reader.result), pass }; G.cloudFamilyReturn = 'import'; G.go('cloud-account'); return; }
+            if (!G.cloudAccount.unlocked) { G.pendingCloudFamilyImport = { raw: String(reader.result), pass }; G.cloudFamilyReturn = 'import'; G.setFamilyAuthMode('login'); G.go('family-account'); return; }
             button.disabled = true;
             try { await importCloudFamilyBackup(String(reader.result), pass); modal.close(); }
             catch (e) { button.disabled = false; G.toast(e.message || 'Family import failed.'); }
