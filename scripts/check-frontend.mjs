@@ -23,6 +23,12 @@ for (const file of files) {
   new vm.Script(source, { filename: file });
 }
 
+const cloudOnlySource = readFileSync('js/cloud-only.js', 'utf8');
+if (!cloudOnlySource.includes("member.userId !== G.cloudAccount.user.user_id")) throw new Error('Family PIN unlock is not restricted to the linked Gullak account.');
+if (!cloudOnlySource.includes("meta.members.filter(m => G.cloudAccount.user && m.userId === G.cloudAccount.user.user_id)")) throw new Error('Family member picker exposes unlinked member profiles.');
+if (!cloudOnlySource.includes("G.go('fam-users', { f: meta.cloudId })")) throw new Error('Family recovery-code flow skips the member PIN picker.');
+
+
 const html = readFileSync('index.html', 'utf8');
 const scripts = [...html.matchAll(/<script\s+src="([^"]+)"><\/script>/g)].map(match => match[1]);
 for (const script of scripts) {
