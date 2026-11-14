@@ -268,8 +268,8 @@
   };
   G.screens['fam-pin'] = {
     bare: true,
-    render: q => '<section class="ob"><header class="page-h"><button class="back" data-act="back-family-users">←</button><h1>🔒 Family PIN</h1></header><section class="card"><label class="label">Enter your 4–6 digit PIN</label><input class="input big" id="cloud-family-pin" type="password" inputmode="numeric" maxlength="6" autocomplete="off"><button class="btn primary block big" data-act="unlock-cloud-family">Unlock family</button></section></section>',
-    handlers: q => ({ 'back-family-users': () => G.go('fam-users', { f: q.f || activeFamilyId }), 'unlock-cloud-family': async button => {
+    render: q => '<section class="ob"><header class="page-h"><button class="back" data-act="back-family-users">←</button><h1>🔒 Family PIN</h1></header><section class="card"><label class="label">Enter your 4–6 digit PIN</label><input class="input big" id="cloud-family-pin" type="password" inputmode="numeric" maxlength="6" autocomplete="off"><button class="btn primary block big" data-act="unlock-cloud-family">Unlock family</button><button class="link block mt" data-act="recover-family-pin">Forgot PIN?</button></section></section>',
+    handlers: q => ({ 'back-family-users': () => G.go('fam-users', { f: q.f || activeFamilyId }), 'recover-family-pin': () => G.go('fam-recover', { f: q.f || activeFamilyId, m: q.m }), 'unlock-cloud-family': async button => {
       const familyId = q.f || activeFamilyId, memberId = q.m;
       const pin = G.$('#cloud-family-pin').value;
       if (!/^\d{4,6}$/.test(pin)) return G.toast('Enter a 4–6 digit PIN.');
@@ -277,6 +277,45 @@
       try { await G.famUnlock(familyId, memberId, pin); }
       catch (error) { button.disabled = false; G.toast(error.message || 'Could not unlock family.'); }
     } })
+  };
+
+  G.screens['fam-recover'] = {
+    bare: true,
+    render: q => {
+      const cached = familyCache.get(q.f);
+      const member = cached && cached.meta.members.find(m => m.id === q.m);
+      if (!cached || !member) return '<section class="ob"><header class="page-h"><button class="back" data-act="go" data-to="cloud-families">←</button><h1>Recover PIN</h1></header><section class="card"><p>Open the family with its recovery code first, then choose the member again.</p><button class="btn primary block" data-act="go" data-to="cloud-families">Find family</button></section></section>';
+      if (member.role !== 'supervisor' || !G.cloudAccount.user || member.userId !== G.cloudAccount.user.user_id) {
+        return '<section class="ob"><header class="page-h"><button class="back" data-act="go" data-to="fam-pin">←</button><h1>Recover PIN</h1></header><section class="card"><p>Ask a linked family supervisor to reset this PIN from their account.</p><button class="btn primary block" data-act="go" data-to="fam-users">Back to members</button></section></section>';
+      }
+      return '<section class="ob"><header class="page-h"><button class="back" data-act="go" data-to="fam-pin">←</button><h1>🔑 Reset supervisor PIN</h1></header><section class="card"><p class="small muted">The family recovery code has unlocked the family key. Choose a new 4–6 digit PIN.</p><label class="label">New PIN</label><input class="input big" id="recover-family-pin-1" type="password" inputmode="numeric" maxlength="6" autocomplete="new-password"><label class="label">Confirm PIN</label><input class="input big" id="recover-family-pin-2" type="password" inputmode="numeric" maxlength="6" autocomplete="new-password"><button class="btn primary block big" data-act="save-family-pin">Save new PIN</button></section></section>';
+    },
+    handlers: q => ({
+      'save-family-pin': async button => {
+        const cached = familyCache.get(q.f);
+        const member = cached && cached.meta.members.find(m => m.id === q.m);
+        const first = G.$('#recover-family-pin-1').value, second = G.$('#recover-family-pin-2').value;
+        if (!cached || !member || member.role !== 'supervisor' || member.userId !== G.cloudAccount.user?.user_id) return G.toast('This supervisor account is not linked to this family.');
+        if (!/^\d{4,6}$/.test(first)) return G.toast('PIN must be 4–6 digits.');
+        if (first !== second) return G.toast('The two PINs do not match.');
+        button.disabled = true; button.textContent = '🔐 Saving…';
+        try {
+          member.salt = C.salt();
+          member.wrap = await C.wrapWithSecret(first, member.salt, cached.fkRaw, cached.meta.iter);
+          member.pinLen = first.length; member.fail = 0; member.lockUntil = 0;
+          const remote = await G.cloud.getFamilyVault(q.f, cached.fkRaw);
+          if (!remote.value || !remote.value.meta) throw new Error('Could not load the encrypted family details.');
+          remote.value.meta = cached.meta;
+          await G.cloud.saveFamilyVault(q.f, cached.fkRaw, remote.value);
+          familyCache.set(q.f, cached);
+          G.toast('Supervisor PIN reset and synced.');
+          G.go('fam-pin', { f: q.f, m: q.m });
+        } catch (error) {
+          button.disabled = false; button.textContent = 'Save new PIN';
+          G.toast(error.message || 'Could not reset the PIN.');
+        }
+      }
+    })
   };
 
   // Existing members open their family; new linked accounts join it. These are
