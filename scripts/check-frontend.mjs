@@ -28,6 +28,8 @@ if (!cloudOnlySource.includes('if (G.backupReadOnly) return Promise.resolve();')
 if (!cloudOnlySource.includes('owner: { username: G.cloudAccount.user.username }')) throw new Error('Individual backup does not carry its originating account username.');
 if (!cloudOnlySource.includes('data-act="backup-read-only"')) throw new Error('Individual backup import has no read-only option.');
 if (!cloudOnlySource.includes('G.pendingIndividualBackupUsername')) throw new Error('Individual backup import does not retain the source account username.');
+if (!cloudOnlySource.includes("window.prompt('Enter your Gullak account password to replace this account:')")) throw new Error('Replacing a backup destination does not require account-password reauthentication.');
+if (!cloudOnlySource.includes('G.cloud.login(G.cloudAccount.user.username, accountPassword)')) throw new Error('Backup replacement does not reauthenticate the destination account.');
 if (!cloudOnlySource.includes("G.cloudAccount.setAuthMode('register')")) throw new Error('Backup restore cannot offer account creation.');
 if (!cloudOnlySource.includes("member.userId !== G.cloudAccount.user.user_id")) throw new Error('Family PIN unlock is not restricted to the linked Gullak account.');
 if (!cloudOnlySource.includes("meta.members.filter(m => G.cloudAccount.user && m.userId === G.cloudAccount.user.user_id)")) throw new Error('Family member picker exposes unlinked member profiles.');
