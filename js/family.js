@@ -590,7 +590,7 @@
       },
       'f-code': async () => {
         if (!(await G.confirm('Change the shared Family PIN?', 'The old Family PIN will stop working for everyone.', 'Change PIN', 'Cancel'))) return;
-        const F = G.FAM; const code = window.prompt('Set a new shared Family PIN (4–6 digits):', ''); if (!/^\\d{4,6}$/.test(String(code || ''))) return G.toast('Family PIN must be 4–6 digits.'); const salt = C.salt();
+        const F = G.FAM; const code = window.prompt('Set a new shared Family PIN (4–6 digits):', ''); if (!/^\d{4,6}$/.test(String(code || ''))) return G.toast('Family PIN must be 4–6 digits.'); const salt = C.salt();
         const wrap = await C.wrapWithSecret(C.normCode(code), salt, F.fkRaw, F.meta.iter);
         if (F.cloudId) {
           try { await G.cloud.updateFamilyCode(F.cloudId, F.fkRaw, code); }
