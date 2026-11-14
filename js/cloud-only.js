@@ -3,6 +3,9 @@
   'use strict';
   const C = G.cr;
   let mode = 'individual';
+  // The Family Supervisor creator must remain reachable before a profile exists.
+  G.FREE_ROUTES = G.FREE_ROUTES || [];
+  if (!G.FREE_ROUTES.includes('family-account')) G.FREE_ROUTES.push('family-account');
   const familyCache = new Map();
   let activeFamilyId = null;
   const safeCopy = value => JSON.parse(JSON.stringify(value));
