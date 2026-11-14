@@ -499,8 +499,8 @@
           // Finish the family setup first; create/link its first Supervisor account next.
           G.pendingCloudFamilyCreation = { args, rules: Object.assign({}, cr.rules) };
           G.cloudFamilyReturn = 'create-finalize';
-          G.cloudAccount?.setAuthMode('register');
-          G.go('cloud-account');
+          G.setFamilyAuthMode?.('register');
+          G.go('family-account');
           return;
         }
         cr.busy = true; G.render();
