@@ -36,6 +36,13 @@
     if (G.routeGuard) { const r = G.routeGuard(name, q); if (r && G.screens[r]) name = r; }
     if (!G.S.profile && !FREE.includes(name)) name = 'welcome';
     if (G.S.profile && name === 'welcome') name = 'home';
+    // Canonicalize guarded routes in-place. Leaving the blocked route in the
+    // address bar makes browser Back revisit it and can create a two-page loop.
+    const canonicalHash = '#/' + name + (Object.keys(q).length ? '?' + new URLSearchParams(q).toString() : '');
+    if (location.hash !== canonicalHash) {
+      history.replaceState(history.state, '', location.pathname + location.search + canonicalHash);
+      if (H.length) H[H.length - 1] = canonicalHash;
+    }
     const sc = G.screens[name];
     const view = document.getElementById('view'); const y = window.scrollY;
     G.handlers = Object.assign({ go: (el) => (el.classList.contains('back') ? G.back(el.dataset.to) : G.go(el.dataset.to)), speak: (el) => G.speak(el.dataset.text, true) }, sc.handlers ? sc.handlers(q) : {});
