@@ -407,14 +407,13 @@
   const accountRender0 = accountScreen.render;
   accountScreen.render = (...args) => {
     const html = accountRender0(...args);
-    const panel = G.cloudAccount.unlocked
-      ? `<section class="card"><h3>📦 Backups & restore</h3>
-          <button class="btn soft block" data-act="cloud-individual-export">Export Individual backup</button>
+    const panel = `<section class="card"><h3>📦 Backups & restore</h3>
+          <p class="small muted">You can select and unlock an encrypted backup without logging in. To restore it to the cloud, log in to the destination account after unlocking.</p>
+          ${G.cloudAccount.unlocked ? '<button class="btn soft block" data-act="cloud-individual-export">Export Individual backup</button>' : ''}
           <label class="btn ghost block file-btn">Import Individual backup<input id="cloud-individual-import-file" type="file" accept=".gullak,.json,application/json" hidden></label>
           <button class="btn soft block mt" data-act="open-family-backups">Import family backup</button>
-          ${G.FAM ? '<button class="btn soft block" data-act="export-family-backup">Export active family</button>' : ''}
-        </section>`
-      : `<section class="card"><h3>📦 Backups & restore</h3><p class="small muted">Log in to manage encrypted backups.</p></section>`;
+          ${G.FAM && G.cloudAccount.unlocked ? '<button class="btn soft block" data-act="export-family-backup">Export active family</button>' : ''}
+        </section>`;
     return html.replace(
       '</div>\n      <p class="fine">🔐 Gullak syncs',
       `</div>\n      ${panel}\n      <p class="fine">🔐 Gullak syncs`
@@ -466,7 +465,13 @@
             try {
               const payload = await G.cloudBackup.decode(String(reader.result), G.$('#ind-import-pass', modal.el).value);
               if (!payload || payload.gullakMode !== 'individual' || !payload.state || !payload.state.profile) throw new Error('This is not an Individual Gullak backup.');
-              if (!G.cloudAccount.unlocked || mode !== 'individual') throw new Error('Log in to the Individual cloud account first.');
+              if (!G.cloudAccount.unlocked || mode !== 'individual') {
+                G.pendingIndividualBackup = value;
+                modal.close();
+                G.toast('Backup unlocked successfully. Log in to the destination Individual account, then select the backup file again to restore it.');
+                G.go('cloud-account');
+                return;
+              }
               if (!(await G.confirm('Replace this account diary?', 'The imported backup replaces the current cloud diary only after verification.', 'Replace cloud diary', 'Cancel'))) { button.disabled = false; return; }
               const value = G.normState(payload.state);
               await G.cloud.saveVault(value, G.cloudAccount.encryptionPassphrase);
