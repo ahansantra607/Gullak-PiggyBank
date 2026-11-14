@@ -1,7 +1,7 @@
 /* Gullak modes + Family mode with encrypted cloud sync and local migration support.
    Modes:   🧒 Individual (grown-up PIN set first, then the kid) · 👨‍👩‍👧 Family (choose family → choose user → PIN)
    Family:  any number of Supervisors (grown-ups) and Members (kids). Only Supervisors add people.
-   Storage: on this device only. Family list = names/emojis + encrypted key wraps. All money data = AES-256-GCM ciphertext. */
+   Storage: encrypted cloud vaults only. All money data is AES-256-GCM ciphertext. */
 (function (G) {
   const C = G.cr; const esc = G.esc, rs = G.rs;
   const IDX = 'gullak:families', MODE = 'gullak:mode', SESS = 'gullak:famsession';
@@ -57,7 +57,7 @@
     else { G.storeKey = 'gullak:v1'; G.S = G.load(); }
   };
   const hasMe = () => { try { const s = JSON.parse(localStorage.getItem('gullak:v1')); return !!(s && s.profile); } catch (e) { return false; } };
-  /* Two modes. Data is kept in this browser only ("whoever opens it, their browser keeps it"). */
+  /* Two modes. Data is stored in encrypted Gullak Cloud vaults. */
   const modesHTML = () => `<div class="modes">
       <button class="mode-card m-me" data-act="mode-me"><span>🧒</span><div><b>Individual</b><small>${hasMe() ? 'Continue my Gullak' : 'One Individual Gullak, securely synced to your cloud account.'}</small></div><i>›</i></button>
       <button class="mode-card m-fam" data-act="mode-fam"><span>👨‍👩‍👧</span><div><b>Family</b><small>Choose your family, pick who you are, enter your PIN. Supervisors approve asks.</small></div><i>›</i></button>
@@ -628,7 +628,7 @@
       },
       'f-delete': async () => {
         const F = G.FAM;
-        if (!(await G.confirm(`Delete "${esc(F.meta.name)}"?`, 'All members and money diaries on this device are erased. This cannot be undone!', 'Delete family', 'Cancel'))) return;
+        if (!(await G.confirm(`Delete "${esc(F.meta.name)}"?`, 'All members and money diaries in this cloud family are erased. This cannot be undone!', 'Delete family', 'Cancel'))) return;
         if (!(await G.confirm('Are you really sure?', 'Last chance. Save a family file first if you want a copy.', 'Yes, delete', 'No'))) return;
         if (F.cloudId) {
           try { await G.cloud.deleteFamily(F.cloudId); }
