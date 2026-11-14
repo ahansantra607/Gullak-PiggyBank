@@ -323,7 +323,7 @@
       'payday-skip': () => { S().meta.lastPayday = G.now() - (S().profile.frequency === 'monthly' ? 29 : 6) * G.DAY; G.save(); G.render(); },
       seen: (el) => { const r = S().requests.find(x => x.id === el.dataset.id); if (r) r.seen = true; G.save(); G.render(); },
       'open-ask': () => G.go('ask'),
-      'reset-real': async () => { if (await G.confirm('Start your own Gullak?', 'This clears the sample data.', 'Yes, start fresh', 'Keep exploring')) { localStorage.clear(); G.S = G.fresh(); G.go('welcome'); } }
+      'reset-real': async () => { if (await G.confirm('Start your own Gullak?', 'This clears the sample data.', 'Yes, start fresh', 'Keep exploring')) { localStorage.removeItem('gullak:v1'); G.S = G.fresh(); G.go('welcome'); } }
     })
   };
 
