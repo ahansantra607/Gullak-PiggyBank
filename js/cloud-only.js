@@ -86,6 +86,10 @@
     // Once signed in, the welcome/mode chooser is never a destination.
     // Preserve Family's own role-aware redirect (supervisor -> sup, member -> home).
     if (name === 'welcome' || name === 'modes') {
+      // First-time Individual setup must continue through the kid profile wizard
+      // after the grown-up has saved the PIN and house rules. Do not send it
+      // back to me-pin until that onboarding has actually been completed.
+      if (name === 'welcome' && mode !== 'family' && !G.S?.profile && G._pendingPin && G._pendingRules) return null;
       if (prior) return prior;
       if (mode === 'family') return G.FAM ? 'sup' : 'fam-pick';
       return G.S && G.S.profile ? 'home' : 'me-pin';
