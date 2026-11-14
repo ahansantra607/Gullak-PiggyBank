@@ -79,7 +79,7 @@
   const routeGuardCloudOnly0 = G.routeGuard;
   G.routeGuard = (name, q) => {
     const prior = routeGuardCloudOnly0 ? routeGuardCloudOnly0(name, q) : null;
-    if (!G.cloudAccount.unlocked) {
+    if (!G.cloudAccount.unlocked && !G.backupReadOnly) {
       if (!['welcome', 'modes', 'cloud-account', 'cloud-families', 'cloud-family-join', 'fam-pick'].includes(name)) return 'cloud-account';
       return prior;
     }
@@ -101,6 +101,7 @@
   const cloudSave0 = G.save;
   let individualChain = Promise.resolve();
   G.save = function () {
+    if (G.backupReadOnly) return Promise.resolve();
     if (!G.cloudAccount || !G.cloudAccount.unlocked) {
       G.cloudSavePending = true;
       return;
@@ -410,16 +411,14 @@
       await connect(button);
       if (G.cloudAccount.unlocked && G.pendingIndividualBackup && !wasFamily) {
         const restored = G.pendingIndividualBackup;
-        if (mode !== 'individual') {
-          G.toast('Switch to Individual mode to restore this backup.');
-          return;
-        }
-        if (!(await G.confirm('Restore this Individual backup?', 'This replaces the destination cloud diary after it has been saved and verified.', 'Restore backup', 'Cancel'))) return;
+        if (mode !== 'individual') { G.toast('Switch to Individual mode to restore this backup.'); return; }
+        if (!(await G.confirm('Replace this account with the backup?', 'The imported diary will replace the signed-in account only after the cloud upload is downloaded and verified.', 'Replace cloud diary', 'Cancel'))) return;
         try {
           await G.cloud.saveVault(restored, G.cloudAccount.encryptionPassphrase);
           const verify = await G.cloud.loadVault(G.cloudAccount.encryptionPassphrase);
           if (!verify || JSON.stringify(verify) !== JSON.stringify(restored)) throw new Error('Cloud verification failed. The existing diary was not replaced.');
-          G.pendingIndividualBackup = null;
+          G.pendingIndividualBackup = null; G.pendingIndividualBackupUsername = '';
+          G.backupReadOnly = false; G.backupCreateAccount = false;
           G.S = G.normState(verify);
           G.toast('Backup restored and verified.');
           G.go('home');
@@ -472,13 +471,18 @@
       }});
     },
     'cloud-individual-export': () => {
+      if (G.backupReadOnly) return G.toast('This backup is open read-only. Sign in to an account to export a new backup.');
       if (!G.cloudAccount.unlocked || !G.S.profile || mode !== 'individual') return G.toast('Log in to the Individual account first.');
       const m = G.modal({ html: '<h2>🔐 Export encrypted backup</h2><p class="small muted">Choose a separate backup passphrase.</p><input class="input" id="ind-export-pass" type="password" placeholder="At least 10 characters"><input class="input" id="ind-export-confirm" type="password" placeholder="Confirm passphrase"><button class="btn primary block mt" data-act="make-ind-export">Create backup</button>', handlers: {
         'make-ind-export': async button => {
           const pass = G.$('#ind-export-pass', m.el).value, confirm = G.$('#ind-export-confirm', m.el).value;
           if (pass.length < 10 || pass !== confirm) return G.toast('Use matching passphrases of at least 10 characters.');
           button.disabled = true;
-          try { G.cloudBackup.download(await G.cloudBackup.encode({ gullakMode: 'individual', state: G.S }, pass)); m.close(); }
+          try {
+            await G.waitForCloudSync();
+            G.cloudBackup.download(await G.cloudBackup.encode({ gullakMode: 'individual', owner: { username: G.cloudAccount.user.username }, state: G.S }, pass));
+            m.close();
+          }
           catch (e) { button.disabled = false; G.toast(e.message || 'Export failed.'); }
         }
       }});
@@ -487,6 +491,8 @@
   const accountAfter0 = accountScreen.after;
   accountScreen.after = (root, q) => {
     if (accountAfter0) accountAfter0(root, q);
+    const usernameInput = G.$('#cloud-username', root);
+    if (usernameInput && G.pendingIndividualBackupUsername) usernameInput.value = G.pendingIndividualBackupUsername;
     const input = G.$('#cloud-individual-import-file', root);
     if (!input) return;
     input.addEventListener('change', () => {
@@ -500,18 +506,41 @@
               const payload = await G.cloudBackup.decode(String(reader.result), G.$('#ind-import-pass', modal.el).value);
               if (!payload || payload.gullakMode !== 'individual' || !payload.state || !payload.state.profile) throw new Error('This is not an Individual Gullak backup.');
               const value = G.normState(payload.state);
-              if (!G.cloudAccount.unlocked || mode !== 'individual') {
-                G.pendingIndividualBackup = value;
-                modal.close();
-                G.toast('Backup unlocked. Log in to the destination Individual account to finish restoring it.');
-                G.go('cloud-account');
+              const owner = payload.owner && typeof payload.owner.username === 'string' ? payload.owner.username : '';
+              if (G.cloudAccount.unlocked && mode === 'individual' &&
+                  (!owner || owner.toLowerCase() === String(G.cloudAccount.user.username || '').toLowerCase())) {
+                if (!(await G.confirm('Replace this account diary?', 'The imported backup replaces this cloud diary only after it has been saved and downloaded for verification.', 'Replace cloud diary', 'Cancel'))) { button.disabled = false; return; }
+                await G.cloud.saveVault(value, G.cloudAccount.encryptionPassphrase);
+                const verify = await G.cloud.loadVault(G.cloudAccount.encryptionPassphrase);
+                if (!verify || JSON.stringify(verify) !== JSON.stringify(value)) throw new Error('Cloud verification failed. The current diary has not been replaced.');
+                G.backupReadOnly = false;
+                G.S = value; modal.close(); G.toast('Backup imported and verified.'); G.go('home');
                 return;
               }
-              if (!(await G.confirm('Replace this account diary?', 'The imported backup replaces the current cloud diary only after verification.', 'Replace cloud diary', 'Cancel'))) { button.disabled = false; return; }
-              await G.cloud.saveVault(value, G.cloudAccount.encryptionPassphrase);
-              const verify = await G.cloud.loadVault(G.cloudAccount.encryptionPassphrase);
-              if (!verify || JSON.stringify(verify) !== JSON.stringify(value)) throw new Error('Cloud verification failed. The current diary has not been replaced.');
-              G.S = value; modal.close(); G.toast('Backup imported and verified.'); G.go('home');
+              G.pendingIndividualBackup = value;
+              G.pendingIndividualBackupUsername = owner;
+              modal.close();
+              const choice = G.modal({ html:
+                '<h2>📦 Backup unlocked</h2><p class="small muted">' +
+                (owner ? 'This backup belongs to <b>' + G.esc(owner) + '</b>.' : 'This backup does not contain an account username.') +
+                ' Sign in to restore it to the cloud, create the account if needed, or open a temporary read-only copy.</p>' +
+                '<button class="btn primary block" data-act="backup-sign-in">Sign in to existing account</button>' +
+                '<button class="btn soft block mt" data-act="backup-create-account">Create account</button>' +
+                '<button class="btn ghost block mt" data-act="backup-read-only">Open read-only</button>' +
+                '<button class="btn ghost block mt" data-act="backup-cancel">Cancel</button>',
+                handlers: {
+                  'backup-sign-in': () => { choice.close(); G.backupReadOnly = false; mode = 'individual'; G.setMode('individual'); G.go('cloud-account'); },
+                  'backup-create-account': () => {
+                    choice.close(); G.backupReadOnly = false; mode = 'individual'; G.setMode('individual');
+                    G.backupCreateAccount = true; G.go('cloud-account');
+                  },
+                  'backup-read-only': () => {
+                    choice.close(); G.backupReadOnly = true; G.setMode('individual'); G.S = value;
+                    G.go('home'); G.toast('Backup opened read-only. Changes will not be saved.');
+                  },
+                  'backup-cancel': () => { choice.close(); G.pendingIndividualBackup = null; G.pendingIndividualBackupUsername = ''; }
+                }
+              });
             } catch (e) { button.disabled = false; G.toast(e.message || 'Import failed.'); }
           }
         }});
