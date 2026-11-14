@@ -519,10 +519,18 @@
   const accountScreen = G.screens['cloud-account'];
   const accountRender0 = accountScreen.render;
   accountScreen.render = (...args) => {
-    const html = accountRender0(...args);
-    const backupControls = mode === 'family'
-      ? `${G.cloudAccount.unlocked && G.FAM ? '<button class="btn soft block" data-act="export-family-backup">Export family backup</button>' : ''}`
-      : `${G.cloudAccount.unlocked && G.S && G.S.profile ? '<button class="btn soft block" data-act="cloud-individual-export">Export Individual backup</button>' : ''}
+    let html = accountRender0(...args);
+    if (mode === 'family') {
+      // Family setup/login is not an Individual diary backup screen.
+      html = html
+        .replace('Your account password signs you in and unlocks your encrypted diary.', 'Sign in to your Gullak account to create or open your cloud family.')
+        .replace('Log in & unlock my Gullak', 'Log in & continue to Family')
+        .replace('New here? · Create an account', 'New to Gullak? · Create your account');
+      // Family export belongs inside an already-open family; import belongs in Find a family.
+      // Do not show a misleading, empty backup panel during family creation/login.
+      return html;
+    }
+    const backupControls = `${G.cloudAccount.unlocked && G.S && G.S.profile ? '<button class="btn soft block" data-act="cloud-individual-export">Export Individual backup</button>' : ''}
           <label class="btn soft block file-btn mt">Import Individual backup<input id="cloud-individual-import-file" type="file" accept=".gullak,.json,application/json" hidden></label>`;
     const panel = `<section class="card"><h3>📦 Backups & restore</h3>
           <p class="small muted">Backups are encrypted with a separate passphrase. Restoring to the cloud requires the destination account to be unlocked.</p>
