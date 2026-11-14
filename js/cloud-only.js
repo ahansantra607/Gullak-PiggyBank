@@ -40,12 +40,14 @@
 
 
   // A diary cannot be started or edited until its cloud account is unlocked.
-  const modesHandlers0 = G.screens.modes && G.screens.modes.handlers;\n  const modesRender0 = G.screens.modes && G.screens.modes.render;
+  const modesHandlers0 = G.screens.modes && G.screens.modes.handlers;
+  const modesRender0 = G.screens.modes && G.screens.modes.render;
   if (G.screens.modes) {
     G.screens.modes.render = () => {
       const html = modesRender0();
       return html
-        .replace(/Continue my Gullak|One kid on this device\\. A grown-up sets a PIN first\\./g, 'Open your cloud-synced Individual Gullak.')
+        .replace('Continue my Gullak', 'Open your cloud-synced Individual Gullak.')
+        .replace('One kid on this device. A grown-up sets a PIN first.', 'Open your cloud-synced Individual Gullak.')
         .replace('Choose your family, pick who you are, enter your PIN. Supervisors approve asks.', 'Find or create a cloud family, then choose your profile.');
     };
     G.screens.modes.handlers = () => Object.assign(modesHandlers0 ? modesHandlers0() : {}, {
