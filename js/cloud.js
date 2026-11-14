@@ -5,7 +5,6 @@
   const C = G.cr;
   const API = 'https://server.ahansantra607.workers.dev';
   const encoder = new TextEncoder();
-  const decoder = new TextDecoder();
   const ITERATIONS = 310000;
   let saveChain = Promise.resolve();
 
@@ -52,7 +51,7 @@
     saveVault(value, passphrase) {
       if (!C || !C.available) return Promise.reject(new Error('Secure browser encryption is unavailable.'));
       const snapshot = JSON.stringify(value);
-      saveChain = saveChain.then(async () => {
+      const task = saveChain.catch(() => {}).then(async () => {
         const salt = C.salt();
         const key = await C.deriveKey(passphrase, salt, ITERATIONS);
         const packed = await C.enc(key, encoder.encode(snapshot));
@@ -69,11 +68,11 @@
           })
         });
       });
-      return saveChain;
+      saveChain = task;
+      return task;
     },
     async health() {
       return request('/api/health');
     }
   };
-  void decoder; // retained for symmetry with the browser text codec
 })(window.G);
