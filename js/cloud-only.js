@@ -323,7 +323,7 @@
   });
   G.screens['cloud-families'].render = () => {
     const rows = (G.cloudFamilyResults || []).map(f => {
-      const member = f.is_member === true || !!f.role;
+      const member = f.is_member === true || Number(f.is_member) === 1 || !!f.role;
       return '<div class="kid-row"><div class="grow"><b>' + G.esc(f.name) + '</b><small>' + (member ? 'Already in your families' : 'Your account must be linked by a supervisor') + '</small></div><button class="btn small soft" data-act="family-select" data-member="' + (member ? 'true' : 'false') + '" data-id="' + G.esc(f.family_id) + '" data-name="' + G.esc(f.name) + '">' + (member ? 'Open' : 'Join') + '</button></div>';
     }).join('');
     return '<section class="ob"><header class="page-h"><button class="back" data-act="go" data-to="fam-pick">←</button><h1>☁️ Cloud families</h1></header><section class="card"><input class="input" id="cloud-family-query" maxlength="64" placeholder="Family name or invite code"><button class="btn primary block mt" data-act="family-search">Search</button><div class="col gap mt">' + (rows || '<p class="muted small">Search for a family or refresh your list.</p>') + '</div><button class="btn soft block mt" data-act="family-refresh">Refresh my families</button><label class="btn ghost block file-btn mt">Import encrypted family backup<input id="cloud-family-import-file" type="file" accept=".gullak,.json,application/json" hidden></label></section></section>';
