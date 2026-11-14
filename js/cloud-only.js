@@ -257,6 +257,71 @@
     return '<section class="ob"><header class="page-h"><button class="back" data-act="go" data-to="fam-pick">←</button><h1>☁️ Cloud families</h1></header><section class="card"><input class="input" id="cloud-family-query" maxlength="64" placeholder="Family name or invite code"><button class="btn primary block mt" data-act="family-search">Search</button><div class="col gap mt">' + (rows || '<p class="muted small">Search for a family or refresh your list.</p>') + '</div><button class="btn soft block mt" data-act="family-refresh">Refresh my families</button></section></section>';
   };
 
+
+  async function importCloudFamilyBackup(rawText, backupPass) {
+    const payload = await G.cloudBackup.decode(rawText, backupPass);
+    if (!payload || payload.gullakFamily !== 1 || !payload.meta || !Array.isArray(payload.meta.members) || typeof payload.data !== 'string') throw new Error('Invalid Family backup.');
+    const meta = safeCopy(payload.meta);
+    const recovery = window.prompt('Enter the family recovery code saved with this backup:');
+    if (!recovery) throw new Error('Family recovery code is required.');
+    const raw = await C.unwrapWithSecret(C.normCode(recovery), meta.rc.salt, meta.rc.wrap, meta.iter);
+    const key = await C.aesKey(raw);
+    const data = JSON.parse(await C.decStr(key, payload.data));
+    data.kids = data.kids || {}; data.sups = data.sups || {};
+    const matches = await G.cloud.searchFamilies(meta.name);
+    const exact = matches.filter(x => String(x.name).toLowerCase() === String(meta.name).toLowerCase());
+    const mine = await G.cloud.listFamilies();
+    const replace = mine.find(x => String(x.name).toLowerCase() === String(meta.name).toLowerCase() && x.role === 'supervisor');
+    if (exact.length && !replace) throw new Error('A family with this name exists, but this account is not its supervisor.');
+    if (replace && !(await G.confirm('Replace the existing family?', 'The imported cloud copy will be verified before the old family is deleted.', 'Replace family', 'Cancel'))) return;
+    const supervisor = meta.members.find(x => x.role === 'supervisor' && x.userId === G.cloudAccount.user.user_id) || meta.members.find(x => x.role === 'supervisor');
+    if (!supervisor) throw new Error('No supervisor exists in this backup.');
+    supervisor.userId = G.cloudAccount.user.user_id;
+    const code = C.recoveryCode(), salt = C.salt();
+    meta.rc = { salt, wrap: await C.wrapWithSecret(C.normCode(code), salt, raw, meta.iter) };
+    const created = await G.cloud.createFamily({ name: meta.name, joinCode: code, familyKeyRaw: raw, value: { meta, data: { v: 1, defaults: data.defaults || {}, createdAt: data.createdAt } } });
+    meta.cloudId = created.family_id;
+    for (const member of meta.members) {
+      if (member.id === supervisor.id) continue;
+      const username = member.username || window.prompt('Gullak username for ' + member.name + ':');
+      if (!/^[a-z0-9_]{3,24}$/i.test(String(username || ''))) throw new Error('A valid Gullak username is required for ' + member.name + '.');
+      const linked = await G.cloud.addFamilyMember(meta.cloudId, username, member.role);
+      member.userId = linked.member.user_id;
+    }
+    await G.cloud.saveFamilyVault(meta.cloudId, raw, { meta, data: { v: 1, defaults: data.defaults || {}, createdAt: data.createdAt } });
+    for (const member of meta.members.filter(x => x.role === 'member' && x.userId)) {
+      if (data.kids[member.id]) await G.cloud.saveMemberVault(meta.cloudId, member.userId, raw, data.kids[member.id]);
+    }
+    const verify = await G.cloud.getFamilyVault(meta.cloudId, raw);
+    if (!verify.value || !verify.value.meta || verify.value.meta.members.length !== meta.members.length) throw new Error('Cloud verification failed; existing family was kept.');
+    if (replace) await G.cloud.deleteFamily(replace.family_id);
+    familyCache.set(meta.cloudId, { meta, fkRaw: raw }); activeFamilyId = meta.cloudId; mode = 'family';
+    G.FAM = { meta, fk: key, fkRaw: raw, data, mid: supervisor.id, role: 'supervisor', cloudId: meta.cloudId };
+    await G.famSave();
+    G.toast('Family backup imported. Save this new recovery code: ' + code, 8000);
+    G.go('sup');
+  }
+
+  G.screens['cloud-families'].after = root => {
+    const input = G.$('#cloud-family-import-file', root);
+    if (!input) return;
+    input.addEventListener('change', () => {
+      const file = input.files && input.files[0]; if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        const modal = G.modal({ html: '<h2>Import encrypted family</h2><p class="small muted">Enter the backup-file passphrase.</p><input class="input" id="cloud-family-import-pass" type="password"><button class="btn primary block mt" data-act="import-cloud-family">Unlock and import</button>', handlers: {
+          'import-cloud-family': async button => {
+            const pass = G.$('#cloud-family-import-pass', modal.el).value;
+            if (pass.length < 10) return G.toast('Enter the backup passphrase.');
+            button.disabled = true;
+            try { await importCloudFamilyBackup(String(reader.result), pass); modal.close(); }
+            catch (e) { button.disabled = false; G.toast(e.message || 'Family import failed.'); }
+          }
+        }});
+      };
+      reader.readAsText(file);
+    });
+  };
   // Ensure cloud account login returns to family flow, and restore remote individual state.
   const cloudConnectScreen = G.screens['cloud-account'];
   const cloudConnectHandlers = cloudConnectScreen.handlers;
