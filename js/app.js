@@ -5,7 +5,7 @@
 
   const parse = () => {
     const h = location.hash.replace(/^#\/?/, '');
-    const i = h.indexOf('?'); const name = (i < 0 ? h : h.slice(0, i)) || 'home';
+    const i = h.indexOf('?'); const name = (i < 0 ? h : h.slice(0, i)) || 'welcome';
     const q = {}; if (i >= 0) new URLSearchParams(h.slice(i + 1)).forEach((v, k) => { q[k] = v; });
     return { name, q };
   };
