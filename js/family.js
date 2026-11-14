@@ -549,12 +549,12 @@
         <section class="card"><h3>👥 Family members</h3>
           ${F.meta.members.map(m => `<div class="kid-row"><span class="av-mid">${esc(m.avatar)}</span><div class="grow"><b>${esc(m.name)}${m.id === me.id ? ' (you)' : ''}</b>
             <small>${m.role === 'supervisor' ? '🛡️ Supervisor' : '🧒 Kid · ' + (m.ageGroup === 'senior' ? '13–18' : '8–12')}${m.lockUntil > G.now() ? ' · 🔒 locked' : ''}</small></div>
-            <button class="btn small soft" data-act="m-pin" data-m="${m.id}">🔑 Reset PIN</button>${m.id !== me.id ? `<button class="x" data-act="m-del" data-m="${m.id}" aria-label="Remove">✕</button>` : ''}</div>`).join('')}
+            ${m.id !== me.id ? `<button class="x" data-act="m-del" data-m="${m.id}" aria-label="Remove">✕</button>` : ''}</div>`).join('')}
           <button class="btn primary block" data-act="m-add">➕ Add member</button>
           <p class="fine">Only supervisors can add kids or other supervisors.</p></section>
         <section class="card"><h3>⚙️ Family settings</h3>
           <div class="row gap"><input class="input grow" id="fs-name" maxlength="24" value="${esc(F.meta.name)}"><button class="btn soft" data-act="f-rename">Rename</button></div>
-          <div class="col gap mt"><button class="btn soft block" data-act="f-code">🛟 Make a new recovery code</button>
+          <div class="col gap mt"><button class="btn soft block" data-act="f-code">🔐 Change shared Family PIN</button>
             <button class="btn danger block" data-act="f-delete">🗑️ Delete this family</button></div>
           <p class="fine">🔐 All money data is encrypted with AES-256 before cloud sync. PINs are never stored.</p></section>`;
     },
@@ -589,12 +589,12 @@
         G.FAM.meta.name = n; putFam(G.FAM.meta); await G.famSave(); G.toast('Renamed ✅'); G.render({ keepScroll: true });
       },
       'f-code': async () => {
-        if (!(await G.confirm('Make a new recovery code?', 'The old code will stop working.', 'Make new code', 'Cancel'))) return;
+        if (!(await G.confirm('Change the shared Family PIN?', 'The old Family PIN will stop working for everyone.', 'Change PIN', 'Cancel'))) return;
         const F = G.FAM; const code = window.prompt('Set a new shared Family PIN (4–6 digits):', ''); if (!/^\\d{4,6}$/.test(String(code || ''))) return G.toast('Family PIN must be 4–6 digits.'); const salt = C.salt();
         const wrap = await C.wrapWithSecret(C.normCode(code), salt, F.fkRaw, F.meta.iter);
         if (F.cloudId) {
           try { await G.cloud.updateFamilyCode(F.cloudId, F.fkRaw, code); }
-          catch (error) { return G.toast(error.message || 'Could not update the cloud recovery code.'); }
+          catch (error) { return G.toast(error.message || 'Could not update the shared Family PIN.'); }
         }
         F.meta.rc = { salt, wrap }; putFam(F.meta); await G.famSave();
         G.modal({ html: `<h2>🛟 New shared Family PIN</h2><p>Share it only with family members.</p><div class="code big-code">${esc(code)}</div>
@@ -646,15 +646,14 @@
       html: `<h2>➕ Add a family member</h2>
         <div class="seg"><button class="seg-b on" data-act="role" data-v="member">🧒 Kid<small>uses Gullak</small></button><button class="seg-b" data-act="role" data-v="supervisor">🛡️ Supervisor<small>grown-up, approves</small></button></div>
         <div class="label">Nickname</div><input class="input" id="am-name" maxlength="14" placeholder="e.g. Rocket (not a real name)">
-        ${G.FAM.cloudId ? '<div class="label">Their Gullak account username</div><input class="input" id="am-username" maxlength="24" autocomplete="off" placeholder="They must create an account first"><p class="hint">This links their own login to this family member.</p>' : ''}
+        ${G.FAM.cloudId ? '<div class="label">Create their Gullak username</div><input class="input" id="am-username" maxlength="24" autocomplete="off" placeholder="username"><div class="label">Set their account password</div><input class="input" id="am-password" type="password" maxlength="128" autocomplete="new-password" placeholder="Strong password"><p class="hint">They will use this username and password to sign in. No personal Family PIN.</p>' : ''}
         <div class="avatar-grid sm">${G.AVATARS.concat(['👩', '👨', '👵', '👴']).map(a => `<button class="av ${a === st.avatar ? 'on' : ''}" data-act="av" data-v="${a}">${a}</button>`).join('')}</div>
         <div id="am-kid"><div class="label">Age group</div>
           <div class="seg"><button class="seg-b on" data-act="age" data-v="junior">8–12</button><button class="seg-b" data-act="age" data-v="senior">13–18</button></div>
           <div class="label">Pocket money (pretend)</div>
           <div class="row gap"><input class="input grow" id="am-pm" type="number" inputmode="numeric" min="0" value="100">
           <div class="seg"><button class="seg-b on" data-act="freq" data-v="weekly">Weekly</button><button class="seg-b" data-act="freq" data-v="monthly">Monthly</button></div></div></div>
-        <div class="label">Their PIN (4–6 digits)</div><input class="input big" id="am-pin" type="password" inputmode="numeric" maxlength="6" placeholder="PIN">
-        <p class="hint">Tell them their PIN. They can't change it themselves. A supervisor resets it if they forget.</p>
+        <div class="label">Member account</div><p class="hint">Each member has their own Gullak username and password. The shared Family PIN is used only before the member list appears.</p>
         <button class="btn primary block big" data-act="ok">Add member</button>`,
       handlers: {
         role: (el) => { st.role = el.dataset.v; G.$$('[data-act=role]', m.el).forEach(b => b.classList.toggle('on', b === el)); G.$('#am-kid', m.el).hidden = st.role !== 'member'; },
@@ -663,19 +662,23 @@
         freq: (el) => { st.freq = el.dataset.v; G.$$('[data-act=freq]', m.el).forEach(b => b.classList.toggle('on', b === el)); },
         ok: async (el) => {
           if (st.busy) return;
-          const name = G.$('#am-name', m.el).value.trim(), pin = G.$('#am-pin', m.el).value;
-          if (!name) return G.toast('Type a nickname'); if (!/^\d{4,6}$/.test(pin)) return G.toast('PIN must be 4 to 6 digits');
+          const name = G.$('#am-name', m.el).value.trim();
+          if (!name) return G.toast('Type a nickname');
           const F = G.FAM; if (F.meta.members.some(x => x.name.toLowerCase() === name.toLowerCase())) return G.toast('Someone already has that nickname');
           st.busy = true; el.disabled = true; el.textContent = '🔐 Locking…';
           try {
             let userId = null;
             if (F.cloudId) {
               const username = G.$('#am-username', m.el).value.trim();
-              if (!/^[a-z0-9_]{3,24}$/i.test(username)) throw new Error('Enter the member\'s Gullak account username. They must create their account first.');
-              const linked = await G.cloud.addFamilyMember(F.cloudId, username, st.role);
+              const password = G.$('#am-password', m.el).value;
+              if (!/^[a-z0-9_]{3,24}$/i.test(username)) throw new Error('Username must be 3–24 letters, numbers or underscores.');
+              if (password.length < 8 || !/[a-z]/.test(password) || !/[A-Z]/.test(password) || !/[0-9]/.test(password) || !/[^A-Za-z0-9\s]/.test(password)) throw new Error('Password needs 8+ characters with uppercase, lowercase, a number and a special character.');
+              const linked = await G.cloud.addFamilyMember(F.cloudId, username, password, st.role);
               userId = linked.member.user_id;
             }
-            const mem = await makeMember({ name, avatar: st.avatar, role: st.role, ageGroup: st.age, pin }, F.fkRaw, F.meta.iter);
+            const localMemberSecret = F.cloudId ? C.b64(C.rand(18)) : (G.$('#am-pin', m.el)?.value || '0000');
+            if (!F.cloudId && !/^\d{4,6}$/.test(localMemberSecret)) throw new Error('PIN must be 4 to 6 digits.');
+            const mem = await makeMember({ name, avatar: st.avatar, role: st.role, ageGroup: st.age, pin: localMemberSecret }, F.fkRaw, F.meta.iter);
             if (userId) mem.userId = userId;
             F.meta.members.push(mem);
             if (st.role === 'member') F.data.kids[mem.id] = kidState(mem, { pocketMoney: Math.max(0, Math.round(Number(G.$('#am-pm', m.el).value) || 0)), frequency: st.freq });
