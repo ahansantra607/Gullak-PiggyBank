@@ -510,4 +510,10 @@
     G.S = G.fresh(); mode = 'individual';
     return logout0();
   };
+  // Restore a remembered device session before the first page is rendered.
+  const priorBootReady = G.bootReady;
+  G.bootReady = Promise.resolve(priorBootReady).then(async () => {
+    if (G.cloudAccount && !G.cloudAccount.unlocked) await G.cloudAccount.restoreSession();
+  });
+
 })(window.G);
