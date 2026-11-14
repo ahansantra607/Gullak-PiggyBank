@@ -24,9 +24,10 @@ for (const file of files) {
 }
 
 const cloudOnlySource = readFileSync('js/cloud-only.js', 'utf8');
-if (!cloudOnlySource.includes('if (G.backupReadOnly) return Promise.resolve();')) throw new Error('Read-only backup mode can still save diary changes.');
+if (!cloudOnlySource.includes('if (G.backupTemporary) return Promise.resolve();')) throw new Error('Temporary backup mode is not isolated from persistence.');
+if (!cloudOnlySource.includes('Temporary copy opened. You can edit it, but nothing will be saved anywhere.')) throw new Error('Temporary backup is not described as editable and non-persistent.');
 if (!cloudOnlySource.includes('owner: { username: G.cloudAccount.user.username }')) throw new Error('Individual backup does not carry its originating account username.');
-if (!cloudOnlySource.includes('data-act="backup-read-only"')) throw new Error('Individual backup import has no read-only option.');
+if (!cloudOnlySource.includes('data-act="backup-read-only">Open editable temporary copy</button>')) throw new Error('Individual backup import has no editable temporary-copy option.');
 if (!cloudOnlySource.includes('G.pendingIndividualBackupUsername')) throw new Error('Individual backup import does not retain the source account username.');
 if (!cloudOnlySource.includes("window.prompt('Enter your Gullak account password to replace this account:')")) throw new Error('Replacing a backup destination does not require account-password reauthentication.');
 if (!cloudOnlySource.includes('G.cloud.login(G.cloudAccount.user.username, accountPassword)')) throw new Error('Backup replacement does not reauthenticate the destination account.');
