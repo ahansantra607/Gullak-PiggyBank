@@ -7,6 +7,12 @@ CREATE TABLE IF NOT EXISTS users (
     created_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS user_account_types (
+    user_id TEXT PRIMARY KEY REFERENCES users(user_id) ON DELETE CASCADE,
+    account_type TEXT NOT NULL CHECK (account_type IN ('individual', 'family')),
+    created_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS sessions (
     session_id_hash TEXT PRIMARY KEY,
     user_id TEXT NOT NULL REFERENCES users(user_id)
