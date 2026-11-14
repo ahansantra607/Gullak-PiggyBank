@@ -161,7 +161,7 @@
           !file.salt || !file.iv || !file.ciphertext) throw new Error('Unsupported or invalid encrypted backup.');
       const key = await G.cr.deriveKey(passphrase, file.salt, file.iterations);
       const value = JSON.parse(await G.cr.decStr(key, file.iv + '.' + file.ciphertext));
-      if (!value || !value.profile || !Array.isArray(value.txns)) throw new Error('The decrypted file is not a Gullak diary.');
+      if (!value || typeof value !== 'object') throw new Error('The decrypted backup is invalid.');
       return value;
     },
     download(text) {
