@@ -136,6 +136,25 @@
     addFamilyMember: (familyId, username, role = 'member') => request(familyPath(familyId) + '/members', {
       method: 'POST', body: JSON.stringify({ username, role })
     }),
+    removeFamilyMember: (familyId, userId) => request(familyPath(familyId) + '/members', {
+      method: 'DELETE', body: JSON.stringify({ user_id: userId })
+    }),
+    renameFamily: (familyId, name) => request(familyPath(familyId), {
+      method: 'PUT', body: JSON.stringify({ name })
+    }),
+    deleteFamily: familyId => request(familyPath(familyId), { method: 'DELETE' }),
+    async updateFamilyCode(familyId, familyKeyRaw, joinCode) {
+      const salt = C.salt();
+      const wrappingKey = await C.deriveKey(C.normCode(joinCode), salt, ITERATIONS);
+      const familyKeyWrap = await C.enc(wrappingKey, familyKeyRaw);
+      return request(familyPath(familyId) + '/code', {
+        method: 'PUT',
+        body: JSON.stringify({
+          join_code: C.normCode(joinCode), family_key_wrap: familyKeyWrap,
+          key_wrap_salt: salt, key_wrap_iterations: ITERATIONS
+        })
+      });
+    },
     async getMemberVault(familyId, userId, familyKeyRaw) {
       const query = userId ? '?user_id=' + encodeURIComponent(userId) : '';
       const result = await request(familyPath(familyId) + '/member-vault' + query);
