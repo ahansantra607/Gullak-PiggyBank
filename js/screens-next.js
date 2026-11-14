@@ -81,7 +81,7 @@
           <div class="kv"><span>🐷 Money now</span><b>${rs(w.bal)}</b></div>
           <div class="kv"><span>🔥 You usually spend</span><b>${rs(w.burn)} a day</b></div>
           <div class="kv"><span>🗓️ Days to pocket money</span><b>${w.daysLeft}</b></div>
-          <div class="kv"><span>🔮 Left on pocket-money day</span><b class="${w.predicted < 0 ? 'minus' : ''}">${rs(w.predicted)}</b></div>
+          <div class="kv"><span>🔮 Left on pocket-money day</span><b>${rs(Math.max(0, w.predicted))}</b></div>
           <p class="small muted">Grown-ups call this a <b>budget forecast</b>. Banks and companies do it too!</p></section>
         ${w.strip.length ? `<section class="card"><h3>Day by day</h3>${w.strip.map(d => `<div class="kv"><span>${d.e} ${d.d}</span><b class="${d.b < 0 ? 'minus' : ''}">${rs(d.b)}</b></div>`).join('')}</section>` : ''}`;
     },
