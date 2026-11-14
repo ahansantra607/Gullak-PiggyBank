@@ -676,7 +676,13 @@ export default {
     if (path.startsWith("/api/families")) {
       try {
         const user = await getCurrentUser(request, env);
-        if (!user) return json({ error: "Authentication required." }, 401);
+        const publicDirectoryRead = request.method === "GET" &&
+          (path === "/api/families" || path === "/api/families/search");
+        const publicFamilyVaultRead = request.method === "GET" &&
+          /^\\/api\\/families\\/[^/]+\\/vault$/.test(path);
+        if (!user && !publicDirectoryRead && !publicFamilyVaultRead) {
+          return json({ error: "Authentication required." }, 401);
+        }
 
         const validEncrypted = (value: any) => {
           if (!value || typeof value !== "object") return false;
@@ -700,7 +706,7 @@ export default {
               ON m.family_id = f.family_id AND m.user_id = ?
             ORDER BY f.created_at DESC
             LIMIT 100
-          `).bind(user.user_id).all();
+          `).bind(user?.user_id || "").all();
           return json({ families: rows.results || [] });
         }
 
@@ -722,7 +728,7 @@ export default {
             ORDER BY CASE WHEN f.join_code_hash = ? THEN 0 ELSE 1 END,
               f.created_at DESC
             LIMIT 20
-          `).bind(user.user_id, nameQuery, codeHash, codeHash, codeHash).all();
+          `).bind(user?.user_id || "", nameQuery, codeHash, codeHash, codeHash).all();
           return json({ families: rows.results || [] });
         }
 
@@ -785,7 +791,7 @@ export default {
 
         const membership = await env.gullak_db.prepare(`
           SELECT role FROM cloud_family_members WHERE family_id = ? AND user_id = ?
-        `).bind(familyId, user.user_id).first<{ role: string }>();
+        `).bind(familyId, user?.user_id || "").first<{ role: string }>();
 
         if (!action && request.method === "PUT") {
           if (!membership || membership.role !== "supervisor") return json({ error: "Supervisor permission required." }, 403);
