@@ -28,6 +28,48 @@
     return data;
   }
 
+  const rememberDb = () => new Promise((resolve, reject) => {
+    const req = indexedDB.open('gullak-device-session', 1);
+    req.onupgradeneeded = () => req.result.createObjectStore('session');
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error || new Error('Device session storage unavailable.'));
+  });
+  async function rememberDevice(secret) {
+    const db = await rememberDb();
+    try {
+      const key = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
+      const iv = crypto.getRandomValues(new Uint8Array(12));
+      const encrypted = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, encoder.encode(secret));
+      await new Promise((resolve, reject) => {
+        const tx = db.transaction('session', 'readwrite');
+        tx.objectStore('session').put({ key, iv: Array.from(iv), ciphertext: Array.from(new Uint8Array(encrypted)) }, 'remembered');
+        tx.oncomplete = resolve; tx.onerror = () => reject(tx.error);
+      });
+    } finally { db.close(); }
+  }
+  async function readRememberedDevice() {
+    const db = await rememberDb();
+    try {
+      const record = await new Promise((resolve, reject) => {
+        const tx = db.transaction('session', 'readonly');
+        const req = tx.objectStore('session').get('remembered');
+        req.onsuccess = () => resolve(req.result || null); req.onerror = () => reject(req.error);
+      });
+      if (!record || !record.key || !record.iv || !record.ciphertext) return null;
+      const plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: new Uint8Array(record.iv) }, record.key, new Uint8Array(record.ciphertext));
+      return new TextDecoder().decode(plain);
+    } finally { db.close(); }
+  }
+  async function clearRememberedDevice() {
+    if (!('indexedDB' in window)) return;
+    const db = await rememberDb();
+    try {
+      await new Promise((resolve, reject) => {
+        const tx = db.transaction('session', 'readwrite'); tx.objectStore('session').delete('remembered');
+        tx.oncomplete = resolve; tx.onerror = () => reject(tx.error);
+      });
+    } finally { db.close(); }
+  }
   G.cloud = {
     endpoint: API,
     register: (username, password) => request('/api/register', {
@@ -37,7 +79,18 @@
       method: 'POST', body: JSON.stringify({ username, password })
     }),
     me: () => request('/api/me'),
-    logout: () => request('/api/logout', { method: 'POST' }),
+    rememberDevice,
+    readRememberedDevice,
+    clearRememberedDevice,
+    async restoreRemembered() {
+      const user = await request('/api/me');
+      const secret = await readRememberedDevice();
+      return secret ? { user: user.user || user, secret } : null;
+    },
+    async logout() {
+      try { await request('/api/logout', { method: 'POST' }); }
+      finally { await clearRememberedDevice().catch(() => {}); }
+    },
     async saveKeyWrap(secret, accountPassword) {
       const salt = C.salt();
       const wrapped = await C.wrapWithSecret(accountPassword, salt, encoder.encode(secret), ITERATIONS);
