@@ -130,7 +130,11 @@
     const t = normalize(raw);
     const rawText = String(raw || '').trim();
     const p = G.S.profile;
-    if (!p) return null;
+    if (!p) {
+      if (/\b(?:what is|what's|whats|tell me)\s+(?:my\s+)?name\b|\bwhat do you call me\b/.test(t))
+        return coachReply('I do not have a name saved in your Gullak profile yet. You can set one in your profile.', 'I do not have a name saved in your Gullak profile yet.', 'profile-name-query');
+      return null;
+    }
     const simpleReply = (html, plain, intent) => coachReply(html, plain, intent);
     const confirm = (label, detail, fn, intent) =>
       simpleReply('<p>' + detail + '</p>' + coachButton(label, fn),
