@@ -417,8 +417,11 @@
           G.toast('This backup belongs to ' + expectedUser + '. Sign in to that account or create it before restoring.');
           return;
         }
-        if (!(await G.confirm('Replace this account with the backup?', 'The imported diary will replace the signed-in account only after the cloud upload is downloaded and verified.', 'Replace cloud diary', 'Cancel'))) return;
+        const accountPassword = window.prompt('Enter your Gullak account password to replace this account:');
+        if (!accountPassword) return;
         try {
+          const reauth = await G.cloud.login(G.cloudAccount.user.username, accountPassword);
+          if (!reauth.user || reauth.user.user_id !== G.cloudAccount.user.user_id) throw new Error('Account verification failed. No data was replaced.');
           await G.cloud.saveVault(restored, G.cloudAccount.encryptionPassphrase);
           const verify = await G.cloud.loadVault(G.cloudAccount.encryptionPassphrase);
           if (!verify || JSON.stringify(verify) !== JSON.stringify(restored)) throw new Error('Cloud verification failed. The existing diary was not replaced.');
@@ -513,8 +516,11 @@
               const value = G.normState(payload.state);
               const owner = payload.owner && typeof payload.owner.username === 'string' ? payload.owner.username : '';
               if (G.cloudAccount.unlocked && mode === 'individual' &&
-                  (!owner || owner.toLowerCase() === String(G.cloudAccount.user.username || '').toLowerCase())) {
-                if (!(await G.confirm('Replace this account diary?', 'The imported backup replaces this cloud diary only after it has been saved and downloaded for verification.', 'Replace cloud diary', 'Cancel'))) { button.disabled = false; return; }
+                  !!owner && owner.toLowerCase() === String(G.cloudAccount.user.username || '').toLowerCase()) {
+                const accountPassword = window.prompt('Enter your Gullak account password to replace this account:');
+                if (!accountPassword) { button.disabled = false; return; }
+                const reauth = await G.cloud.login(G.cloudAccount.user.username, accountPassword);
+                if (!reauth.user || reauth.user.user_id !== G.cloudAccount.user.user_id) throw new Error('Account verification failed. No data was replaced.');
                 await G.cloud.saveVault(value, G.cloudAccount.encryptionPassphrase);
                 const verify = await G.cloud.loadVault(G.cloudAccount.encryptionPassphrase);
                 if (!verify || JSON.stringify(verify) !== JSON.stringify(value)) throw new Error('Cloud verification failed. The current diary has not been replaced.');
