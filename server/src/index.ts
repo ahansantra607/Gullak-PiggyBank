@@ -693,11 +693,13 @@ export default {
 
         if (path === "/api/families" && request.method === "GET") {
           const rows = await env.gullak_db.prepare(`
-            SELECT f.family_id, f.name, m.role, f.created_at
+            SELECT f.family_id, f.name, m.role, f.created_at,
+              CASE WHEN m.user_id IS NULL THEN 0 ELSE 1 END AS is_member
             FROM cloud_families f
-            JOIN cloud_family_members m ON m.family_id = f.family_id
-            WHERE m.user_id = ?
+            LEFT JOIN cloud_family_members m
+              ON m.family_id = f.family_id AND m.user_id = ?
             ORDER BY f.created_at DESC
+            LIMIT 100
           `).bind(user.user_id).all();
           return json({ families: rows.results || [] });
         }
@@ -734,8 +736,8 @@ export default {
           if (name.length < 2 || name.length > 40) {
             return json({ error: "Family name must be 2–40 characters." }, 400);
           }
-          if (joinCode.length < 8 || joinCode.length > 64) {
-            return json({ error: "Invalid family invite code." }, 400);
+          if (!/^\\d{4,6}$/.test(joinCode)) {
+            return json({ error: "Family PIN must be 4–6 digits." }, 400);
           }
           const wrapParts = keyWrap.split(".");
           if (wrapParts.length !== 2 || !validBase64(wrapParts[0]) ||
@@ -807,7 +809,7 @@ export default {
           const parts = String(body.family_key_wrap || "").split(".");
           const salt = String(body.key_wrap_salt || "");
           const iterations = Number(body.key_wrap_iterations);
-          if (code.length < 8 || code.length > 64 || parts.length !== 2 ||
+          if (!/^\\d{4,6}$/.test(code) || parts.length !== 2 ||
               !validBase64(parts[0]) || !validBase64(parts[1]) ||
               fromBase64(parts[0]).length !== 12 || fromBase64(parts[1]).length < 16 ||
               !validBase64(salt) || fromBase64(salt).length !== 16 ||
@@ -832,6 +834,21 @@ export default {
             VALUES (?, ?, 'member', ?)
           `).bind(familyId, user.user_id, new Date().toISOString()).run();
           return json({ success: true, family: { family_id: familyId, name: family.name, role: membership?.role || "member" } });
+        }
+
+        // The family vault contains the encrypted member directory. An authenticated
+        // account may fetch ciphertext; the shared Family PIN unlocks it client-side.
+        if (action === "vault" && request.method === "GET") {
+          const vault = await env.gullak_db.prepare(`
+            SELECT ciphertext, iv, salt, schema_version, updated_at
+            FROM cloud_family_vaults WHERE family_id = ?
+          `).bind(familyId).first();
+          return json({
+            exists: !!vault, vault: vault || null,
+            family_key_wrap: family.family_key_wrap,
+            key_wrap_salt: family.key_wrap_salt,
+            key_wrap_iterations: family.key_wrap_iterations
+          });
         }
 
         if (!membership) return json({ error: "You are not a member of this family." }, 403);
@@ -881,19 +898,6 @@ export default {
             "DELETE FROM cloud_family_members WHERE family_id = ? AND user_id = ?"
           ).bind(familyId, targetId).run();
           return json({ success: true });
-        }
-
-        if (action === "vault" && request.method === "GET") {
-          const vault = await env.gullak_db.prepare(`
-            SELECT ciphertext, iv, salt, schema_version, updated_at
-            FROM cloud_family_vaults WHERE family_id = ?
-          `).bind(familyId).first();
-          return json({
-            exists: !!vault, vault: vault || null,
-            family_key_wrap: family.family_key_wrap,
-            key_wrap_salt: family.key_wrap_salt,
-            key_wrap_iterations: family.key_wrap_iterations
-          });
         }
 
         if (action === "vault" && request.method === "PUT") {
