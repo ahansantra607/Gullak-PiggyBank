@@ -135,7 +135,7 @@
           if (stayLoggedIn) {
             try { await G.cloud.rememberDevice(cloudSecret); }
             catch (rememberError) { G.toast('Signed in, but this browser could not save the stay-logged-in setting.'); }
-          } else if (authMode === 'login') {
+          } else if (authMode === 'login' && G.cloud.clearRememberedDevice) {
             await G.cloud.clearRememberedDevice().catch(() => {});
           }
           const familyReturn = G.mode && G.mode() === 'family' &&
