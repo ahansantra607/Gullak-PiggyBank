@@ -7,6 +7,7 @@
   let activeFamilyId = null;
   const safeCopy = value => JSON.parse(JSON.stringify(value));
   const familyKey = key => /^gullak:(families|famdata:|lastfam|mode|famsession)/.test(String(key));
+  const cloudOnlyKey = key => familyKey(key) || String(key) === 'gullak:v1';
 
   // Family indexes, family ciphertext and mode selection are memory-only.
   const ls = window.localStorage;
@@ -14,8 +15,8 @@
   if (ls && !ls.__gullakCloudOnly) {
     const get = ls.getItem.bind(ls), set = ls.setItem.bind(ls), remove = ls.removeItem.bind(ls);
     Object.defineProperty(ls, '__gullakCloudOnly', { value: true });
-    ls.getItem = key => familyKey(key) ? null : get(key);
-    ls.setItem = (key, value) => familyKey(key) ? undefined : set(key, value);
+    ls.getItem = key => cloudOnlyKey(key) ? null : get(key);
+    ls.setItem = (key, value) => cloudOnlyKey(key) ? undefined : set(key, value);
     ls.removeItem = key => familyKey(key) ? undefined : remove(key);
   }
   if (ss && !ss.__gullakCloudOnly) {
