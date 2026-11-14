@@ -69,7 +69,7 @@
       <header class="page-h"><button class="back" data-act="go" data-to="${G.S.profile ? 'settings' : 'welcome'}" aria-label="Back">←</button><h1>☁️ Gullak Cloud</h1></header>
       <div class="card">
         <h2>${authMode === 'register' ? 'Create your cloud account' : 'Log in to Gullak'}</h2>
-        <p class="small muted">Your account password signs you in. Your separate encryption passphrase locks your money diary. The passphrase is used only in this browser and is never sent to the server.</p>
+        <p class="small muted">Your account password signs you in. Your separate encryption passphrase locks your money diary. The passphrase is kept in memory while Gullak is unlocked and is never sent to the server.</p>
         <label class="label" for="cloud-username">Username</label>
         <input class="input" id="cloud-username" maxlength="24" autocomplete="username" placeholder="3–24 letters, numbers or _">
         <label class="label" for="cloud-password">Account password</label>
@@ -116,7 +116,7 @@
             if (local && JSON.stringify(local) !== JSON.stringify(remote)) {
               const replaceCloud = await G.confirm(
                 'Two different Gullak copies',
-                'A different copy exists in this browser. Choose Yes to replace the cloud diary with this copy, or No to keep the cloud diary. The local copy is cleared only after the chosen cloud copy is verified.',
+                'An older browser-stored diary was found. Choose Yes to upload it to this cloud account, or No to keep the cloud diary. The older copy is cleared only after the cloud copy is verified.',
                 'Replace cloud with this copy', 'Keep cloud copy'
               );
               if (replaceCloud) {
@@ -158,7 +158,7 @@
               G.toast('☁️ Your Gullak is encrypted in the cloud. The old local diary copy was cleared.');
               G.go(returnAfterLogin || 'home');
             } else {
-              G.toast('Cloud account connected. Your on-device data has not been changed.');
+              G.toast('Cloud account connected. No diary was uploaded.');
               G.go(returnAfterLogin || 'home');
             }
           } else {
@@ -236,7 +236,7 @@
 
   G.screens['cloud-family-join'] = {
     bare: true,
-    render: () => '<section class="ob"><header class="page-h"><button class="back" data-act="go" data-to="cloud-families">←</button><h1>🔐 Join family</h1></header><section class="card"><h2>' + esc(selectedFamily ? selectedFamily.name : 'Family') + '</h2><p class="small muted">Enter the family recovery/invite code. It unlocks the family encryption key in this browser.</p><label class="label" for="cloud-family-code">Family code</label><input class="input" id="cloud-family-code" maxlength="40" autocomplete="off" placeholder="GULL-XXXX-XXXX-XXXX-XXXX"><button class="btn primary block big" data-act="family-join">Join and unlock</button></section></section>',
+    render: () => '<section class="ob"><header class="page-h"><button class="back" data-act="go" data-to="cloud-families">←</button><h1>🔐 Join family</h1></header><section class="card"><h2>' + esc(selectedFamily ? selectedFamily.name : 'Family') + '</h2><p class="small muted">Enter the family recovery/invite code. It unlocks the family encryption key for this session.</p><label class="label" for="cloud-family-code">Family code</label><input class="input" id="cloud-family-code" maxlength="40" autocomplete="off" placeholder="GULL-XXXX-XXXX-XXXX-XXXX"><button class="btn primary block big" data-act="family-join">Join and unlock</button></section></section>',
     handlers: () => ({
       'family-join': async button => {
         if (!selectedFamily || !G.cloudAccount.unlocked) return G.toast('Log in to your cloud account first.');
