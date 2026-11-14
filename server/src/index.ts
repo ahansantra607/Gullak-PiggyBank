@@ -679,7 +679,7 @@ export default {
         const publicDirectoryRead = request.method === "GET" &&
           (path === "/api/families" || path === "/api/families/search");
         const publicFamilyVaultRead = request.method === "GET" &&
-          /^\\/api\\/families\\/[^/]+\\/vault$/.test(path);
+          path.startsWith("/api/families/") && path.endsWith("/vault");
         if (!user && !publicDirectoryRead && !publicFamilyVaultRead) {
           return json({ error: "Authentication required." }, 401);
         }
