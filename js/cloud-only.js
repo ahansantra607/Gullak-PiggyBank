@@ -247,20 +247,12 @@
   // Cloud directory is the only family picker; no local family index is consulted.
   G.screens['fam-pick'] = {
     bare: true,
-    render: () => '<section class="ob"><header class="page-h"><h1>👨‍👩‍👧 Family</h1></header><section class="card"><p class="muted">Search the cloud directory and select a family.</p><button class="btn primary block" data-act="open-cloud-families">☁️ Find / open a family</button><button class="btn soft block mt" data-act="new-cloud-family">➕ Create a family</button></section></section>',
+    render: () => '<section class="ob"><header class="page-h"><h1>👨‍👩‍👧 Family</h1></header><section class="card"><p class="muted">What would you like to do?</p><button class="btn primary block" data-act="open-cloud-families">🔎 Find my family</button><button class="btn soft block mt" data-act="new-cloud-family">➕ Create my family</button><label class="btn ghost block file-btn mt">📦 Import family backup<input id="main-family-import" type="file" accept=".gullak,.json,application/json" hidden></label></section></section>',
     handlers: () => ({
-      'open-cloud-families': () => {
-        mode = 'family';
-        G.go('cloud-families');
-      },
-      'new-cloud-family': () => {
-        mode = 'family';
-        if (!G.cloudAccount.unlocked) { G.cloudFamilyReturn = 'create'; G.go('cloud-account'); }
-        else G.go('fam-create');
-      }
+      'open-cloud-families': () => { mode = 'family'; G.setMode('family'); G.go('cloud-families'); },
+      'new-cloud-family': () => { mode = 'family'; G.setMode('family'); G.go('fam-create'); }
     })
   };
-
   const famUsers = G.screens['fam-users'];
   G.screens['fam-users'] = {
     bare: true,
@@ -385,7 +377,7 @@
   });
   G.screens['cloud-families'].render = () => {
     const rows = (G.cloudFamilyResults || []).map(f => '<div class="kid-row"><div class="grow"><b>' + G.esc(f.name) + '</b><small>Cloud family</small></div><button class="btn small soft" data-act="family-select" data-member="true" data-id="' + G.esc(f.family_id) + '" data-name="' + G.esc(f.name) + '">Select</button></div>').join('');
-    return '<section class="ob"><header class="page-h"><button class="back" data-act="go" data-to="fam-pick">←</button><h1>☁️ Find a family</h1></header><section class="card"><input class="input" id="cloud-family-query" maxlength="64" placeholder="Search family name"><button class="btn primary block mt" data-act="family-search">Search</button><div class="col gap mt">' + (rows || (G.cloudFamilyLoading ? '<p class="muted small">Loading your families…</p>' : '<p class="muted small">' + G.esc(G.cloudFamilyLoadError || 'No families shown yet. Search or refresh your families. If it is not linked to your account yet, ask a supervisor to add your username.') + '</p>')) + '</div><button class="btn soft block mt" data-act="family-refresh">Refresh my families</button><button class="btn primary block mt" data-act="family-create">➕ Create a new family</button><label class="btn ghost block file-btn mt">Import encrypted family backup<input id="cloud-family-import-file" type="file" accept=".gullak,.json,application/json" hidden></label></section></section>';
+    return '<section class="ob"><header class="page-h"><button class="back" data-act="go" data-to="fam-pick">←</button><h1>🔎 Find my family</h1></header><section class="card"><input class="input" id="cloud-family-query" maxlength="64" placeholder="Search family name"><button class="btn primary block mt" data-act="family-search">Search</button><div class="col gap mt">' + (rows || (G.cloudFamilyLoading ? '<p class="muted small">Loading families…</p>' : '<p class="muted small">' + G.esc(G.cloudFamilyLoadError || 'No matching families yet. Search by family name.') + '</p>')) + '</div><button class="btn soft block mt" data-act="family-refresh">Refresh family list</button></section></section>';
   };
 
 
@@ -436,17 +428,8 @@
     G.go('sup');
   }
 
-  G.screens['cloud-families'].after = root => {
-    if (!Array.isArray(G.cloudFamilyResults) && !G.cloudFamilyLoading) {
-      G.cloudFamilyLoading = true;
-      G.cloud.listFamilies().then(rows => { G.cloudFamilyResults = rows; })
-        .catch(error => { G.cloudFamilyLoadError = error.message || 'Could not load your families.'; })
-        .finally(() => {
-          G.cloudFamilyLoading = false;
-          if (G._last === 'cloud-families') G.render({ keepScroll: true });
-        });
-    }
-    const input = G.$('#cloud-family-import-file', root);
+  G.screens['fam-pick'].after = root => {
+    const input = G.$('#main-family-import', root);
     if (!input) return;
     input.addEventListener('change', () => {
       const file = input.files && input.files[0]; if (!file) return;
@@ -456,6 +439,7 @@
           'import-cloud-family': async button => {
             const pass = G.$('#cloud-family-import-pass', modal.el).value;
             if (pass.length < 10) return G.toast('Enter the backup passphrase.');
+            if (!G.cloudAccount.unlocked) { G.pendingCloudFamilyImport = { raw: String(reader.result), pass }; G.cloudFamilyReturn = 'import'; G.go('cloud-account'); return; }
             button.disabled = true;
             try { await importCloudFamilyBackup(String(reader.result), pass); modal.close(); }
             catch (e) { button.disabled = false; G.toast(e.message || 'Family import failed.'); }
