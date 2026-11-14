@@ -186,9 +186,9 @@
             await G.cloud.clearRememberedDevice().catch(() => {});
           }
           const familyReturn = G.mode && G.mode() === 'family' &&
-            ['sup', 'fam-create', 'fam-pick', 'cloud-families', 'cloud-family-join'].includes(returnAfterLogin);
+            (!!G.cloudFamilyReturn || ['sup', 'fam-create', 'fam-pick', 'cloud-families', 'cloud-family-join'].includes(returnAfterLogin));
           if (familyReturn) {
-            G.go(returnAfterLogin);
+            G.go('fam-pick');
             return;
           }
           const remote = await G.cloud.loadVault(cloudSecret);
