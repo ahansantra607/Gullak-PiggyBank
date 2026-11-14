@@ -24,6 +24,11 @@ for (const file of files) {
 }
 
 const cloudOnlySource = readFileSync('js/cloud-only.js', 'utf8');
+if (!cloudOnlySource.includes("const destination = familyReturn === 'create' ? 'fam-create' : familyReturn === 'open' ? 'cloud-families' : 'fam-pick';")) throw new Error('Family login does not return to the correct next step.');
+if (!cloudOnlySource.includes("'back-family-users': () => G.go('fam-users', { f: q.f || activeFamilyId })")) throw new Error('Family PIN back navigation loses the selected family.');
+if (!cloudOnlySource.includes("'family-create': () => G.go('fam-create')")) throw new Error('Cloud family search screen has no create-family route.');
+if (!cloudOnlySource.includes("'disabled' : ''")) throw new Error('Unlinked family search results are still offered as a broken Join action.');
+if (!cloudOnlySource.includes('Ask a family supervisor to add your Gullak username')) throw new Error('Unlinked family guidance is missing.');
 if (!cloudOnlySource.includes('if (G.backupTemporary) return Promise.resolve();')) throw new Error('Temporary backup mode is not isolated from persistence.');
 if (!cloudOnlySource.includes('Temporary copy opened. You can edit it, but nothing will be saved anywhere.')) throw new Error('Temporary backup is not described as editable and non-persistent.');
 if (!cloudOnlySource.includes('owner: { username: G.cloudAccount.user.username }')) throw new Error('Individual backup does not carry its originating account username.');
