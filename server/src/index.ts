@@ -577,7 +577,7 @@ export default {
             return json({ error: "Enter at least 2 characters to search." }, 400);
           }
           const nameQuery = raw.replace(/[\\%_]/g, "") + "%";
-          const code = raw.toUpperCase().replace(/[^A-Z0-9]/g, "");
+          const code = raw.toUpperCase().replace(/[^A-Z0-9]/g, "").replace(/^GULL/, "");
           const codeHash = code.length >= 8 ? await sha256(code) : "";
           const rows = await env.gullak_db.prepare(`
             SELECT f.family_id, f.name, f.created_at,
