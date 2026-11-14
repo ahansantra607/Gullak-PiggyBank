@@ -204,7 +204,7 @@
       const q = new URLSearchParams(location.hash.split('?')[1] || '');
       const familyId = q.get('f') || activeFamilyId, memberId = q.get('m');
       const pin = G.$('#cloud-family-pin').value;
-      if (!/^\\d{4,6}$/.test(pin)) return G.toast('Enter a 4–6 digit PIN.');
+      if (!/^\d{4,6}$/.test(pin)) return G.toast('Enter a 4–6 digit PIN.');
       button.disabled = true;
       try { await G.famUnlock(familyId, memberId, pin); }
       catch (error) { button.disabled = false; G.toast(error.message || 'Could not unlock family.'); }
