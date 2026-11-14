@@ -540,6 +540,231 @@ export default {
       }
     }
 
+
+    // CLOUD FAMILY DIRECTORY AND ENCRYPTED FAMILY VAULTS
+    if (path.startsWith("/api/families")) {
+      try {
+        const user = await getCurrentUser(request, env);
+        if (!user) return json({ error: "Authentication required." }, 401);
+
+        const validEncrypted = (value: any) => {
+          if (!value || typeof value !== "object") return false;
+          const ciphertext = String(value.ciphertext || "");
+          const iv = String(value.iv || "");
+          const salt = String(value.salt || "");
+          const version = value.schema_version;
+          if (!Number.isInteger(version) || version < 1 || version > 100) return false;
+          if (!validBase64(ciphertext) || !validBase64(iv) || !validBase64(salt)) return false;
+          const ct = fromBase64(ciphertext);
+          return ct.length >= 16 && ct.length <= MAX_VAULT_BYTES &&
+            fromBase64(iv).length === 12 && fromBase64(salt).length === 16;
+        };
+
+        if (path === "/api/families" && request.method === "GET") {
+          const rows = await env.gullak_db.prepare(`
+            SELECT f.family_id, f.name, m.role, f.created_at
+            FROM cloud_families f
+            JOIN cloud_family_members m ON m.family_id = f.family_id
+            WHERE m.user_id = ?
+            ORDER BY f.created_at DESC
+          `).bind(user.user_id).all();
+          return json({ families: rows.results || [] });
+        }
+
+        if (path === "/api/families/search" && request.method === "GET") {
+          const raw = (url.searchParams.get("q") || "").trim();
+          if (raw.length < 2 || raw.length > 64) {
+            return json({ error: "Enter at least 2 characters to search." }, 400);
+          }
+          const nameQuery = raw.replace(/[\\%_]/g, "") + "%";
+          const code = raw.toUpperCase().replace(/[^A-Z0-9]/g, "");
+          const codeHash = code.length >= 8 ? await sha256(code) : "";
+          const rows = await env.gullak_db.prepare(`
+            SELECT f.family_id, f.name, f.created_at,
+              CASE WHEN m.user_id IS NULL THEN 0 ELSE 1 END AS is_member
+            FROM cloud_families f
+            LEFT JOIN cloud_family_members m
+              ON m.family_id = f.family_id AND m.user_id = ?
+            WHERE f.name LIKE ? OR (? <> '' AND f.join_code_hash = ?)
+            ORDER BY CASE WHEN f.join_code_hash = ? THEN 0 ELSE 1 END,
+              f.created_at DESC
+            LIMIT 20
+          `).bind(user.user_id, nameQuery, codeHash, codeHash, codeHash).all();
+          return json({ families: rows.results || [] });
+        }
+
+        if (path === "/api/families" && request.method === "POST") {
+          const body = await request.json() as any;
+          const name = String(body.name || "").trim();
+          const joinCode = String(body.join_code || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+          const keyWrap = String(body.family_key_wrap || "");
+          const keySalt = String(body.key_wrap_salt || "");
+          const keyIterations = Number(body.key_wrap_iterations);
+          if (name.length < 2 || name.length > 40) {
+            return json({ error: "Family name must be 2–40 characters." }, 400);
+          }
+          if (joinCode.length < 8 || joinCode.length > 64) {
+            return json({ error: "Invalid family invite code." }, 400);
+          }
+          const wrapParts = keyWrap.split(".");
+          if (wrapParts.length !== 2 || !validBase64(wrapParts[0]) ||
+              !validBase64(wrapParts[1]) || fromBase64(wrapParts[0]).length !== 12 ||
+              fromBase64(wrapParts[1]).length < 16 || fromBase64(wrapParts[1]).length > 256 ||
+              !validBase64(keySalt) || fromBase64(keySalt).length !== 16 ||
+              !Number.isInteger(keyIterations) || keyIterations < 100000 || keyIterations > 1000000) {
+            return json({ error: "Invalid encrypted family key." }, 400);
+          }
+          if (!validEncrypted(body.vault)) return json({ error: "Invalid encrypted family vault." }, 400);
+          const familyId = "f" + crypto.randomUUID().replace(/-/g, "");
+          const now = new Date().toISOString();
+          const codeHash = await sha256(joinCode);
+          const v = body.vault;
+          await env.gullak_db.batch([
+            env.gullak_db.prepare(`
+              INSERT INTO cloud_families (
+                family_id, name, join_code_hash, family_key_wrap, key_wrap_salt,
+                key_wrap_iterations, created_by, created_at
+              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            `).bind(familyId, name, codeHash, keyWrap, keySalt, keyIterations, user.user_id, now),
+            env.gullak_db.prepare(`
+              INSERT INTO cloud_family_members (family_id, user_id, role, joined_at)
+              VALUES (?, ?, 'supervisor', ?)
+            `).bind(familyId, user.user_id, now),
+            env.gullak_db.prepare(`
+              INSERT INTO cloud_family_vaults (
+                family_id, ciphertext, iv, salt, schema_version, updated_at
+              ) VALUES (?, ?, ?, ?, ?, ?)
+            `).bind(familyId, v.ciphertext, v.iv, v.salt, v.schema_version, now)
+          ]);
+          return json({ success: true, family: { family_id: familyId, name, role: "supervisor" } }, 201);
+        }
+
+        const match = path.match(/^\\/api\\/families\\/([^/]+)(?:\\/(join|members|vault|member-vault))?$/);
+        if (!match) return json({ error: "Not found." }, 404);
+        const familyId = decodeURIComponent(match[1]);
+        const action = match[2] || "";
+        const family = await env.gullak_db.prepare(`
+          SELECT family_id, name, join_code_hash, family_key_wrap,
+                 key_wrap_salt, key_wrap_iterations
+          FROM cloud_families WHERE family_id = ?
+        `).bind(familyId).first<any>();
+        if (!family) return json({ error: "Family not found." }, 404);
+
+        const membership = await env.gullak_db.prepare(`
+          SELECT role FROM cloud_family_members WHERE family_id = ? AND user_id = ?
+        `).bind(familyId, user.user_id).first<{ role: string }>();
+
+        if (action === "join" && request.method === "POST") {
+          const body = await request.json() as { join_code?: string };
+          const code = String(body.join_code || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+          if (!code || !constantTimeEqual(await sha256(code), family.join_code_hash)) {
+            return json({ error: "That family code is not correct." }, 403);
+          }
+          await env.gullak_db.prepare(`
+            INSERT OR IGNORE INTO cloud_family_members (family_id, user_id, role, joined_at)
+            VALUES (?, ?, 'member', ?)
+          `).bind(familyId, user.user_id, new Date().toISOString()).run();
+          return json({ success: true, family: { family_id: familyId, name: family.name, role: membership?.role || "member" } });
+        }
+
+        if (!membership) return json({ error: "You are not a member of this family." }, 403);
+
+        if (action === "members" && request.method === "GET") {
+          const rows = await env.gullak_db.prepare(`
+            SELECT u.user_id, u.username, m.role, m.joined_at
+            FROM cloud_family_members m JOIN users u ON u.user_id = m.user_id
+            WHERE m.family_id = ? ORDER BY m.joined_at
+          `).bind(familyId).all();
+          return json({ members: rows.results || [] });
+        }
+
+        if (action === "members" && request.method === "POST") {
+          if (membership.role !== "supervisor") return json({ error: "Supervisor permission required." }, 403);
+          const body = await request.json() as { username?: string; role?: string };
+          const username = String(body.username || "").trim().toLowerCase();
+          const role = body.role === "supervisor" ? "supervisor" : "member";
+          if (!/^[a-z0-9_]{3,24}$/.test(username)) return json({ error: "Enter a valid account username." }, 400);
+          const target = await env.gullak_db.prepare(
+            "SELECT user_id, username FROM users WHERE username = ?"
+          ).bind(username).first<{ user_id: string; username: string }>();
+          if (!target) return json({ error: "No Gullak account has that username yet." }, 404);
+          await env.gullak_db.prepare(`
+            INSERT OR IGNORE INTO cloud_family_members (family_id, user_id, role, joined_at)
+            VALUES (?, ?, ?, ?)
+          `).bind(familyId, target.user_id, role, new Date().toISOString()).run();
+          return json({ success: true, member: { user_id: target.user_id, username: target.username, role } });
+        }
+
+        if (action === "vault" && request.method === "GET") {
+          const vault = await env.gullak_db.prepare(`
+            SELECT ciphertext, iv, salt, schema_version, updated_at
+            FROM cloud_family_vaults WHERE family_id = ?
+          `).bind(familyId).first();
+          return json({
+            exists: !!vault, vault: vault || null,
+            family_key_wrap: family.family_key_wrap,
+            key_wrap_salt: family.key_wrap_salt,
+            key_wrap_iterations: family.key_wrap_iterations
+          });
+        }
+
+        if (action === "vault" && request.method === "PUT") {
+          if (membership.role !== "supervisor") return json({ error: "Supervisor permission required." }, 403);
+          const body = await request.json() as any;
+          if (!validEncrypted(body)) return json({ error: "Invalid encrypted family vault." }, 400);
+          const updatedAt = new Date().toISOString();
+          await env.gullak_db.prepare(`
+            INSERT INTO cloud_family_vaults (
+              family_id, ciphertext, iv, salt, schema_version, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT(family_id) DO UPDATE SET
+              ciphertext = excluded.ciphertext, iv = excluded.iv,
+              salt = excluded.salt, schema_version = excluded.schema_version,
+              updated_at = excluded.updated_at
+          `).bind(familyId, body.ciphertext, body.iv, body.salt, body.schema_version, updatedAt).run();
+          return json({ success: true, updated_at: updatedAt });
+        }
+
+        if (action === "member-vault" && (request.method === "GET" || request.method === "PUT")) {
+          const targetId = request.method === "GET"
+            ? (url.searchParams.get("user_id") || user.user_id)
+            : user.user_id;
+          if (targetId !== user.user_id && membership.role !== "supervisor") {
+            return json({ error: "You may only access your own member data." }, 403);
+          }
+          const targetMember = await env.gullak_db.prepare(
+            "SELECT role FROM cloud_family_members WHERE family_id = ? AND user_id = ?"
+          ).bind(familyId, targetId).first<{ role: string }>();
+          if (!targetMember) return json({ error: "Family member not found." }, 404);
+          if (request.method === "GET") {
+            const vault = await env.gullak_db.prepare(`
+              SELECT ciphertext, iv, salt, schema_version, updated_at
+              FROM cloud_family_member_vaults WHERE family_id = ? AND user_id = ?
+            `).bind(familyId, targetId).first();
+            return json({ exists: !!vault, vault: vault || null });
+          }
+          const body = await request.json() as any;
+          if (!validEncrypted(body)) return json({ error: "Invalid encrypted member vault." }, 400);
+          const updatedAt = new Date().toISOString();
+          await env.gullak_db.prepare(`
+            INSERT INTO cloud_family_member_vaults (
+              family_id, user_id, ciphertext, iv, salt, schema_version, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(family_id, user_id) DO UPDATE SET
+              ciphertext = excluded.ciphertext, iv = excluded.iv,
+              salt = excluded.salt, schema_version = excluded.schema_version,
+              updated_at = excluded.updated_at
+          `).bind(familyId, targetId, body.ciphertext, body.iv, body.salt, body.schema_version, updatedAt).run();
+          return json({ success: true, updated_at: updatedAt });
+        }
+
+        return json({ error: "Not found." }, 404);
+      } catch (error) {
+        console.error("Family API error", error);
+        return json({ error: "Could not complete family request." }, 400);
+      }
+    }
+
     return json({ error: "Not found" }, 404);
   }
 } satisfies ExportedHandler<Env>;
