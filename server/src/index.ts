@@ -639,7 +639,7 @@ export default {
           return json({ success: true, family: { family_id: familyId, name, role: "supervisor" } }, 201);
         }
 
-        const match = path.match(/^\\/api\\/families\\/([^/]+)(?:\\/(join|members|vault|member-vault))?$/);
+        const match = path.match(/^\/api\/families\/([^/]+)(?:\/(join|members|vault|member-vault))?$/);
         if (!match) return json({ error: "Not found." }, 404);
         const familyId = decodeURIComponent(match[1]);
         const action = match[2] || "";
