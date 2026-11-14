@@ -22,6 +22,11 @@ CREATE TABLE IF NOT EXISTS cloud_family_members (
   PRIMARY KEY (family_id, user_id)
 );
 
+-- Legacy accounts already linked to a Family are permanently Family-only.
+-- Their encrypted Individual vault rows are retained, not deleted.
+INSERT OR REPLACE INTO user_account_types (user_id, account_type, created_at)
+SELECT user_id, 'family', datetime('now') FROM cloud_family_members;
+
 CREATE INDEX IF NOT EXISTS idx_cloud_family_members_user
 ON cloud_family_members(user_id);
 
