@@ -210,11 +210,21 @@
     async listFamilyMembers(familyId) {
       return (await request(familyPath(familyId) + '/members')).members || [];
     },
-    addFamilyMember: (familyId, username, passwordOrRole, maybeRole) => {
+    addFamilyMember: async (familyId, username, passwordOrRole, maybeRole) => {
       const password = maybeRole ? passwordOrRole : '';
       const role = maybeRole || (passwordOrRole === 'supervisor' ? 'supervisor' : 'member');
+      let keyWrap = {};
+      if (password) {
+        const salt = C.salt();
+        const secret = C.b64(C.rand(32));
+        keyWrap = {
+          wrapped_secret: await C.wrapWithSecret(password, salt, encoder.encode(secret), ITERATIONS),
+          salt,
+          iterations: ITERATIONS
+        };
+      }
       return request(familyPath(familyId) + '/members', {
-        method: 'POST', body: JSON.stringify({ username, ...(password ? { password } : {}), role })
+        method: 'POST', body: JSON.stringify({ username, ...(password ? { password, ...keyWrap } : {}), role })
       });
     },
     removeFamilyMember: (familyId, userId) => request(familyPath(familyId) + '/members', {
