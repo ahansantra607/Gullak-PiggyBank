@@ -1,0 +1,70 @@
+plugins {
+    id 'com.android.application'
+}
+
+def appVersion = System.getenv("GULLAK_VERSION") ?: "1.0.0"
+def ciRunNumber = (System.getenv("GITHUB_RUN_NUMBER") ?: "1").toInteger()
+
+def signingBundle = rootProject.file("signing/signing.properties")
+def signingValues = new Properties()
+if (signingBundle.exists()) {
+    signingBundle.withInputStream { signingValues.load(it) }
+}
+
+android {
+    namespace 'com.ahansantra607.gullak'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId 'com.ahansantra607.gullak'
+        minSdk 23
+        targetSdk 35
+        versionCode ciRunNumber
+        versionName appVersion
+    }
+
+    signingConfigs {
+        release {
+            if (signingBundle.exists()) {
+                storeFile rootProject.file("signing/" + signingValues.getProperty("storeFile", "release.keystore"))
+                storeType signingValues.getProperty("storeType", "PKCS12")
+                storePassword signingValues.getProperty("storePassword")
+                keyAlias signingValues.getProperty("keyAlias")
+                keyPassword signingValues.getProperty("keyPassword")
+            }
+        }
+    }
+
+    buildTypes {
+        debug {
+            applicationIdSuffix '.debug'
+            versionNameSuffix '-debug'
+        }
+        release {
+            minifyEnabled false
+            if (signingBundle.exists()) {
+                signingConfig signingConfigs.release
+            }
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+tasks.register("verifyReleaseSigning") {
+    doLast {
+        if (!signingBundle.exists()) {
+            throw new GradleException("Release signing key is not configured. Run the Gullak signing setup workflow first.")
+        }
+        if (!signingValues.getProperty("storePassword") || !signingValues.getProperty("keyAlias") || !signingValues.getProperty("keyPassword")) {
+            throw new GradleException("Release signing configuration is incomplete.")
+        }
+    }
+}
+
+tasks.named("assembleRelease").configure {
+    dependsOn("verifyReleaseSigning")
+}
