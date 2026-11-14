@@ -137,6 +137,39 @@
   };
 
 
+
+  G.cloudBackup = {
+    async encode(value, passphrase) {
+      if (!G.cr || !G.cr.available) throw new Error('Secure encryption is unavailable.');
+      if (typeof passphrase !== 'string' || passphrase.length < 10) throw new Error('Backup passphrase must be at least 10 characters.');
+      const salt = G.cr.salt();
+      const key = await G.cr.deriveKey(passphrase, salt, 310000);
+      const packed = await G.cr.enc(key, new TextEncoder().encode(JSON.stringify(value)));
+      const split = packed.indexOf('.');
+      return JSON.stringify({
+        format: 'gullak-encrypted-backup', version: 1, kdf: 'PBKDF2-SHA256',
+        iterations: 310000, salt, iv: packed.slice(0, split), ciphertext: packed.slice(split + 1)
+      });
+    },
+    async decode(text, passphrase) {
+      let file;
+      try { file = JSON.parse(text); } catch (_) { throw new Error('This is not a valid Gullak backup file.'); }
+      if (!file || file.format !== 'gullak-encrypted-backup' || file.version !== 1 ||
+          file.kdf !== 'PBKDF2-SHA256' || file.iterations !== 310000 ||
+          !file.salt || !file.iv || !file.ciphertext) throw new Error('Unsupported or invalid encrypted backup.');
+      const key = await G.cr.deriveKey(passphrase, file.salt, file.iterations);
+      const value = JSON.parse(await G.cr.decStr(key, file.iv + '.' + file.ciphertext));
+      if (!value || !value.profile || !Array.isArray(value.txns)) throw new Error('The decrypted file is not a Gullak diary.');
+      return value;
+    },
+    download(text) {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
+      a.download = 'gullak-encrypted-backup.gullak'; a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+    }
+  };
+
   G.screens['cloud-families'] = {
     bare: true,
     render: () => {
