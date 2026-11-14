@@ -544,14 +544,30 @@
         const F = G.FAM; const m = memberOf(F.meta, el.dataset.m);
         if (m.role === 'supervisor' && F.meta.members.filter(x => x.role === 'supervisor').length < 2) return G.toast('A family needs at least one supervisor.');
         if (!(await G.confirm(`Remove ${esc(m.name)}?`, m.role === 'supervisor' ? 'They will no longer be able to log in.' : 'Their Gullak money diary will be deleted. This cannot be undone.', 'Remove', 'Cancel'))) return;
+        if (F.cloudId && m.userId) {
+          try { await G.cloud.removeFamilyMember(F.cloudId, m.userId); }
+          catch (error) { return G.toast(error.message || 'Could not remove the cloud account from this family.'); }
+        }
         F.meta.members = F.meta.members.filter(x => x.id !== m.id); delete F.data.kids[m.id]; delete F.data.sups[m.id];
         putFam(F.meta); await G.famSave(); G.render({ keepScroll: true });
       },
-      'f-rename': () => { const n = G.$('#fs-name').value.trim(); if (!n) return; G.FAM.meta.name = n; putFam(G.FAM.meta); G.toast('Renamed ✅'); G.render({ keepScroll: true }); },
+      'f-rename': async () => {
+        const n = G.$('#fs-name').value.trim(); if (!n) return;
+        if (G.FAM.cloudId) {
+          try { await G.cloud.renameFamily(G.FAM.cloudId, n); }
+          catch (error) { return G.toast(error.message || 'Could not rename the cloud family.'); }
+        }
+        G.FAM.meta.name = n; putFam(G.FAM.meta); await G.famSave(); G.toast('Renamed ✅'); G.render({ keepScroll: true });
+      },
       'f-code': async () => {
         if (!(await G.confirm('Make a new recovery code?', 'The old code will stop working.', 'Make new code', 'Cancel'))) return;
         const F = G.FAM; const code = C.recoveryCode(); const salt = C.salt();
-        F.meta.rc = { salt, wrap: await C.wrapWithSecret(C.normCode(code), salt, F.fkRaw, F.meta.iter) }; putFam(F.meta);
+        const wrap = await C.wrapWithSecret(C.normCode(code), salt, F.fkRaw, F.meta.iter);
+        if (F.cloudId) {
+          try { await G.cloud.updateFamilyCode(F.cloudId, F.fkRaw, code); }
+          catch (error) { return G.toast(error.message || 'Could not update the cloud recovery code.'); }
+        }
+        F.meta.rc = { salt, wrap }; putFam(F.meta); await G.famSave();
         G.modal({ html: `<h2>🛟 New recovery code</h2><p>Write it down and keep it safe.</p><div class="code big-code">${esc(code)}</div>
           <button class="btn soft block" data-act="cp">📋 Copy</button>`, handlers: { cp: () => G.copy(code) } });
       },
@@ -565,6 +581,10 @@
         const F = G.FAM;
         if (!(await G.confirm(`Delete "${esc(F.meta.name)}"?`, 'All members and money diaries on this device are erased. This cannot be undone!', 'Delete family', 'Cancel'))) return;
         if (!(await G.confirm('Are you really sure?', 'Last chance. Save a family file first if you want a copy.', 'Yes, delete', 'No'))) return;
+        if (F.cloudId) {
+          try { await G.cloud.deleteFamily(F.cloudId); }
+          catch (error) { return G.toast(error.message || 'Could not delete the cloud family.'); }
+        }
         const id = F.meta.id; G.FAM = null; sessionStorage.removeItem(SESS); dropFam(id);
         if (localStorage.getItem(LAST) === id) localStorage.removeItem(LAST);
         G.S = G.fresh(); G.chat.length = 0; if (G.coachCtx) { G.coachCtx.last = null; G.coachCtx.pending = null; }
@@ -579,6 +599,7 @@
       html: `<h2>➕ Add a family member</h2>
         <div class="seg"><button class="seg-b on" data-act="role" data-v="member">🧒 Kid<small>uses Gullak</small></button><button class="seg-b" data-act="role" data-v="supervisor">🛡️ Supervisor<small>grown-up, approves</small></button></div>
         <div class="label">Nickname</div><input class="input" id="am-name" maxlength="14" placeholder="e.g. Rocket (not a real name)">
+        ${G.FAM.cloudId ? '<div class="label">Their Gullak account username</div><input class="input" id="am-username" maxlength="24" autocomplete="off" placeholder="They must create an account first"><p class="hint">This links their own login to this family member.</p>' : ''}
         <div class="avatar-grid sm">${G.AVATARS.concat(['👩', '👨', '👵', '👴']).map(a => `<button class="av ${a === st.avatar ? 'on' : ''}" data-act="av" data-v="${a}">${a}</button>`).join('')}</div>
         <div id="am-kid"><div class="label">Age group</div>
           <div class="seg"><button class="seg-b on" data-act="age" data-v="junior">8–12</button><button class="seg-b" data-act="age" data-v="senior">13–18</button></div>
@@ -599,11 +620,24 @@
           if (!name) return G.toast('Type a nickname'); if (!/^\d{4,6}$/.test(pin)) return G.toast('PIN must be 4 to 6 digits');
           const F = G.FAM; if (F.meta.members.some(x => x.name.toLowerCase() === name.toLowerCase())) return G.toast('Someone already has that nickname');
           st.busy = true; el.disabled = true; el.textContent = '🔐 Locking…';
-          const mem = await makeMember({ name, avatar: st.avatar, role: st.role, ageGroup: st.age, pin }, F.fkRaw, F.meta.iter);
-          F.meta.members.push(mem);
-          if (st.role === 'member') F.data.kids[mem.id] = kidState(mem, { pocketMoney: Math.max(0, Math.round(Number(G.$('#am-pm', m.el).value) || 0)), frequency: st.freq });
-          else F.data.sups[mem.id] = {};
-          putFam(F.meta); await G.famSave(); m.close(); G.sound('win'); G.toast(`${esc(st.avatar)} ${esc(name)} joined the family!`); G.render({ keepScroll: true });
+          try {
+            let userId = null;
+            if (F.cloudId) {
+              const username = G.$('#am-username', m.el).value.trim();
+              if (!/^[a-z0-9_]{3,24}$/i.test(username)) throw new Error('Enter the member\'s Gullak account username. They must create their account first.');
+              const linked = await G.cloud.addFamilyMember(F.cloudId, username, st.role);
+              userId = linked.member.user_id;
+            }
+            const mem = await makeMember({ name, avatar: st.avatar, role: st.role, ageGroup: st.age, pin }, F.fkRaw, F.meta.iter);
+            if (userId) mem.userId = userId;
+            F.meta.members.push(mem);
+            if (st.role === 'member') F.data.kids[mem.id] = kidState(mem, { pocketMoney: Math.max(0, Math.round(Number(G.$('#am-pm', m.el).value) || 0)), frequency: st.freq });
+            else F.data.sups[mem.id] = {};
+            putFam(F.meta); await G.famSave(); m.close(); G.sound('win'); G.toast(`${esc(st.avatar)} ${esc(name)} joined the family!`); G.render({ keepScroll: true });
+          } catch (error) {
+            st.busy = false; el.disabled = false; el.textContent = 'Add member';
+            G.toast(error.message || 'Could not add this member.');
+          }
         }
       }
     });
@@ -618,7 +652,7 @@
           const pin = G.$('#rp', m.el).value; if (!/^\d{4,6}$/.test(pin)) return G.toast('PIN must be 4 to 6 digits');
           el.disabled = true; el.textContent = '🔐 Saving…';
           mem.salt = C.salt(); mem.wrap = await C.wrapWithSecret(pin, mem.salt, F.fkRaw, F.meta.iter); mem.pinLen = pin.length; mem.fail = 0; mem.lockUntil = 0;
-          putFam(F.meta); m.close(); G.toast(`🔑 ${esc(mem.name)}'s PIN changed`); G.render({ keepScroll: true });
+          putFam(F.meta); await G.famSave(); m.close(); G.toast(`🔑 ${esc(mem.name)}'s PIN changed`); G.render({ keepScroll: true });
         }
       }
     });
