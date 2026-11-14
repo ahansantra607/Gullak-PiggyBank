@@ -41,6 +41,7 @@ if (!cloudSource.includes('passwordOrRole')) throw new Error('Supervisor-created
 if (!serverSource.includes('Family PIN must be 4–6 digits.')) throw new Error('The server does not enforce the shared Family PIN format.');
 if (!cloudSource.includes("registerFamilyAccount") || !cloudSource.includes("loginFamilyAccount")) throw new Error('Family accounts do not use dedicated authentication endpoints.');
 if (!cloudOnlySource.includes("G.screens['family-account']") || !cloudOnlySource.includes('Family-only login')) throw new Error('Family mode does not have a dedicated Family account creator/login screen.');
+if (cloudOnlySource.includes('>Family username</label>') || !cloudOnlySource.includes('Supervisor’s Gullak username') || !cloudOnlySource.includes('This username belongs only to the first Supervisor’s account, not to the family.')) throw new Error('First Supervisor username is still presented as a family-level username.');
 if (!familySource.includes("G.go('family-account')")) throw new Error('First Supervisor setup does not use the dedicated Family account screen.');
 if (!familySource.includes('G.cancelPendingFamilyCreation = resetFamilyCreation') || !familySource.includes("cback: () => { resetFamilyCreation(); G.go('fam-pick'); }")) throw new Error('Family wizard Back does not discard all incomplete setup data.');
 if (!familySource.includes('G.handleFamilyCreationNavigation') || !appSource.includes('G.handleFamilyCreationNavigation(G._last ||', '')) throw new Error('Browser Back does not reset incomplete Family creation.');
