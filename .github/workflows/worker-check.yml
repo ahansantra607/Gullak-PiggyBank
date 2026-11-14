@@ -1,5 +1,9 @@
 name: Worker checks and Cloudflare deploy
 
+concurrency:
+  group: gullak-deploy-${{ github.ref }}
+  cancel-in-progress: true
+
 on:
   push:
     branches: [main]
