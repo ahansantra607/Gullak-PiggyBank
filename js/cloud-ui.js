@@ -7,9 +7,13 @@
   let cloudUser = null;
   let syncChain = Promise.resolve();
   let syncError = null;
+  let familyResults = [];
+  let selectedFamily = null;
+  let returnAfterLogin = null;
 
   G.cloudAccount = {
     get user() { return cloudUser; },
+    get encryptionPassphrase() { return cloudSecret; },
     get unlocked() { return !!cloudSecret && !!cloudUser; },
     get status() { return syncError ? 'error' : (cloudSecret ? 'connected' : 'locked'); },
     async logout() {
@@ -44,7 +48,9 @@
   };
 
   G.FREE_ROUTES = G.FREE_ROUTES || ['welcome', 'parent', 'reply'];
-  if (!G.FREE_ROUTES.includes('cloud-account')) G.FREE_ROUTES.push('cloud-account');
+  ['cloud-account', 'cloud-families', 'cloud-family-join'].forEach(route => {
+    if (!G.FREE_ROUTES.includes(route)) G.FREE_ROUTES.push(route);
+  });
 
   G.screens['cloud-account'] = {
     bare: true,
@@ -91,7 +97,7 @@
             G.save();
             await G.waitForCloudSync();
             G.toast('☁️ Your encrypted Gullak is unlocked.');
-            G.go('home');
+            G.go(returnAfterLogin || 'home');
             return;
           }
           const local = localIndividual();
@@ -105,14 +111,14 @@
               G.S = local;
               await G.cloud.saveVault(local, cloudSecret);
               G.toast('☁️ Your existing Gullak is now encrypted in the cloud.');
-              G.go('home');
+              G.go(returnAfterLogin || 'home');
             } else {
               G.toast('Cloud account connected. Your on-device data has not been changed.');
-              G.go('home');
+              G.go(returnAfterLogin || 'home');
             }
           } else {
             G.S = G.fresh();
-            G.go('welcome');
+            G.go(returnAfterLogin || 'welcome');
             G.toast('Account ready. Set up your Gullak next.');
           }
         } catch (error) {
@@ -122,6 +128,74 @@
           button.disabled = false;
           button.textContent = authMode === 'register' ? 'Create account & secure my Gullak' : 'Log in & unlock my Gullak';
         }
+      }
+    })
+  };
+
+
+  G.screens['cloud-families'] = {
+    bare: true,
+    render: () => {
+      if (!G.cloudAccount.unlocked) return '<section class="ob"><header class="page-h"><button class="back" data-act="go" data-to="cloud-account">←</button><h1>☁️ Cloud families</h1></header><section class="card"><p>Log in and unlock your cloud account first.</p><button class="btn primary block" data-act="cloud-login">Log in</button></section></section>';
+      const rows = familyResults.map(f => '<div class="kid-row"><div class="grow"><b>' + esc(f.name) + '</b><small>' + (f.is_member ? 'Already a member' : 'Invite code required') + '</small></div><button class="btn small soft" data-act="family-select" data-id="' + esc(f.family_id) + '" data-name="' + esc(f.name) + '">Open</button></div>').join('');
+      return '<section class="ob"><header class="page-h"><button class="back" data-act="go" data-to="fam-pick">←</button><h1>☁️ Cloud families</h1></header><section class="card"><h2>Find a family</h2><p class="small muted">Search by family name or invite code. Joining requires the family recovery/invite code.</p><input class="input" id="cloud-family-query" maxlength="64" placeholder="Family name or code"><button class="btn primary block mt" data-act="family-search">Search families</button><div class="col gap mt">' + (rows || '<p class="muted small">No search results yet.</p>') + '</div></section><section class="card"><h3>Your cloud families</h3><button class="btn soft block" data-act="family-refresh">Refresh my families</button></section></section>';
+    },
+    handlers: () => ({
+      'cloud-login': () => { returnAfterLogin = 'cloud-families'; authMode = 'login'; G.go('cloud-account'); },
+      'family-search': async () => {
+        const q = G.$('#cloud-family-query').value.trim();
+        if (q.length < 2) return G.toast('Type at least 2 characters to search.');
+        try { familyResults = await G.cloud.searchFamilies(q); G.render({ keepScroll: true }); }
+        catch (e) { G.toast(e.message || 'Family search failed.'); }
+      },
+      'family-select': el => { selectedFamily = { id: el.dataset.id, name: el.dataset.name }; G.go('cloud-family-join'); },
+      'family-refresh': async () => {
+        try { const list = await G.cloud.listFamilies(); familyResults = list.map(f => ({ ...f, is_member: 1 })); G.render({ keepScroll: true }); }
+        catch (e) { G.toast(e.message || 'Could not load your families.'); }
+      }
+    })
+  };
+
+  G.screens['cloud-family-join'] = {
+    bare: true,
+    render: () => '<section class="ob"><header class="page-h"><button class="back" data-act="go" data-to="cloud-families">←</button><h1>🔐 Join family</h1></header><section class="card"><h2>' + esc(selectedFamily ? selectedFamily.name : 'Family') + '</h2><p class="small muted">Enter the family recovery/invite code. It unlocks the family encryption key in this browser.</p><label class="label" for="cloud-family-code">Family code</label><input class="input" id="cloud-family-code" maxlength="40" autocomplete="off" placeholder="GULL-XXXX-XXXX-XXXX-XXXX"><button class="btn primary block big" data-act="family-join">Join and unlock</button></section></section>',
+    handlers: () => ({
+      'family-join': async button => {
+        if (!selectedFamily || !G.cloudAccount.unlocked) return G.toast('Log in to your cloud account first.');
+        const code = G.$('#cloud-family-code').value.trim();
+        if (code.length < 8) return G.toast('Enter the family code.');
+        button.disabled = true; button.textContent = '🔐 Unlocking family…';
+        try {
+          const joined = await G.cloud.joinFamily(selectedFamily.id, code);
+          const value = joined.value;
+          if (!value || !value.meta || !Array.isArray(value.meta.members)) throw new Error('The family vault could not be opened.');
+          const meta = value.meta;
+          const accountId = G.cloudAccount.user.user_id;
+          const member = meta.members.find(m => m.userId === accountId);
+          if (!member) throw new Error('Your account is not linked to a family member yet. Ask a supervisor to add your Gullak username first.');
+          meta.cloudId = selectedFamily.id;
+          const data = value.data && typeof value.data === 'object' ? value.data : { v: 1, kids: {}, sups: {} };
+          data.kids = data.kids || {}; data.sups = data.sups || {};
+          if (member.role === 'supervisor') {
+            for (const m of meta.members.filter(x => x.role === 'member' && x.userId)) {
+              const row = await G.cloud.getMemberVault(selectedFamily.id, m.userId, joined.familyKeyRaw);
+              if (row.exists) data.kids[m.id] = row.value;
+            }
+          } else {
+            const row = await G.cloud.getMemberVault(selectedFamily.id, accountId, joined.familyKeyRaw);
+            if (row.exists) data.kids[member.id] = row.value;
+          }
+          const index = (() => { try { return JSON.parse(localStorage.getItem('gullak:families')) || { list: [] }; } catch (_) { return { list: [] }; } })();
+          index.list = index.list.filter(x => x.id !== meta.id); index.list.push(meta);
+          localStorage.setItem('gullak:families', JSON.stringify(index));
+          const key = await G.cr.aesKey(joined.familyKeyRaw);
+          localStorage.setItem('gullak:famdata:' + meta.id, await G.cr.encStr(key, JSON.stringify(data)));
+          localStorage.setItem('gullak:mode', 'family'); localStorage.setItem('gullak:lastfam', meta.id);
+          G.setMode('family');
+          G.go('fam-pin', { f: meta.id, m: member.id });
+          G.toast('Cloud family loaded. Enter your family PIN to continue.');
+        } catch (e) { G.toast(e.message || 'Could not join this family.'); }
+        finally { button.disabled = false; button.textContent = 'Join and unlock'; }
       }
     })
   };
@@ -142,7 +216,7 @@
   }
 
   const routeGuardBeforeCloud = G.routeGuard;
-  G.routeGuard = (name, q) => name === 'cloud-account' ? null :
+  G.routeGuard = (name, q) => ['cloud-account', 'cloud-families', 'cloud-family-join'].includes(name) ? null :
     (routeGuardBeforeCloud ? routeGuardBeforeCloud(name, q) : null);
 
   const settings = G.screens.settings;
