@@ -27,12 +27,19 @@
     }
   };
 
-  // Preserve the existing local save and family-mode behavior for now.
+  // Cloud-unlocked Individual mode never writes the money diary to localStorage.
+  // Family mode keeps its encrypted local fallback until its cloud-only migration
+  // and recovery flow have been verified end to end.
   const saveBeforeCloud = G.save;
   G.save = function () {
-    saveBeforeCloud();
-    if (G.mode && G.mode() === 'family') return;
-    if (!cloudSecret || !cloudUser || !G.S || !G.S.profile) return;
+    if (G.mode && G.mode() === 'family') {
+      saveBeforeCloud();
+      return;
+    }
+    if (!cloudSecret || !cloudUser || !G.S || !G.S.profile) {
+      saveBeforeCloud();
+      return;
+    }
     const snapshot = JSON.parse(JSON.stringify(G.S));
     syncChain = syncChain.catch(() => {}).then(() => G.cloud.saveVault(snapshot, cloudSecret))
       .then(() => { syncError = null; })
@@ -122,7 +129,13 @@
             if (migrate) {
               G.S = local;
               await G.cloud.saveVault(local, cloudSecret);
-              G.toast('☁️ Your existing Gullak is now encrypted in the cloud.');
+              const verified = await G.cloud.loadVault(cloudSecret);
+              if (!verified || JSON.stringify(verified) !== JSON.stringify(local)) {
+                throw new Error('Cloud backup verification failed. Your on-device copy has been kept safe.');
+              }
+              // Remove the old plaintext diary only after download, decryption and comparison succeed.
+              localStorage.removeItem('gullak:v1');
+              G.toast('☁️ Your Gullak is encrypted in the cloud. The old local diary copy was cleared.');
               G.go(returnAfterLogin || 'home');
             } else {
               G.toast('Cloud account connected. Your on-device data has not been changed.');
