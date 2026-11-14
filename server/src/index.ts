@@ -194,25 +194,27 @@ export default {
           }, 500);
         }
 
-        const familyTables = [
-          "cloud_families",
-          "cloud_family_members",
-          "cloud_family_vaults",
-          "cloud_family_member_vaults"
+        const requiredTables = [
+          "users", "sessions", "user_vaults",
+          "cloud_families", "cloud_family_members",
+          "cloud_family_vaults", "cloud_family_member_vaults"
         ];
-        const familyChecks = await Promise.all(familyTables.map(name =>
+        const tableChecks = await Promise.all(requiredTables.map(name =>
           env.gullak_db.prepare(
             "SELECT name FROM sqlite_master WHERE type = ? AND name = ?"
           ).bind("table", name).first()
         ));
-        const familySchemaReady = familyChecks.every(Boolean);
+        const tablesReady = tableChecks.every(Boolean);
+        const familySchemaReady = tableChecks.slice(3).every(Boolean);
+        const authSchemaReady = !!tableChecks[0] && !!tableChecks[1];
 
         return json({
-          status: "healthy",
+          status: tablesReady ? "healthy" : "error",
           database: "connected",
-          vaultTable: "ready",
+          authSchema: authSchemaReady ? "ready" : "migration_required",
+          vaultTable: tableChecks[2] ? "ready" : "migration_required",
           familySchema: familySchemaReady ? "ready" : "migration_required"
-        });
+        }, tablesReady ? 200 : 500);
       } catch {
         return json({
           status: "error",
