@@ -376,28 +376,31 @@
     const account = G.cloudAccount.user;
     if (!F || F.role !== 'supervisor') throw new Error('Only a family supervisor can connect this family.');
     if (!G.cloudAccount.unlocked || !account) throw new Error('Log in to a Gullak Cloud account first.');
-    if (F.cloudId) throw new Error('This family is already connected to the cloud.');
     const current = F.meta.members.find(m => m.id === F.mid);
     if (!current || current.role !== 'supervisor') throw new Error('The current family member is not a supervisor.');
+    if (current.userId && current.userId !== account.user_id) throw new Error('This supervisor is linked to a different Gullak account.');
     current.userId = account.user_id;
     for (const member of F.meta.members) {
       if (member.id === current.id || member.userId) continue;
       const username = String(usernames[member.id] || '').trim();
       if (!/^[a-z0-9_]{3,24}$/i.test(username)) throw new Error('Enter a valid Gullak username for ' + member.name + '.');
     }
-    const code = G.cr.recoveryCode();
-    const salt = G.cr.salt();
-    F.meta.rc = {
-      salt,
-      wrap: await G.cr.wrapWithSecret(G.cr.normCode(code), salt, F.fkRaw, F.meta.iter)
-    };
-    const remote = await G.cloud.createFamily({
-      name: F.meta.name, joinCode: code, familyKeyRaw: F.fkRaw,
-      value: { meta: F.meta, data: { v: 1, defaults: F.data.defaults || {}, createdAt: F.data.createdAt } }
-    });
-    F.cloudId = remote.family_id;
-    F.meta.cloudId = remote.family_id;
-    persistCloudFamilyMeta(F.meta);
+    let code = null;
+    if (!F.cloudId) {
+      code = G.cr.recoveryCode();
+      const salt = G.cr.salt();
+      F.meta.rc = {
+        salt,
+        wrap: await G.cr.wrapWithSecret(G.cr.normCode(code), salt, F.fkRaw, F.meta.iter)
+      };
+      const remote = await G.cloud.createFamily({
+        name: F.meta.name, joinCode: code, familyKeyRaw: F.fkRaw,
+        value: { meta: F.meta, data: { v: 1, defaults: F.data.defaults || {}, createdAt: F.data.createdAt } }
+      });
+      F.cloudId = remote.family_id;
+      F.meta.cloudId = remote.family_id;
+      persistCloudFamilyMeta(F.meta);
+    }
     for (const member of F.meta.members) {
       if (member.id === current.id || member.userId) continue;
       const linked = await G.cloud.addFamilyMember(F.cloudId, usernames[member.id], member.role);
@@ -415,8 +418,10 @@
       const html = renderSupervisor(...args);
       const F = G.FAM;
       if (!F || F.role !== 'supervisor') return html;
+      const unlinkedCount = F.meta.members.filter(m => !m.userId).length;
       const status = F.cloudId
-        ? '<p class="fine">☁️ This family is connected to encrypted cloud sync.</p>'
+        ? '<p class="fine">☁️ This family is connected to encrypted cloud sync.</p>' +
+          (unlinkedCount ? '<button class="btn soft block" data-act="cloud-connect-family">Link remaining member accounts (' + unlinkedCount + ')</button>' : '')
         : '<button class="btn soft block" data-act="cloud-connect-family">☁️ Connect this existing family to cloud</button>';
       return html.replace('<button class="btn soft block" data-act="f-code">', status + '<button class="btn soft block" data-act="f-code">');
     };
@@ -441,10 +446,14 @@
               try {
                 const code = await G.connectFamilyCloud(usernames);
                 modal.close();
-                G.modal({
-                  html: '<h2>☁️ Family connected</h2><p>Save this new family recovery/invite code. The previous recovery code has been replaced.</p><div class="code big-code">' + esc(code) + '</div><button class="btn soft block" data-act="copy-new-family-code">📋 Copy code</button><p class="fine">Every member uses their own Gullak username and password, then this code to join the family on a new device.</p>',
-                  handlers: { 'copy-new-family-code': () => G.copy(code) }
-                });
+                if (code) {
+                  G.modal({
+                    html: '<h2>☁️ Family connected</h2><p>Save this new family recovery/invite code. The previous recovery code has been replaced.</p><div class="code big-code">' + esc(code) + '</div><button class="btn soft block" data-act="copy-new-family-code">📋 Copy code</button><p class="fine">Every member uses their own Gullak username and password, then this code to join the family on a new device.</p>',
+                    handlers: { 'copy-new-family-code': () => G.copy(code) }
+                  });
+                } else {
+                  G.toast('Remaining member accounts linked and synced.');
+                }
                 G.render({ keepScroll: true });
               } catch (error) {
                 button.disabled = false; button.textContent = 'Connect and encrypt';
