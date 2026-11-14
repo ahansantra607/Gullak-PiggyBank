@@ -788,6 +788,21 @@ export default {
         `).bind(familyId).first<any>();
         if (!family) return json({ error: "Family not found." }, 404);
 
+        if (action === "vault" && request.method === "GET") {
+          const vault = await env.gullak_db.prepare(`
+            SELECT ciphertext, iv, salt, schema_version, updated_at
+            FROM cloud_family_vaults WHERE family_id = ?
+          `).bind(familyId).first();
+          return json({
+            exists: !!vault, vault: vault || null,
+            family_key_wrap: family.family_key_wrap,
+            key_wrap_salt: family.key_wrap_salt,
+            key_wrap_iterations: family.key_wrap_iterations
+          });
+        }
+
+        if (!user) return json({ error: "Authentication required." }, 401);
+
         const membership = await env.gullak_db.prepare(`
           SELECT role FROM cloud_family_members WHERE family_id = ? AND user_id = ?
         `).bind(familyId, user?.user_id || "").first<{ role: string }>();
@@ -839,21 +854,6 @@ export default {
             VALUES (?, ?, 'member', ?)
           `).bind(familyId, user.user_id, new Date().toISOString()).run();
           return json({ success: true, family: { family_id: familyId, name: family.name, role: membership?.role || "member" } });
-        }
-
-        // The family vault contains the encrypted member directory. An authenticated
-        // account may fetch ciphertext; the shared Family PIN unlocks it client-side.
-        if (action === "vault" && request.method === "GET") {
-          const vault = await env.gullak_db.prepare(`
-            SELECT ciphertext, iv, salt, schema_version, updated_at
-            FROM cloud_family_vaults WHERE family_id = ?
-          `).bind(familyId).first();
-          return json({
-            exists: !!vault, vault: vault || null,
-            family_key_wrap: family.family_key_wrap,
-            key_wrap_salt: family.key_wrap_salt,
-            key_wrap_iterations: family.key_wrap_iterations
-          });
         }
 
         if (!membership) return json({ error: "You are not a member of this family." }, 403);
