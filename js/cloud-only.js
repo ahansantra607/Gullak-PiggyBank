@@ -60,7 +60,7 @@
       },
       'mode-fam': () => {
         mode = 'family'; G.setMode('family');
-        if (!G.cloudAccount.unlocked) { G.cloudFamilyReturn = true; G.go('cloud-account'); return; }
+        if (!G.cloudAccount.unlocked) { G.cloudFamilyReturn = 'pick'; G.go('cloud-account'); return; }
         G.go('fam-pick');
       }
     });
@@ -235,16 +235,16 @@
   // Cloud directory is the only family picker; no local family index is consulted.
   G.screens['fam-pick'] = {
     bare: true,
-    render: () => '<section class="ob"><header class="page-h"><button class="back" data-act="go" data-to="modes">←</button><h1>👨‍👩‍👧 Cloud families</h1></header><section class="card"><button class="btn primary block" data-act="open-cloud-families">☁️ Find / open a family</button><button class="btn soft block mt" data-act="new-cloud-family">➕ Create a family</button></section></section>',
+    render: () => '<section class="ob"><header class="page-h"><h1>👨‍👩‍👧 Family</h1></header><section class="card"><p class="muted">Find a family you belong to, or create a new family.</p><button class="btn primary block" data-act="open-cloud-families">☁️ Find / open a family</button><button class="btn soft block mt" data-act="new-cloud-family">➕ Create a family</button></section></section>',
     handlers: () => ({
       'open-cloud-families': () => {
         mode = 'family';
-        if (!G.cloudAccount.unlocked) { G.cloudFamilyReturn = true; G.go('cloud-account'); }
+        if (!G.cloudAccount.unlocked) { G.cloudFamilyReturn = 'open'; G.go('cloud-account'); }
         else G.go('cloud-families');
       },
       'new-cloud-family': () => {
         mode = 'family';
-        if (!G.cloudAccount.unlocked) { G.cloudFamilyReturn = true; G.go('cloud-account'); }
+        if (!G.cloudAccount.unlocked) { G.cloudFamilyReturn = 'create'; G.go('cloud-account'); }
         else G.go('fam-create');
       }
     })
@@ -254,6 +254,7 @@
   G.screens['fam-users'] = {
     bare: true,
     render: q => {
+      activeFamilyId = q.f || activeFamilyId;
       const cached = familyCache.get(q.f) || (G.FAM && G.FAM.meta.id === q.f ? { meta: G.FAM.meta, fkRaw: G.FAM.fkRaw } : null);
       const meta = cached && cached.meta;
       if (!meta) return '<section class="card"><p>Open this family from Cloud families first.</p><button class="btn primary block" data-act="go" data-to="cloud-families">Find family</button></section>';
@@ -263,14 +264,13 @@
         linked.map(m => '<button class="kid-row block" data-act="choose-member" data-mid="' + G.esc(m.id) + '"><span class="av-mid">' + G.esc(m.avatar) + '</span><b>' + G.esc(m.name) + '</b><small>' + (m.role === 'supervisor' ? 'Supervisor' : 'Member') + '</small></button>').join('') +
         '</section></section>';
     },
-    handlers: () => ({ 'choose-member': el => G.go('fam-pin', { f: activeFamilyId, m: el.dataset.mid }) })
+    handlers: q => ({ 'choose-member': el => G.go('fam-pin', { f: q.f || activeFamilyId, m: el.dataset.mid }) })
   };
   G.screens['fam-pin'] = {
     bare: true,
-    render: q => '<section class="ob"><header class="page-h"><button class="back" data-act="go" data-to="fam-users">←</button><h1>🔒 Family PIN</h1></header><section class="card"><label class="label">Enter your 4–6 digit PIN</label><input class="input big" id="cloud-family-pin" type="password" inputmode="numeric" maxlength="6"><button class="btn primary block big" data-act="unlock-cloud-family">Unlock family</button></section></section>',
-    handlers: () => ({ 'unlock-cloud-family': async button => {
-      const q = new URLSearchParams(location.hash.split('?')[1] || '');
-      const familyId = q.get('f') || activeFamilyId, memberId = q.get('m');
+    render: q => '<section class="ob"><header class="page-h"><button class="back" data-act="back-family-users">←</button><h1>🔒 Family PIN</h1></header><section class="card"><label class="label">Enter your 4–6 digit PIN</label><input class="input big" id="cloud-family-pin" type="password" inputmode="numeric" maxlength="6" autocomplete="off"><button class="btn primary block big" data-act="unlock-cloud-family">Unlock family</button></section></section>',
+    handlers: q => ({ 'back-family-users': () => G.go('fam-users', { f: q.f || activeFamilyId }), 'unlock-cloud-family': async button => {
+      const familyId = q.f || activeFamilyId, memberId = q.m;
       const pin = G.$('#cloud-family-pin').value;
       if (!/^\d{4,6}$/.test(pin)) return G.toast('Enter a 4–6 digit PIN.');
       button.disabled = true;
@@ -285,13 +285,12 @@
     'family-join': async button => {
       const selected = G.selectedCloudFamily;
       if (!G.cloudAccount.unlocked || !selected) return G.toast('Log in and choose a family first.');
+      if (!selected.is_member) return G.toast('Ask a family supervisor to add your Gullak username, then refresh the family list.');
       const code = G.$('#cloud-family-code').value.trim();
       if (code.length < 8) return G.toast('Enter the family recovery code.');
       button.disabled = true;
       try {
-        const opened = selected.is_member
-          ? await G.cloud.openFamily(selected.id, code)
-          : await G.cloud.joinFamily(selected.id, code);
+        const opened = await G.cloud.openFamily(selected.id, code);
         const meta = opened.value && opened.value.meta;
         if (!meta || !Array.isArray(meta.members)) throw new Error('Family metadata is invalid.');
         const member = meta.members.find(m => m.userId === G.cloudAccount.user.user_id);
@@ -315,6 +314,7 @@
   const oldSelect = originalCloudFamilies.handlers;
   G.screens['cloud-families'].handlers = () => ({
     'cloud-login': () => G.go('cloud-account'),
+    'family-create': () => G.go('fam-create'),
     'family-search': async () => {
       const q = G.$('#cloud-family-query').value.trim();
       if (q.length < 2) return G.toast('Type at least 2 characters.');
@@ -330,9 +330,9 @@
   G.screens['cloud-families'].render = () => {
     const rows = (G.cloudFamilyResults || []).map(f => {
       const member = f.is_member === true || Number(f.is_member) === 1 || !!f.role;
-      return '<div class="kid-row"><div class="grow"><b>' + G.esc(f.name) + '</b><small>' + (member ? 'Already in your families' : 'Your account must be linked by a supervisor') + '</small></div><button class="btn small soft" data-act="family-select" data-member="' + (member ? 'true' : 'false') + '" data-id="' + G.esc(f.family_id) + '" data-name="' + G.esc(f.name) + '">' + (member ? 'Open' : 'Join') + '</button></div>';
+      return '<div class="kid-row"><div class="grow"><b>' + G.esc(f.name) + '</b><small>' + (member ? 'Linked to your Gullak account' : 'Not linked — ask a family supervisor to add your username') + '</small></div><button class="btn small soft" ' + (member ? '' : 'disabled') + ' data-act="family-select" data-member="' + (member ? 'true' : 'false') + '" data-id="' + G.esc(f.family_id) + '" data-name="' + G.esc(f.name) + '">' + (member ? 'Open' : 'Not linked') + '</button></div>';
     }).join('');
-    return '<section class="ob"><header class="page-h"><button class="back" data-act="go" data-to="fam-pick">←</button><h1>☁️ Cloud families</h1></header><section class="card"><input class="input" id="cloud-family-query" maxlength="64" placeholder="Family name or invite code"><button class="btn primary block mt" data-act="family-search">Search</button><div class="col gap mt">' + (rows || '<p class="muted small">Search for a family or refresh your list.</p>') + '</div><button class="btn soft block mt" data-act="family-refresh">Refresh my families</button><label class="btn ghost block file-btn mt">Import encrypted family backup<input id="cloud-family-import-file" type="file" accept=".gullak,.json,application/json" hidden></label></section></section>';
+    return '<section class="ob"><header class="page-h"><button class="back" data-act="go" data-to="fam-pick">←</button><h1>☁️ Find a family</h1></header><section class="card"><input class="input" id="cloud-family-query" maxlength="64" placeholder="Family name or invite code"><button class="btn primary block mt" data-act="family-search">Search</button><div class="col gap mt">' + (rows || '<p class="muted small">Search for a family or refresh your families. If it is not linked to your account yet, ask a supervisor to add your username.</p>') + '</div><button class="btn soft block mt" data-act="family-refresh">Refresh my families</button><button class="btn primary block mt" data-act="family-create">➕ Create a new family</button><label class="btn ghost block file-btn mt">Import encrypted family backup<input id="cloud-family-import-file" type="file" accept=".gullak,.json,application/json" hidden></label></section></section>';
   };
 
 
@@ -407,7 +407,7 @@
     const handlers = cloudConnectHandlers();
     const connect = handlers['cloud-connect'];
     handlers['cloud-connect'] = async button => {
-      const wasFamily = !!G.cloudFamilyReturn;
+      const familyReturn = G.cloudFamilyReturn;
       await connect(button);
       if (G.cloudAccount.unlocked && G.pendingIndividualBackup && !wasFamily) {
         const restored = G.pendingIndividualBackup;
@@ -433,10 +433,11 @@
         } catch (error) { G.toast(error.message || 'Backup restore failed.'); }
         return;
       }
-      if (wasFamily && G.cloudAccount.unlocked) {
+      if (familyReturn && G.cloudAccount.unlocked) {
         G.cloudFamilyReturn = false;
         mode = 'family';
-        G.go('cloud-families');
+        const destination = familyReturn === 'create' ? 'fam-create' : familyReturn === 'open' ? 'cloud-families' : 'fam-pick';
+        G.go(destination);
       }
     };
     return handlers;
