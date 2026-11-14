@@ -77,6 +77,8 @@
 
   const routeGuardCloudOnly0 = G.routeGuard;
   G.routeGuard = (name, q) => {
+    // These Family cloud entry routes must remain reachable before a family is unlocked.
+    if (mode === 'family' && ['cloud-account', 'cloud-families', 'cloud-family-join'].includes(name)) return null;
     const prior = routeGuardCloudOnly0 ? routeGuardCloudOnly0(name, q) : null;
     if (!G.cloudAccount.unlocked && !G.backupTemporary) {
       if (!['welcome', 'modes', 'cloud-account', 'cloud-families', 'cloud-family-join', 'fam-pick', 'fam-users'].includes(name)) return 'cloud-account';
