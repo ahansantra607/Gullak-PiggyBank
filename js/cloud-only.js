@@ -203,6 +203,8 @@
     if (!G.cloudAccount.unlocked) throw new Error('Log in to your Gullak Cloud account first.');
     const code = await famCreate0(args);
     const F = G.FAM;
+    const creator = F && F.meta.members.find(m => m.id === F.mid);
+    if (creator && G.cloudAccount.user) creator.userId = G.cloudAccount.user.user_id;
     if (!F || !F.cloudId) throw new Error('Cloud family creation did not finish.');
     familyCache.set(F.cloudId, { meta: F.meta, fkRaw: F.fkRaw });
     await G.famSave();
@@ -215,13 +217,10 @@
     const member = cached.meta.members.find(m => m.id === memberId);
     if (!member) throw new Error('Family member not found.');
     if (!G.cloudAccount.user || member.userId !== G.cloudAccount.user.user_id) {
-      throw new Error('This Gullak account is not linked to that family member.');
+      throw new Error('This Gullak account is not linked to that family member. Ask a supervisor to link your account.');
     }
-    let raw;
-    try { raw = await C.unwrapWithSecret(pin, member.salt, member.wrap, cached.meta.iter); }
-    catch (_) { throw new Error('That PIN is not correct.'); }
-    if (!cached.meta.cloudId) throw new Error('This family is not connected to Gullak Cloud.');
-    await loadFamily(cached, raw, memberId);
+    if (!cached.meta.cloudId || !cached.fkRaw) throw new Error('Open the family with its shared Family PIN first.');
+    await loadFamily(cached, cached.fkRaw, memberId);
   };
 
   G.famLock = (to = 'fam-users') => {
@@ -235,7 +234,7 @@
   // Cloud directory is the only family picker; no local family index is consulted.
   G.screens['fam-pick'] = {
     bare: true,
-    render: () => '<section class="ob"><header class="page-h"><h1>👨‍👩‍👧 Family</h1></header><section class="card"><p class="muted">Find a family you belong to, or create a new family.</p><button class="btn primary block" data-act="open-cloud-families">☁️ Find / open a family</button><button class="btn soft block mt" data-act="new-cloud-family">➕ Create a family</button></section></section>',
+    render: () => '<section class="ob"><header class="page-h"><h1>👨‍👩‍👧 Family</h1></header><section class="card"><p class="muted">Search the cloud directory and select a family.</p><button class="btn primary block" data-act="open-cloud-families">☁️ Find / open a family</button><button class="btn soft block mt" data-act="new-cloud-family">➕ Create a family</button></section></section>',
     handlers: () => ({
       'open-cloud-families': () => {
         mode = 'family';
@@ -257,27 +256,29 @@
       activeFamilyId = q.f || activeFamilyId;
       const cached = familyCache.get(q.f) || (G.FAM && G.FAM.meta.id === q.f ? { meta: G.FAM.meta, fkRaw: G.FAM.fkRaw } : null);
       const meta = cached && cached.meta;
-      if (!meta) return '<section class="card"><p>Open this family from Cloud families first.</p><button class="btn primary block" data-act="go" data-to="cloud-families">Find family</button></section>';
-      const linked = meta.members.filter(m => G.cloudAccount.user && m.userId === G.cloudAccount.user.user_id);
-      if (!linked.length) return '<section class="ob"><header class="page-h"><button class="back" data-act="go" data-to="cloud-families">←</button><h1>' + G.esc(meta.name) + '</h1></header><section class="card"><p>This Gullak account is not linked to a member of this family.</p><p class="small muted">Ask a supervisor to link your username first.</p></section></section>';
-      return '<section class="ob"><header class="page-h"><button class="back" data-act="go" data-to="fam-pick">←</button><h1>' + G.esc(meta.emoji || '👨‍👩‍👧') + ' ' + G.esc(meta.name) + '</h1></header><section class="card"><h2>Who are you?</h2>' +
-        linked.map(m => '<button class="kid-row block" data-act="choose-member" data-mid="' + G.esc(m.id) + '"><span class="av-mid">' + G.esc(m.avatar) + '</span><b>' + G.esc(m.name) + '</b><small>' + (m.role === 'supervisor' ? 'Supervisor' : 'Member') + '</small></button>').join('') +
+      if (!meta) return '<section class="card"><p>Open this family with its shared Family PIN first.</p><button class="btn primary block" data-act="go" data-to="cloud-families">Find family</button></section>';
+      const members = meta.members || [];
+      const linkedId = G.cloudAccount.user && G.cloudAccount.user.user_id;
+      return '<section class="ob"><header class="page-h"><button class="back" data-act="go" data-to="cloud-families">←</button><h1>' + G.esc(meta.emoji || '👨‍👩‍👧') + ' ' + G.esc(meta.name) + '</h1></header><section class="card"><h2>Family members</h2><p class="small muted">Choose your profile. Each person signs in with their own Gullak account.</p>' +
+        members.map(m => {
+          const linked = !!linkedId && m.userId === linkedId;
+          return '<button class="kid-row block" ' + (linked ? '' : 'disabled') + ' data-act="choose-member" data-mid="' + G.esc(m.id) + '"><span class="av-mid">' + G.esc(m.avatar || '🙂') + '</span><b>' + G.esc(m.name) + '</b><small>' + (m.role === 'supervisor' ? 'Supervisor' : 'Kid') + (linked ? ' · This is your account' : ' · Sign in with this member account') + '</small></button>';
+        }).join('') +
+        (!members.some(m => m.userId === linkedId) ? '<p class="small muted">Your signed-in Gullak account is not linked to a member. Ask a Supervisor to add your account.</p>' : '') +
         '</section></section>';
     },
-    handlers: q => ({ 'choose-member': el => G.go('fam-pin', { f: q.f || activeFamilyId, m: el.dataset.mid }) })
+    handlers: q => ({ 'choose-member': async el => {
+      const familyId = q.f || activeFamilyId, memberId = el.dataset.mid;
+      try { await G.famUnlock(familyId, memberId); }
+      catch (error) { G.toast(error.message || 'Could not open this member account.'); }
+    } })
   };
   G.screens['fam-pin'] = {
     bare: true,
-    render: q => '<section class="ob"><header class="page-h"><button class="back" data-act="back-family-users">←</button><h1>🔒 Family PIN</h1></header><section class="card"><label class="label">Enter your 4–6 digit PIN</label><input class="input big" id="cloud-family-pin" type="password" inputmode="numeric" maxlength="6" autocomplete="off"><button class="btn primary block big" data-act="unlock-cloud-family">Unlock family</button><button class="link block mt" data-act="recover-family-pin">Forgot PIN?</button></section></section>',
-    handlers: q => ({ 'back-family-users': () => G.go('fam-users', { f: q.f || activeFamilyId }), 'recover-family-pin': () => G.go('fam-recover', { f: q.f || activeFamilyId, m: q.m }), 'unlock-cloud-family': async button => {
-      const familyId = q.f || activeFamilyId, memberId = q.m;
-      const pin = G.$('#cloud-family-pin').value;
-      if (!/^\d{4,6}$/.test(pin)) return G.toast('Enter a 4–6 digit PIN.');
-      button.disabled = true;
-      try { await G.famUnlock(familyId, memberId, pin); }
-      catch (error) { button.disabled = false; G.toast(error.message || 'Could not unlock family.'); }
-    } })
+    render: () => '<section class="card"><p>The shared Family PIN opens the family. Each member uses their own Gullak account password.</p><button class="btn primary block" data-act="go" data-to="cloud-families">Find family</button></section>',
+    handlers: () => ({})
   };
+
 
   G.screens['fam-recover'] = {
     bare: true,
@@ -328,7 +329,7 @@
       if (!G.cloudAccount.unlocked || !selected) return G.toast('Log in and choose a family first.');
       if (!selected.is_member) return G.toast('Ask a family supervisor to add your Gullak username, then refresh the family list.');
       const code = G.$('#cloud-family-code').value.trim();
-      if (code.length < 8) return G.toast('Enter the family recovery code.');
+      if (!/^\\d{4,6}$/.test(code)) return G.toast('Enter the 4–6 digit shared Family PIN.');
       button.disabled = true;
       try {
         const opened = await G.cloud.openFamily(selected.id, code);
@@ -348,7 +349,7 @@
   G.screens['cloud-family-join'].render = () => {
     const selected = G.selectedCloudFamily || {};
     const opening = !!selected.is_member;
-    return '<section class="ob"><header class="page-h"><button class="back" data-act="go" data-to="cloud-families">←</button><h1>' + (opening ? '🔓 Open family' : '👋 Join family') + '</h1></header><section class="card"><h2>' + G.esc(selected.name || 'Family') + '</h2><p class="small muted">' + (opening ? 'Enter the family recovery code to unlock this family on this account.' : 'Your account must already be linked by a family supervisor. Enter the family recovery code to join.') + '</p><label class="label">Family recovery code</label><input class="input" id="cloud-family-code" maxlength="40" autocomplete="off"><button class="btn primary block big" data-act="family-join">' + (opening ? 'Open and unlock' : 'Join and unlock') + '</button></section></section>';
+    return '<section class="ob"><header class="page-h"><button class="back" data-act="go" data-to="cloud-families">←</button><h1>' + (opening ? '🔓 Open family' : '👋 Join family') + '</h1></header><section class="card"><h2>' + G.esc(selected.name || 'Family') + '</h2><p class="small muted">' + (opening ? 'Enter the shared Family PIN to view the family members.' : 'Your account must already be linked by a family supervisor. Enter the shared Family PIN to view the family members.') + '</p><label class="label">Shared Family PIN</label><input class="input" id="cloud-family-code" maxlength="40" autocomplete="off"><button class="btn primary block big" data-act="family-join">' + (opening ? 'Open and unlock' : 'Join and unlock') + '</button></section></section>';
   };
 
   const originalCloudFamilies = G.screens['cloud-families'];
@@ -369,10 +370,7 @@
     }
   });
   G.screens['cloud-families'].render = () => {
-    const rows = (G.cloudFamilyResults || []).map(f => {
-      const member = f.is_member === true || Number(f.is_member) === 1 || !!f.role;
-      return '<div class="kid-row"><div class="grow"><b>' + G.esc(f.name) + '</b><small>' + (member ? 'Linked to your Gullak account' : 'Not linked — ask a family supervisor to add your username') + '</small></div><button class="btn small soft" ' + (member ? '' : 'disabled') + ' data-act="family-select" data-member="' + (member ? 'true' : 'false') + '" data-id="' + G.esc(f.family_id) + '" data-name="' + G.esc(f.name) + '">' + (member ? 'Open' : 'Not linked') + '</button></div>';
-    }).join('');
+    const rows = (G.cloudFamilyResults || []).map(f => '<div class="kid-row"><div class="grow"><b>' + G.esc(f.name) + '</b><small>Cloud family</small></div><button class="btn small soft" data-act="family-select" data-member="true" data-id="' + G.esc(f.family_id) + '" data-name="' + G.esc(f.name) + '">Select</button></div>').join('');
     return '<section class="ob"><header class="page-h"><button class="back" data-act="go" data-to="fam-pick">←</button><h1>☁️ Find a family</h1></header><section class="card"><input class="input" id="cloud-family-query" maxlength="64" placeholder="Family name or invite code"><button class="btn primary block mt" data-act="family-search">Search</button><div class="col gap mt">' + (rows || (G.cloudFamilyLoading ? '<p class="muted small">Loading your families…</p>' : '<p class="muted small">' + G.esc(G.cloudFamilyLoadError || 'No families shown yet. Search or refresh your families. If it is not linked to your account yet, ask a supervisor to add your username.') + '</p>')) + '</div><button class="btn soft block mt" data-act="family-refresh">Refresh my families</button><button class="btn primary block mt" data-act="family-create">➕ Create a new family</button><label class="btn ghost block file-btn mt">Import encrypted family backup<input id="cloud-family-import-file" type="file" accept=".gullak,.json,application/json" hidden></label></section></section>';
   };
 
@@ -381,8 +379,8 @@
     const payload = await G.cloudBackup.decode(rawText, backupPass);
     if (!payload || payload.gullakFamily !== 1 || !payload.meta || !Array.isArray(payload.meta.members) || typeof payload.data !== 'string') throw new Error('Invalid Family backup.');
     const meta = safeCopy(payload.meta);
-    const recovery = window.prompt('Enter the family recovery code saved with this backup:');
-    if (!recovery) throw new Error('Family recovery code is required.');
+    const recovery = window.prompt('Enter the shared Family PIN saved with this backup:');
+    if (!recovery) throw new Error('Shared Family PIN is required.');
     const raw = await C.unwrapWithSecret(C.normCode(recovery), meta.rc.salt, meta.rc.wrap, meta.iter);
     const key = await C.aesKey(raw);
     const data = JSON.parse(await C.decStr(key, payload.data));
