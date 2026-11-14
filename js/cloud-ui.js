@@ -94,9 +94,15 @@
             ? await G.cloud.register(username, password)
             : await G.cloud.login(username, password);
           cloudUser = auth.user;
-          const remote = await G.cloud.loadVault(secret);
           cloudSecret = secret;
           syncError = null;
+          const familyReturn = G.mode && G.mode() === 'family' &&
+            ['sup', 'fam-create', 'fam-pick', 'cloud-families', 'cloud-family-join'].includes(returnAfterLogin);
+          if (familyReturn) {
+            G.go(returnAfterLogin);
+            return;
+          }
+          const remote = await G.cloud.loadVault(secret);
           if (G.mode) G.setMode('individual');
           if (remote) {
             G.S = normalize(remote);
@@ -361,6 +367,93 @@
     const handlersCreate = familyCreateScreen.handlers;
     familyCreateScreen.handlers = (...args) => Object.assign(handlersCreate ? handlersCreate(...args) : {}, {
       'cloud-create-login': () => { returnAfterLogin = 'fam-create'; authMode = 'login'; G.go('cloud-account'); }
+    });
+  }
+
+
+  G.connectFamilyCloud = async usernames => {
+    const F = G.FAM;
+    const account = G.cloudAccount.user;
+    if (!F || F.role !== 'supervisor') throw new Error('Only a family supervisor can connect this family.');
+    if (!G.cloudAccount.unlocked || !account) throw new Error('Log in to a Gullak Cloud account first.');
+    if (F.cloudId) throw new Error('This family is already connected to the cloud.');
+    const current = F.meta.members.find(m => m.id === F.mid);
+    if (!current || current.role !== 'supervisor') throw new Error('The current family member is not a supervisor.');
+    current.userId = account.user_id;
+    for (const member of F.meta.members) {
+      if (member.id === current.id || member.userId) continue;
+      const username = String(usernames[member.id] || '').trim();
+      if (!/^[a-z0-9_]{3,24}$/i.test(username)) throw new Error('Enter a valid Gullak username for ' + member.name + '.');
+    }
+    const code = G.cr.recoveryCode();
+    const salt = G.cr.salt();
+    F.meta.rc = {
+      salt,
+      wrap: await G.cr.wrapWithSecret(G.cr.normCode(code), salt, F.fkRaw, F.meta.iter)
+    };
+    const remote = await G.cloud.createFamily({
+      name: F.meta.name, joinCode: code, familyKeyRaw: F.fkRaw,
+      value: { meta: F.meta, data: { v: 1, defaults: F.data.defaults || {}, createdAt: F.data.createdAt } }
+    });
+    F.cloudId = remote.family_id;
+    F.meta.cloudId = remote.family_id;
+    persistCloudFamilyMeta(F.meta);
+    for (const member of F.meta.members) {
+      if (member.id === current.id || member.userId) continue;
+      const linked = await G.cloud.addFamilyMember(F.cloudId, usernames[member.id], member.role);
+      member.userId = linked.member.user_id;
+    }
+    persistCloudFamilyMeta(F.meta);
+    await G.famSave();
+    return code;
+  };
+
+  const supervisorScreen = G.screens.sup;
+  if (supervisorScreen) {
+    const renderSupervisor = supervisorScreen.render;
+    supervisorScreen.render = (...args) => {
+      const html = renderSupervisor(...args);
+      const F = G.FAM;
+      if (!F || F.role !== 'supervisor') return html;
+      const status = F.cloudId
+        ? '<p class="fine">☁️ This family is connected to encrypted cloud sync.</p>'
+        : '<button class="btn soft block" data-act="cloud-connect-family">☁️ Connect this existing family to cloud</button>';
+      return html.replace('<button class="btn soft block" data-act="f-code">', status + '<button class="btn soft block" data-act="f-code">');
+    };
+    const handlersSupervisor = supervisorScreen.handlers;
+    supervisorScreen.handlers = (...args) => Object.assign(handlersSupervisor ? handlersSupervisor(...args) : {}, {
+      'cloud-connect-family': async () => {
+        const F = G.FAM;
+        if (!G.cloudAccount.unlocked) {
+          returnAfterLogin = 'sup'; authMode = 'login'; G.go('cloud-account'); return;
+        }
+        const unlinked = F.meta.members.filter(m => m.id !== F.mid && !m.userId);
+        const fields = unlinked.map(m => '<label class="label">' + esc(m.name) + ' · ' + (m.role === 'supervisor' ? 'Supervisor' : 'Member') + '</label><input class="input" id="family-link-' + esc(m.id) + '" maxlength="24" placeholder="Their Gullak username">').join('');
+        const modal = G.modal({
+          html: '<h2>☁️ Connect this family</h2><p class="small muted">Each existing member needs their own Gullak account first. Enter the username for every unlinked member.</p>' +
+            (fields || '<p class="small muted">All members are already linked.</p>') +
+            '<button class="btn primary block mt" data-act="connect-family-now">Connect and encrypt</button>',
+          handlers: {
+            'connect-family-now': async button => {
+              const usernames = {};
+              for (const member of unlinked) usernames[member.id] = G.$('#family-link-' + member.id, modal.el).value.trim();
+              button.disabled = true; button.textContent = '🔐 Encrypting family…';
+              try {
+                const code = await G.connectFamilyCloud(usernames);
+                modal.close();
+                G.modal({
+                  html: '<h2>☁️ Family connected</h2><p>Save this new family recovery/invite code. The previous recovery code has been replaced.</p><div class="code big-code">' + esc(code) + '</div><button class="btn soft block" data-act="copy-new-family-code">📋 Copy code</button><p class="fine">Every member uses their own Gullak username and password, then this code to join the family on a new device.</p>',
+                  handlers: { 'copy-new-family-code': () => G.copy(code) }
+                });
+                G.render({ keepScroll: true });
+              } catch (error) {
+                button.disabled = false; button.textContent = 'Connect and encrypt';
+                G.toast(error.message || 'Could not connect this family.');
+              }
+            }
+          }
+        });
+      }
     });
   }
 
