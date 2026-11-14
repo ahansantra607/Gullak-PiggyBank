@@ -492,13 +492,21 @@
         cr.pin = a; cr.step = 3; G.render();
       },
       c3: async () => {
-        if (!G.cloudAccount?.unlocked) { G.cloudFamilyReturn = 'create'; G.go('cloud-account'); return; }
         if (cr.q[0] === cr.q[1]) return G.toast('Pick two different questions');
         if (cr.a.some(a => C.norm(a).length < 2)) return G.toast('Answer both questions');
+        const args = { famName: cr.famName.trim(), famEmoji: cr.famEmoji, name: cr.name.trim(), avatar: cr.avatar, pin: cr.pin, qIds: cr.q.slice(), answers: cr.a.slice(), familyPin: cr.pin };
+        if (!G.cloudAccount?.unlocked) {
+          // Finish the family setup first; create/link its first Supervisor account next.
+          G.pendingCloudFamilyCreation = { args, rules: Object.assign({}, cr.rules) };
+          G.cloudFamilyReturn = 'create-finalize';
+          G.cloudAccount?.setAuthMode('register');
+          G.go('cloud-account');
+          return;
+        }
         cr.busy = true; G.render();
         try {
           if (G.mode() !== 'family') G.setMode('family');
-          cr.code = await G.famCreate({ famName: cr.famName.trim(), famEmoji: cr.famEmoji, name: cr.name.trim(), avatar: cr.avatar, pin: cr.pin, qIds: cr.q.slice(), answers: cr.a.slice(), familyPin: cr.pin });
+          cr.code = await G.famCreate(args);
           G.FAM.data.defaults = Object.assign({}, cr.rules); await G.famSave();
           cr.pin = ''; cr.a = ['', '']; cr.step = 5; G.sound('win'); G.confetti();
         } catch (e) { console.error(e); G.toast(e.message || 'Something went wrong creating the family 😕'); }
@@ -508,6 +516,24 @@
       csave: () => download(`gullak-family-pin.txt`, `Gullak family "${cr.famName}" shared Family PIN:\n${cr.code}\n\nShare this PIN only with family members.`, 'text/plain'),
       cdone: () => { if (!cr.saved) return G.toast('Please save the Family PIN first, then tick the box ✅'); Object.assign(cr, { step: 1, famName: '', name: '', code: '', saved: false, rules: Object.assign({}, G.RULE_DEFAULTS) }); G.go('sup'); }
     })
+  };
+
+  G.completePendingCloudFamilyCreation = async () => {
+    const pending = G.pendingCloudFamilyCreation;
+    if (!pending || !G.cloudAccount?.unlocked) throw new Error('The Supervisor cloud account is not ready.');
+    cr.busy = true;
+    try {
+      if (G.mode() !== 'family') G.setMode('family');
+      cr.code = await G.famCreate(pending.args);
+      G.FAM.data.defaults = Object.assign({}, pending.rules);
+      await G.famSave();
+      G.pendingCloudFamilyCreation = null;
+      cr.pin = ''; cr.a = ['', '']; cr.step = 5;
+      G.sound('win'); G.confetti();
+      G.go('fam-create');
+    } finally {
+      cr.busy = false;
+    }
   };
 
   const download = (name, text, type) => {
