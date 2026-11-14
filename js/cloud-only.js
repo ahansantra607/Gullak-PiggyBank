@@ -270,13 +270,11 @@
       const meta = cached && cached.meta;
       if (!meta) return '<section class="card"><p>Open this family with its shared Family PIN first.</p><button class="btn primary block" data-act="go" data-to="cloud-families">Find family</button></section>';
       const members = meta.members || [];
-      const linkedId = G.cloudAccount.user && G.cloudAccount.user.user_id;
       return '<section class="ob"><header class="page-h"><button class="back" data-act="go" data-to="cloud-families">←</button><h1>' + G.esc(meta.emoji || '👨‍👩‍👧') + ' ' + G.esc(meta.name) + '</h1></header><section class="card"><h2>Family members</h2><p class="small muted">Choose your profile. Each person signs in with their own Gullak account.</p>' +
         members.map(m => {
           const linked = !!linkedId && m.userId === linkedId;
           return '<button class="kid-row block" data-act="choose-member" data-mid="' + G.esc(m.id) + '"><b>' + G.esc(m.name) + '</b><small>' + (m.role === 'supervisor' ? 'Supervisor' : 'Kid') + '</small></button>';
         }).join('') +
-        (!members.some(m => m.userId === linkedId) ? '<p class="small muted">Your signed-in Gullak account is not linked to a member. Ask a Supervisor to add your account.</p>' : '') +
         '</section></section>';
     },
     handlers: q => ({ 'choose-member': async el => {
