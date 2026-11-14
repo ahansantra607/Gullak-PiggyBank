@@ -88,6 +88,7 @@
     }
     const F = G.FAM = { meta: cloudMeta, fk: key, fkRaw, data, mid: member.id, role: member.role, cloudId: meta.cloudId };
     activeFamilyId = meta.cloudId;
+    mode = 'family';
     familyCache.set(meta.cloudId, { meta: cloudMeta, fkRaw });
     G.parentUnlocked = false;
     if (member.role === 'member') {
@@ -137,14 +138,8 @@
     if (!G.cloudAccount.unlocked) throw new Error('Log in to your Gullak Cloud account first.');
     const code = await famCreate0(args);
     const F = G.FAM;
-    const supervisor = F.meta.members.find(m => m.id === F.mid);
-    supervisor.userId = G.cloudAccount.user.user_id;
-    const remote = await G.cloud.createFamily({
-      name: F.meta.name, joinCode: code, familyKeyRaw: F.fkRaw,
-      value: { meta: F.meta, data: { v: 1, defaults: F.data.defaults || {}, createdAt: F.data.createdAt } }
-    });
-    F.cloudId = remote.family_id; F.meta.cloudId = remote.family_id;
-    familyCache.set(remote.family_id, { meta: F.meta, fkRaw: F.fkRaw });
+    if (!F || !F.cloudId) throw new Error('Cloud family creation did not finish.');
+    familyCache.set(F.cloudId, { meta: F.meta, fkRaw: F.fkRaw });
     await G.famSave();
     return code;
   };
@@ -175,10 +170,12 @@
     render: () => '<section class="ob"><header class="page-h"><button class="back" data-act="go" data-to="modes">←</button><h1>👨‍👩‍👧 Cloud families</h1></header><section class="card"><button class="btn primary block" data-act="open-cloud-families">☁️ Find / open a family</button><button class="btn soft block mt" data-act="new-cloud-family">➕ Create a family</button></section></section>',
     handlers: () => ({
       'open-cloud-families': () => {
+        mode = 'family';
         if (!G.cloudAccount.unlocked) { G.cloudFamilyReturn = true; G.go('cloud-account'); }
         else G.go('cloud-families');
       },
       'new-cloud-family': () => {
+        mode = 'family';
         if (!G.cloudAccount.unlocked) { G.cloudFamilyReturn = true; G.go('cloud-account'); }
         else G.go('fam-create');
       }
