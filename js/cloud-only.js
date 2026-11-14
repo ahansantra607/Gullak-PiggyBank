@@ -412,6 +412,11 @@
       if (G.cloudAccount.unlocked && G.pendingIndividualBackup && !wasFamily) {
         const restored = G.pendingIndividualBackup;
         if (mode !== 'individual') { G.toast('Switch to Individual mode to restore this backup.'); return; }
+        const expectedUser = G.pendingIndividualBackupUsername;
+        if (expectedUser && expectedUser.toLowerCase() !== String(G.cloudAccount.user.username || '').toLowerCase()) {
+          G.toast('This backup belongs to ' + expectedUser + '. Sign in to that account or create it before restoring.');
+          return;
+        }
         if (!(await G.confirm('Replace this account with the backup?', 'The imported diary will replace the signed-in account only after the cloud upload is downloaded and verified.', 'Replace cloud diary', 'Cancel'))) return;
         try {
           await G.cloud.saveVault(restored, G.cloudAccount.encryptionPassphrase);
@@ -532,7 +537,9 @@
                   'backup-sign-in': () => { choice.close(); G.backupReadOnly = false; mode = 'individual'; G.setMode('individual'); G.go('cloud-account'); },
                   'backup-create-account': () => {
                     choice.close(); G.backupReadOnly = false; mode = 'individual'; G.setMode('individual');
-                    G.backupCreateAccount = true; G.go('cloud-account');
+                    G.backupCreateAccount = true;
+                    G.go('cloud-account');
+                    if (G.cloudAccount.setAuthMode) G.cloudAccount.setAuthMode('register');
                   },
                   'backup-read-only': () => {
                     choice.close(); G.backupReadOnly = true; G.setMode('individual'); G.S = value;
