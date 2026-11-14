@@ -161,10 +161,18 @@
 
   Object.assign(G.cloud, {
     async listFamilies() {
-      return (await request('/api/families')).families || [];
+      return ((await request('/api/families')).families || []).map(f => ({ ...f, is_member: true }));
     },
     async searchFamilies(query) {
       return (await request('/api/families/search?q=' + encodeURIComponent(query))).families || [];
+    },
+    async openFamily(familyId, recoveryCode) {
+      const result = await request(familyPath(familyId) + '/vault');
+      if (!result.exists || !result.vault) throw new Error('This family has no saved cloud vault yet.');
+      const wrappingKey = await C.deriveKey(C.normCode(recoveryCode), result.key_wrap_salt, result.key_wrap_iterations);
+      const familyKeyRaw = await C.dec(wrappingKey, result.family_key_wrap);
+      const value = await decryptFamilyVault(result.vault, familyKeyRaw);
+      return { family: { family_id: familyId }, familyKeyRaw, value };
     },
     async createFamily({ name, joinCode, familyKeyRaw, value }) {
       const salt = C.salt();
