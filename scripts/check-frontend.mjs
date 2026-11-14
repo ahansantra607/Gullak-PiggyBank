@@ -32,8 +32,7 @@ if (!cloudOnlySource.includes("'recover-family-pin': () => G.go('fam-recover', {
 if (!cloudOnlySource.includes('G.cloud.saveFamilyVault(q.f, cached.fkRaw, remote.value)')) throw new Error('Supervisor PIN recovery does not sync updated family metadata.');
 if (!cloudOnlySource.includes("'family-create': () => G.go('fam-create')")) throw new Error('Cloud family search screen has no create-family route.');
 if (!cloudOnlySource.includes('G.cloud.listFamilies().then(rows => { G.cloudFamilyResults = rows; })')) throw new Error('Cloud family directory does not load the signed-in user\'s families automatically.');
-if (!cloudOnlySource.includes("member ? '' : 'disabled'")) throw new Error('Unlinked family search results are still offered as a broken Join action.');
-if (!cloudOnlySource.includes('Ask a family supervisor to add your Gullak username')) throw new Error('Unlinked family guidance is missing.');
+if (!cloudOnlySource.includes('Choose your profile. Each person signs in with their own Gullak account.')) throw new Error('Family member selection no longer explains individual account sign-in.');
 if (!cloudOnlySource.includes('if (G.backupTemporary) return Promise.resolve();')) throw new Error('Temporary backup mode is not isolated from persistence.');
 if (!cloudOnlySource.includes('Temporary copy opened. You can edit it, but nothing will be saved anywhere.')) throw new Error('Temporary backup is not described as editable and non-persistent.');
 if (!cloudOnlySource.includes('owner: { username: G.cloudAccount.user.username }')) throw new Error('Individual backup does not carry its originating account username.');
@@ -42,9 +41,9 @@ if (!cloudOnlySource.includes('G.pendingIndividualBackupUsername')) throw new Er
 if (!cloudOnlySource.includes("window.prompt('Enter your Gullak account password to replace this account:')")) throw new Error('Replacing a backup destination does not require account-password reauthentication.');
 if (!cloudOnlySource.includes('G.cloud.login(G.cloudAccount.user.username, accountPassword)')) throw new Error('Backup replacement does not reauthenticate the destination account.');
 if (!cloudOnlySource.includes("G.cloudAccount.setAuthMode('register')")) throw new Error('Backup restore cannot offer account creation.');
-if (!cloudOnlySource.includes("member.userId !== G.cloudAccount.user.user_id")) throw new Error('Family PIN unlock is not restricted to the linked Gullak account.');
-if (!cloudOnlySource.includes("meta.members.filter(m => G.cloudAccount.user && m.userId === G.cloudAccount.user.user_id)")) throw new Error('Family member picker exposes unlinked member profiles.');
-if (!cloudOnlySource.includes("G.go('fam-users', { f: meta.cloudId })")) throw new Error('Family recovery-code flow skips the member PIN picker.');
+if (!cloudOnlySource.includes("member.userId !== G.cloudAccount.user.user_id")) throw new Error('Family member access is not restricted to the linked Gullak account.');
+if (!cloudOnlySource.includes("members.map(m =>")) throw new Error('Family member picker does not show the family directory after shared PIN unlock.');
+if (!cloudOnlySource.includes("G.go('fam-users', { f: meta.cloudId })")) throw new Error('Shared Family PIN flow does not show the member picker.');
 
 
 const html = readFileSync('index.html', 'utf8');
