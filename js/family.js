@@ -437,6 +437,13 @@
     after: (root) => {
       const bind = (id, k) => { const el = G.$(id, root); if (el) el.addEventListener('input', () => { cr[k] = el.value; }); };
       bind('#c-fam', 'famName'); bind('#c-name', 'name');
+      ['#c-p1', '#c-p2'].forEach(sel => {
+        const pin = G.$(sel, root);
+        if (pin) {
+          pin.addEventListener('beforeinput', e => { if (e.data && /\\D/.test(e.data)) e.preventDefault(); });
+          pin.addEventListener('input', () => { pin.value = pin.value.replace(/\\D/g, '').slice(0, 6); });
+        }
+      });
       [0, 1].forEach(i => { const s = G.$('#c-q' + i, root), a = G.$('#c-a' + i, root); if (s) s.addEventListener('change', () => { cr.q[i] = +s.value; }); if (a) a.addEventListener('input', () => { cr.a[i] = a.value; }); });
       const ok = G.$('#c-ok', root); if (ok) ok.addEventListener('change', () => { cr.saved = ok.checked; });
     },
