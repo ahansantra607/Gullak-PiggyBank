@@ -1,5 +1,5 @@
 
-const ITERATIONS = 310_000;
+const ITERATIONS = 100_000;
 const SESSION_DAYS = 7;
 const encoder = new TextEncoder();
 const MAX_VAULT_BYTES = 900_000;
