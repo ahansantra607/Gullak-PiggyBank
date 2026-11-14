@@ -1,6 +1,9 @@
 package com.ahansantra607.gullak;
 
 import android.app.Activity;
+import android.animation.ObjectAnimator;
+import android.animation.PropertyValuesHolder;
+import android.animation.ValueAnimator;
 import android.content.Intent;
 import android.graphics.Color;
 import android.graphics.Typeface;
@@ -19,6 +22,7 @@ import android.util.Base64;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.Button;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
@@ -126,13 +130,56 @@ public class MainActivity extends Activity {
     }
 
     private void showLoading() {
+        LinearLayout splash = new LinearLayout(this);
+        splash.setOrientation(LinearLayout.VERTICAL);
+        splash.setGravity(Gravity.CENTER);
+        splash.setBackgroundColor(Color.rgb(255, 247, 251));
+        splash.setPadding(dp(24), dp(24), dp(24), dp(24));
+
+        ImageView piggy = new ImageView(this);
+        piggy.setImageResource(R.drawable.gullak_piggy);
+        piggy.setScaleType(android.widget.ImageView.ScaleType.FIT_CENTER);
+        LinearLayout.LayoutParams piggyParams = new LinearLayout.LayoutParams(dp(250), dp(213));
+        splash.addView(piggy, piggyParams);
+
         TextView label = new TextView(this);
-        label.setText("🐷  Gullak");
-        label.setTextSize(27);
+        label.setText("GULLAK");
+        label.setTextSize(38);
+        label.setLetterSpacing(0.16f);
         label.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-        label.setTextColor(Color.rgb(38, 91, 62));
+        label.setTextColor(Color.rgb(163, 36, 91));
         label.setGravity(Gravity.CENTER);
-        setContentView(label);
+        LinearLayout.LayoutParams labelParams = matchWrap();
+        labelParams.topMargin = dp(12);
+        splash.addView(label, labelParams);
+
+        TextView tagline = new TextView(this);
+        tagline.setText("Your money buddy");
+        tagline.setTextSize(15);
+        tagline.setLetterSpacing(0.05f);
+        tagline.setTextColor(Color.rgb(122, 92, 153));
+        tagline.setGravity(Gravity.CENTER);
+        LinearLayout.LayoutParams taglineParams = matchWrap();
+        taglineParams.topMargin = dp(4);
+        splash.addView(tagline, taglineParams);
+
+        setContentView(splash);
+
+        ObjectAnimator bounce = ObjectAnimator.ofPropertyValuesHolder(
+            piggy,
+            PropertyValuesHolder.ofFloat(View.SCALE_X, 1.0f, 1.09f),
+            PropertyValuesHolder.ofFloat(View.SCALE_Y, 1.0f, 1.09f)
+        );
+        bounce.setDuration(850);
+        bounce.setRepeatMode(ValueAnimator.REVERSE);
+        bounce.setRepeatCount(ValueAnimator.INFINITE);
+        bounce.start();
+
+        label.setAlpha(0f);
+        label.setTranslationY(dp(12));
+        label.animate().alpha(1f).translationY(0f).setDuration(700).start();
+        tagline.setAlpha(0f);
+        tagline.animate().alpha(1f).setStartDelay(250).setDuration(650).start();
     }
 
     private void showUpdate(String version, String notes, String apkUrl) {
