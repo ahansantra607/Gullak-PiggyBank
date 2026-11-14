@@ -162,7 +162,7 @@ async function getCurrentUser(
       SELECT users.user_id, users.username,
         CASE
           WHEN EXISTS (SELECT 1 FROM cloud_family_members fm WHERE fm.user_id = users.user_id) THEN 'family'
-          ELSE COALESCE((SELECT account_type FROM user_account_types at WHERE at.user_id = users.user_id), 'individual')
+          ELSE COALESCE((SELECT account_type FROM user_account_types uat WHERE uat.user_id = users.user_id), 'individual')
         END AS account_type
       FROM sessions
       JOIN users ON users.user_id = sessions.user_id
