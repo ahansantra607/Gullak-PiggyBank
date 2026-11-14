@@ -209,7 +209,7 @@
 
   const famCreate0 = G.famCreate;
   G.famCreate = async args => {
-    if (!G.cloudAccount.unlocked) throw new Error('Log in to your Gullak Cloud account first.');
+    if (!G.cloudAccount.unlocked || G.cloudAccount.user?.account_type !== 'family') throw new Error('Sign in with a Family-only account to create this family.');
     const code = await famCreate0(args);
     const F = G.FAM;
     if (!F) throw new Error('Family setup did not finish.');
