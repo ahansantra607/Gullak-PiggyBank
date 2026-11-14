@@ -120,7 +120,7 @@
             G.go(returnAfterLogin);
             return;
           }
-          const remote = await G.cloud.loadVault(secret);
+          const remote = await G.cloud.loadVault(cloudSecret);
           if (G.mode) G.setMode('individual');
           if (remote) {
             const local = localIndividual();
@@ -131,8 +131,8 @@
                 'Replace cloud with this copy', 'Keep cloud copy'
               );
               if (replaceCloud) {
-                await G.cloud.saveVault(local, secret);
-                const verifiedLocal = await G.cloud.loadVault(secret);
+                await G.cloud.saveVault(local, cloudSecret);
+                const verifiedLocal = await G.cloud.loadVault(cloudSecret);
                 if (!verifiedLocal || JSON.stringify(verifiedLocal) !== JSON.stringify(local)) {
                   throw new Error('Cloud verification failed. Neither copy was cleared.');
                 }
