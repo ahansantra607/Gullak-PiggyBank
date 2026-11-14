@@ -452,10 +452,9 @@
       const cat = findCat(t); const nw = NEED_CATS.includes(cat) ? 'need' : 'want'; const thing = findThing(t);
       const c = G.CATS[cat];
       const m = `Got it! Shall I write <b>${rs(n)}</b> on ${c.e} <b>${esc(thing || c.n)}</b> (${nw === 'need' ? '🧩 need' : '✨ want'})?${g ? `<br><small>⏪ It pushes your ${esc(g.name)} back ${G.plural(G.daysBack(n), 'day')}.</small>` : ''}
-        <div class="row gap mt">${actBtn('✅ Yes, save it', () => {
-          G.act.addTxn({ type: 'out', amount: n, category: cat, needOrWant: nw, note: thing ? thing.replace(/^\w/, x => x.toUpperCase()) : '' });
-          G.sound('pop'); say(`📝 Written! You have ${rs(G.balance())} left.`, `Written. You have ${G.balance()} rupees left.`, voice); G.after(); G.render();
-        }, 'primary')}${actBtn('✏️ Change', () => G.openTxn('out', { amount: n, cat, nw }))}</div>`;
+        <div class="row gap mt">${actBtn('💾 Save it?', () => G.openTxn('out', {
+          amount: n, cat, nw, note: thing ? thing.replace(/^\w/, x => x.toUpperCase()) : ''
+        }), 'primary')}</div>`;
       return say(m, `Shall I write ${n} rupees on ${thing || c.n}?`, voice);
     }
     // got money
