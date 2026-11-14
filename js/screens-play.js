@@ -294,6 +294,7 @@
                 button.disabled = true; button.textContent = '🔐 Unlocking…';
                 try {
                   const data = await G.cloudBackup.decode(backupText, pass);
+                  if (!data.profile || !Array.isArray(data.txns)) throw new Error('This encrypted file is not an individual Gullak backup.');
                   G.S = G.normState(data); G.save(); await G.waitForCloudSync();
                   modal.close(); G.toast('📂 Encrypted backup restored!'); G.go('home');
                 } catch (error) {
