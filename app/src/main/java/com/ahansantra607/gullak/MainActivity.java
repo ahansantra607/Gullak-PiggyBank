@@ -83,7 +83,7 @@ public class MainActivity extends Activity {
                 JSONObject release = new JSONObject(jsonText.toString());
                 String tag = release.optString("tag_name", "");
                 String latestVersion = tag.startsWith("v") ? tag.substring(1) : tag;
-                String installedVersion = BuildConfig.VERSION_NAME;
+                String installedVersion = getPackageManager().getPackageInfo(getPackageName(), 0).versionName;
                 JSONArray assets = release.optJSONArray("assets");
                 String apkUrl = null;
                 if (assets != null) {
