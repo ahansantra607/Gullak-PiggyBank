@@ -149,6 +149,16 @@ const supervisorMemberData = expect(await request("/api/families/" + familyId +
   }), 200, "Supervisor member-vault read");
 assert(supervisorMemberData.data.exists, "Supervisor cannot read linked member's encrypted vault.");
 
+// Wrong-password deletion must be rejected without changing the account.
+expect(await request("/api/account", { method: "DELETE", cookie: supervisor.cookie, body: { password: "not-the-password" } }), 403, "Wrong-password account deletion");
+expect(await request("/api/me", { cookie: supervisor.cookie }), 200, "Account remains after wrong deletion password");
+
+// Deleting the family creator transfers ownership and supervisor role to the remaining member.
+expect(await request("/api/account", { method: "DELETE", cookie: supervisor.cookie, body: { password } }), 200, "Confirmed account deletion");
+expect(await request("/api/me", { cookie: supervisor.cookie }), 401, "Deleted account session denial");
+const transferred = expect(await request("/api/families/" + familyId + "/members", { cookie: member.cookie }), 200, "Family survives creator deletion");
+assert(transferred.data.members.some(item => item.username === memberName && item.role === "supervisor"),
+  "Family ownership/supervisor role was not transferred to the remaining member.");
 expect(await request("/api/logout", { method: "POST", cookie: member.cookie }), 200, "Logout");
 expect(await request("/api/me", { cookie: member.cookie }), 401, "Revoked session denial");
 
