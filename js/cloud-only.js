@@ -485,6 +485,12 @@
       if (familyReturn && G.cloudAccount.unlocked) {
         G.cloudFamilyReturn = false;
         mode = 'family';
+        if (familyReturn === 'import' && G.pendingCloudFamilyImport) {
+          const pending = G.pendingCloudFamilyImport; G.pendingCloudFamilyImport = null;
+          try { await importCloudFamilyBackup(pending.raw, pending.pass); }
+          catch (error) { G.toast(error.message || 'Family import failed.'); G.go('fam-pick'); }
+          return;
+        }
         if (familyReturn === 'member' && G.pendingFamilyMember) {
           const pending = G.pendingFamilyMember;
           G.pendingFamilyMember = null;
