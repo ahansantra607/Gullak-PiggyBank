@@ -43,7 +43,7 @@
     } catch (_) { return null; }
   };
 
-  G.FREE_ROUTES = G.FREE_ROUTES || [];
+  G.FREE_ROUTES = G.FREE_ROUTES || ['welcome', 'parent', 'reply'];
   if (!G.FREE_ROUTES.includes('cloud-account')) G.FREE_ROUTES.push('cloud-account');
 
   G.screens['cloud-account'] = {
