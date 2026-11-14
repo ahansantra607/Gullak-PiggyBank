@@ -13,52 +13,6 @@
     if (fn) { ev.preventDefault(); fn(el, ev); }
   });
 
-  /* Restrict numeric and PIN inputs. PINs are password inputs with inputmode=numeric. */
-  const isNumericField = (el) => el instanceof HTMLInputElement &&
-    (el.type === 'number' || el.inputMode === 'numeric' || el.inputMode === 'decimal' || el.hasAttribute('data-numeric-only'));
-  const allowsDecimal = (el) => el.inputMode === 'decimal' ||
-    (el.type === 'number' && (el.step === 'any' || (el.step !== '' && Number(el.step) % 1 !== 0)));
-  const cleanNumericValue = (el) => {
-    const decimal = allowsDecimal(el);
-    let value = String(el.value || '').replace(/[^0-9.]/g, '');
-    if (!decimal) value = value.replace(/\./g, '');
-    else {
-      const dot = value.indexOf('.');
-      if (dot !== -1) value = value.slice(0, dot + 1) + value.slice(dot + 1).replace(/\./g, '');
-    }
-    if (el.value !== value) {
-      el.value = value;
-      el.dispatchEvent(new Event('input', { bubbles: true }));
-    }
-  };
-
-  document.addEventListener('keydown', (e) => {
-    const el = e.target;
-    if (!isNumericField(el) || e.ctrlKey || e.metaKey || e.altKey) return;
-    if (e.key.length === 1 && !/[0-9]/.test(e.key) &&
-        !(allowsDecimal(el) && e.key === '.' && !String(el.value).includes('.'))) e.preventDefault();
-  }, true);
-
-  document.addEventListener('beforeinput', (e) => {
-    const el = e.target;
-    if (!isNumericField(el) || !e.inputType.startsWith('insert') || e.data == null) return;
-    if (/^[0-9]+$/.test(e.data)) return;
-    if (allowsDecimal(el) && e.data === '.' && !String(el.value).includes('.')) return;
-    e.preventDefault();
-  }, true);
-
-  document.addEventListener('paste', (e) => {
-    const el = e.target;
-    if (!isNumericField(el)) return;
-    const pasted = (e.clipboardData || window.clipboardData).getData('text').trim();
-    const valid = allowsDecimal(el) ? /^(?:\d+(?:\.\d*)?|\.\d+)$/.test(pasted) : /^\d+$/.test(pasted);
-    if (!valid) e.preventDefault();
-  }, true);
-
-  document.addEventListener('input', (e) => {
-    if (isNumericField(e.target)) cleanNumericValue(e.target);
-  }, true);
-
   /* Scrolling over a focused number box: the opposite of the browser's built-in direction, as requested
      (on the reporter's device the default felt backwards: scrolling down raised the price). Never below the box's min. */
   document.addEventListener('wheel', (e) => {

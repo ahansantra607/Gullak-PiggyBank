@@ -156,8 +156,7 @@
   G.repayLoan = (amount, why) => {
     const l = (S().loans || []).find(x => x.status === 'active'); if (!l) return 0;
     const a = Math.min(Math.round(amount), owed(l), Math.max(0, G.balance())); if (a <= 0) return 0;
-    const payment = G.act.addTxn({ type: 'loanPay', amount: a, loanId: l.id, note: why || 'Loan repayment' });
-    if (!payment) return 0;
+    G.act.addTxn({ type: 'loanPay', amount: a, loanId: l.id, note: why || 'Loan repayment' });
     l.paid += a;
     if (owed(l) <= 0) { l.status = 'repaid'; l.repaidAt = G.now(); G.confetti(); G.sound('win'); setTimeout(() => G.toast('🎉 <b>Debt-free!</b> You paid back Future You. Respect! 🦸', 4000), 400); }
     G.save(); return a;
@@ -398,27 +397,6 @@
     const t = ' ' + raw.toLowerCase().replace(/₹/g, ' ').replace(/\brs\.?/g, ' ').replace(/\s+/g, ' ') + ' ';
     const n = G.parseNumber(t); const g = G.activeGoal(); const bal = G.balance();
     S().meta.talked = (S().meta.talked || 0) + 1;
-
-    // Pending spend context: only an explicit save/record reply creates a transaction.
-    const pendingSpend = S().meta.chatPendingSpend;
-    const pendingIsFresh = pendingSpend && Date.now() - pendingSpend.createdAt < 30 * 60 * 1000;
-    if (pendingIsFresh && /\b(?:save it|record it|yes,? save|yes,? record|confirm)\b/.test(t)) {
-      const explicitNeed = /\bneed\b/.test(t), explicitWant = /\bwant\b/.test(t);
-      const extraItem = t.match(/\b(?:for|on)\s+(?:a|an|the)\s+([a-z][a-z -]{0,35})/i);
-      const item = extraItem ? extraItem[1].replace(/\b(?:as a )?(?:need|want)\b.*$/i, '').trim() : pendingSpend.note;
-      const cat = item && item !== pendingSpend.note ? findCat(item) : pendingSpend.category;
-      const nw = explicitNeed ? 'need' : explicitWant ? 'want' : pendingSpend.needOrWant;
-      const tx = G.act.addTxn({ type: 'out', amount: pendingSpend.amount, category: cat, needOrWant: nw, note: item ? item.replace(/^\w/, x => x.toUpperCase()) : '' });
-      delete S().meta.chatPendingSpend; G.save();
-      if (!tx) return say(`You only have ${rs(Math.max(0, G.balance()))} available, so I haven't recorded that spend.`, `You only have ${Math.max(0, G.balance())} rupees available.`, voice);
-      G.sound('pop');
-      return say(`📝 Saved ${rs(tx.amount)} for ${esc(item || (G.CATS[cat] || G.CATS.other).n)} as a ${nw}. You have ${rs(G.balance())} left.`, `Saved ${tx.amount} rupees as a ${nw}. You have ${G.balance()} rupees left.`, voice);
-    }
-    if (pendingIsFresh && /\b(?:cancel|forget) (?:that|it|spend)\b/.test(t)) {
-      delete S().meta.chatPendingSpend; G.save();
-      return say('Okay, I have not recorded that spend.', 'Okay, I have not recorded that spend.', voice);
-    }
-
     // greetings
     if (/\b(hi|hello|hey|namaste|hii)\b/.test(t) && n == null && t.trim().split(' ').length <= 4) {
       const m = `Oink oink, ${S().profile.nickname}! 🐷 Tell me what you spent or got, or ask me "Can I buy…?"`;
@@ -469,19 +447,16 @@
         : `Your ${esc(g.name)} money is ready! 🎉`;
       return say(m, m, voice);
     }
-    // A spoken spend is a draft. The Save it? button opens the transaction editor.
+    // spent money
     if (/\b(spent|spend|bought|buy|paid|pay|wasted)\b/.test(t) && n != null) {
       const cat = findCat(t); const nw = NEED_CATS.includes(cat) ? 'need' : 'want'; const thing = findThing(t);
-      const c = G.CATS[cat] || G.CATS.other;
-      const note = thing ? thing.replace(/^\w/, x => x.toUpperCase()) : '';
-      S().meta.chatPendingSpend = { amount: n, category: cat, needOrWant: nw, note, createdAt: Date.now() };
-      G.save();
-      const spendId = 'spend-' + Date.now();
-      const m = `I heard: <b>${rs(n)}</b> for ${esc(note || c.n)} — a ${nw}.${g ? `<br><small>⏪ Saving this would push your ${esc(g.name)} back ${G.plural(G.daysBack(n), 'day')}.</small>` : ''}
-        <div class="row gap mt"><button class="btn primary" data-act="chat-spend-open" data-id="${spendId}">💾 Save it?</button></div><span class="small muted" data-spend-id="${spendId}"></span>`;
-      S().meta.chatPendingSpend.id = spendId;
-      G.save();
-      return say(m, `I heard ${n} rupees for ${note || c.n}. Use Save it to review and record the spend.`, voice);
+      const c = G.CATS[cat];
+      const m = `Got it! Shall I write <b>${rs(n)}</b> on ${c.e} <b>${esc(thing || c.n)}</b> (${nw === 'need' ? '🧩 need' : '✨ want'})?${g ? `<br><small>⏪ It pushes your ${esc(g.name)} back ${G.plural(G.daysBack(n), 'day')}.</small>` : ''}
+        <div class="row gap mt">${actBtn('✅ Yes, save it', () => {
+          G.act.addTxn({ type: 'out', amount: n, category: cat, needOrWant: nw, note: thing ? thing.replace(/^\w/, x => x.toUpperCase()) : '' });
+          G.sound('pop'); say(`📝 Written! You have ${rs(G.balance())} left.`, `Written. You have ${G.balance()} rupees left.`, voice); G.after(); G.render();
+        }, 'primary')}${actBtn('✏️ Change', () => G.openTxn('out', { amount: n, cat, nw }))}</div>`;
+      return say(m, `Shall I write ${n} rupees on ${thing || c.n}?`, voice);
     }
     // got money
     if (/\b(got|get|received|earned|earn|gave me|given|pocket money|allowance|found)\b/.test(t) && n != null) {
@@ -548,26 +523,10 @@
     handlers: () => ({
       'chat-send': () => send(G.$('#chat-in').value),
       'chat-say': (el) => send(el.dataset.t),
-      'chat-spend-open': (el) => {
-        const pending = S().meta.chatPendingSpend;
-        if (!pending || pending.id !== el.dataset.id || Date.now() - pending.createdAt >= 30 * 60 * 1000) {
-          return say('That spend draft has expired. Tell me again what you spent.', 'That spend draft has expired.');
-        }
-        G.openTxn('out', {
-          amount: pending.amount, cat: pending.category, nw: pending.needOrWant, note: pending.note,
-          onSaved: (tx, details) => {
-            delete S().meta.chatPendingSpend;
-            const goalText = details.goal ? ` Your ${esc(details.goal.name)} moved back ${G.plural(details.daysBack, 'day')}.` : '';
-            const msg = G.chat.find(m => m.html.includes(`data-spend-id="${pending.id}"`));
-            if (msg) msg.html = `<b>✅ Saved!</b> ${rs(tx.amount)} for ${esc(tx.note || (G.CATS[tx.category] || G.CATS.other).n)} recorded as a ${tx.needOrWant || pending.needOrWant}.${goalText}`;
-            G.save();
-          }
-        });
-      },
       'chat-do': (el) => {
         const i = +el.dataset.i; const fn = acts[i]; if (!fn) return;
-        acts[i] = null;
-        G.chat.forEach(m => { if (m.html.includes(`data-i="${i}"`)) m.html = m.html.replace(/<div class="row gap mt">[\\s\\S]*?<\\/div>/, '<div class="small muted mt">✔️ Done</div>'); });
+        acts[i] = null; // each button works once; remove its button row from the chat history
+        G.chat.forEach(m => { if (m.html.includes(`data-i="${i}"`)) m.html = m.html.replace(/<div class="row gap mt">[\s\S]*?<\/div>/, '<div class="small muted mt">✔️ Done</div>'); });
         fn(); G.render({ keepScroll: true }); scrollChat();
       },
       mic: () => {

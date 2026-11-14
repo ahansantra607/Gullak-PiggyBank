@@ -10,7 +10,7 @@
      ===================================================================== */
   G.openTxn = (type = 'out', opts = {}) => {
     const isOut = type === 'out';
-    const st = { amount: Number(opts.amount) || 0, cat: opts.cat || null, nw: opts.nw || null };
+    const st = { amount: 0, cat: opts.cat || null, nw: opts.nw || null };
     const cats = isOut ? G.SPEND_CATS.map(k => [k, G.CATS[k]]) : Object.entries(G.SOURCES);
     const g = G.activeGoal();
     let upd = () => {};
@@ -21,9 +21,9 @@
         <div class="label">${isOut ? 'What was it for?' : 'Where did it come from?'}</div>
         <div class="pick-grid">${cats.map(([k, c]) => `<button class="pick ${st.cat === k ? 'on' : ''}" data-act="cat" data-v="${k}"><span>${c.e}</span><small>${c.n}</small></button>`).join('')}</div>
         ${isOut ? `<div class="label">Was it a… ${G.speakBtn('Was it a need, something you must have, or a want, something nice to have?')}</div>
-          <div class="seg"><button class="seg-b ${st.nw === 'need' ? 'on' : ''}" data-act="nw" data-v="need">🧩 Need<small>I must have it</small></button>
-          <button class="seg-b ${st.nw === 'want' ? 'on' : ''}" data-act="nw" data-v="want">✨ Want<small>nice to have</small></button></div>` : ''}
-        <input class="input" id="tx-note" maxlength="40" value="${esc(opts.note || '')}" placeholder="${isOut ? 'What was it? e.g. samosa (optional)' : 'Note, e.g. from Nani (optional)'}" aria-label="Note">
+          <div class="seg"><button class="seg-b" data-act="nw" data-v="need">🧩 Need<small>I must have it</small></button>
+          <button class="seg-b" data-act="nw" data-v="want">✨ Want<small>nice to have</small></button></div>` : ''}
+        <input class="input" id="tx-note" maxlength="40" placeholder="${isOut ? 'What was it? e.g. samosa (optional)' : 'Note, e.g. from Nani (optional)'}" aria-label="Note">
         <button class="btn primary block big" data-act="save" disabled>Save</button>`,
       handlers: {
         speak: (el) => G.speak(el.dataset.text, true),
@@ -32,16 +32,12 @@
         save: () => {
           const note = G.$('#tx-note', m.el).value.trim();
           const t = G.act.addTxn({ type, amount: st.amount, category: st.cat, needOrWant: st.nw || undefined, note });
-          if (!t) {
-            if (isOut) G.toast(`Not enough money. You have ${rs(Math.max(0, G.balance()))} available, so this spend wasn't added.`);
-            return;
-          }
+          if (!t) return;
           m.close();
           if (isOut) {
             G.sound('pop');
             const dly = g ? G.daysBack(st.amount) : 0;
-            if (typeof opts.onSaved === 'function') opts.onSaved(t, { daysBack: dly, goal: g });
-            else G.toast(`Noted! ${rs(st.amount)} on ${G.CATS[st.cat].e}${g ? ` · your ${esc(g.name)} moved back ${G.plural(dly, 'day')} ⏪` : ''}`);
+            G.toast(`Noted! ${rs(st.amount)} on ${G.CATS[st.cat].e}${g ? ` · your ${esc(g.name)} moved back ${G.plural(dly, 'day')} ⏪` : ''}`);
             G.after(); G.render();
           } else {
             G.sound('coin');
@@ -62,12 +58,10 @@
       let html = a ? `<b>${rs(a)}</b> = ${u.text} <span class="erow">${G.emojiRow(u.n, u.e, 10)}</span>` : '<span class="muted">Tap the numbers to type the amount</span>';
       if (a && isOut && g) html += `<div class="delay">⏪ This pushes your <b>${esc(g.name)} ${g.emoji}</b> back <b>${G.plural(G.daysBack(a), 'day')}</b></div>`;
       if (a && !isOut && g) html += `<div class="delay good">⏩ That's <b>${Math.round(a / g.target * 100)}%</b> of your ${esc(g.name)} ${g.emoji}!</div>`;
-      const available = G.balance();
-      if (a && isOut && (!Number.isSafeInteger(available) || a > Math.max(0, available))) html += `<div class="warn">⚠️ That's more than your Gullak has (${rs(Math.max(0, Number.isSafeInteger(available) ? available : 0))}). This spend can't be added.</div>`;
+      if (a && isOut && a > G.balance()) html += `<div class="warn">⚠️ That's more than your Gullak has (${rs(Math.max(0, G.balance()))}). Did you forget to add some money you got?</div>`;
       prev.innerHTML = html;
-      const enoughMoney = !isOut || (Number.isSafeInteger(available) && a <= Math.max(0, available));
-      saveBtn.disabled = !(a > 0 && st.cat && (!isOut || st.nw) && enoughMoney);
-      saveBtn.textContent = !a ? 'Type an amount' : (isOut && !enoughMoney) ? 'Not enough money' : !st.cat ? (isOut ? 'Pick what it was for' : 'Pick where it came from') : (isOut && !st.nw) ? 'Need or want?' : 'Save ' + rs(a);
+      saveBtn.disabled = !(a > 0 && st.cat && (!isOut || st.nw));
+      saveBtn.textContent = !a ? 'Type an amount' : !st.cat ? (isOut ? 'Pick what it was for' : 'Pick where it came from') : (isOut && !st.nw) ? 'Need or want?' : 'Save ' + rs(a);
     };
     G.attachKeypad(m.el, { value: opts.amount || 0, onChange: (v) => { st.amount = v; upd(); } });
   };
@@ -113,12 +107,7 @@
       handlers: {
         ok: () => {
           if (!amt) return;
-          if (dir === 'to' && amt > Math.max(0, G.balance())) return G.toast('Not enough money in your Gullak.');
-          const savedBefore = G.goalSaved(gid);
-          const moved = dir === 'to' ? G.act.saveToGoal(gid, amt) : G.act.addTxn({ type: 'fromGoal', amount: amt, goalId: gid });
-          if (dir === 'from' && !moved) return G.toast('That amount is no longer in your dream jar.');
-          if (dir === 'to' && G.goalSaved(gid) <= savedBefore) return G.toast('Could not move that amount. Check your balance and dream target.');
-          const bonus = dir === 'to' ? moved : 0;
+          const bonus = dir === 'to' ? G.act.saveToGoal(gid, amt) : (G.act.addTxn({ type: 'fromGoal', amount: amt, goalId: gid }), 0);
           if (bonus) setTimeout(() => G.toast(`🤝 Grown-up match: +${rs(bonus)} to your dream!`), 900);
           G.sound(dir === 'to' ? 'coin' : 'pop'); m.close();
           G.toast(dir === 'to' ? `🪙 +${rs(amt)} to your ${esc(g.name)}!` : `Took out ${rs(amt)}. Your ${esc(g.name)} moved back ${G.plural(G.daysBack(amt), 'day')}.`);
@@ -290,11 +279,6 @@
           <button class="pig-btn" data-act="oink" aria-label="Tap Gullak">${G.piggy(mood.mood, 130)}</button>
           <div class="bubble">${esc(mood.msg)} ${G.speakBtn(mood.msg)}</div>
         </section>
-        <button class="talk-bar" data-act="go" data-to="talk" aria-label="Talk with Hey Gullak">
-          <span class="mic sm">🎙️</span>
-          <span><b>Talk with Hey Gullak</b><small>Ask me anything about your money</small></span>
-          <span class="chev">›</span>
-        </button>
         <section class="balance card">
           <small>You can spend</small>
           <div class="bal">${rs(bal)}</div>
@@ -316,11 +300,6 @@
           <button class="tile" data-act="go" data-to="chores"><span>🧹</span>Earn${choresOpen ? ` <i class="dot">${choresOpen}</i>` : ''}</button>
           <button class="tile" data-act="go" data-to="play"><span>🎪</span>Games</button>
           <button class="tile" data-act="go" data-to="badges"><span>🏅</span>Badges <i class="dot">${s.badges.length}</i></button>
-          <button class="tile" data-act="go" data-to="comic"><span>📖</span>Money Comic</button>
-          <button class="tile" data-act="go" data-to="thennow"><span>⏳</span>Then & Now</button>
-          <button class="tile" data-act="go" data-to="joy"><span>😍</span>Joy Meter</button>
-          <button class="tile" data-act="go" data-to="weather"><span>⛅</span>Money Weather</button>
-          <button class="tile" data-act="go" data-to="borrow"><span>🏦</span>Borrow</button>
           <button class="tile" data-act="go" data-to="settings"><span>⚙️</span>Settings</button>
         </div>`;
     },
@@ -425,10 +404,7 @@
       'custom-unit': () => G.openCustomUnit(),
       in: () => G.openTxn('in'), out: () => G.openTxn('out'),
       del: async (el) => {
-        if (await G.confirm('Delete this?', 'Only delete it if it was a mistake.', 'Delete', 'Keep')) {
-        if (!G.act.deleteTxn(el.dataset.id)) return G.toast('Cannot delete this entry because it would make your balance or a dream jar negative.');
-        G.render();
-      }
+        if (await G.confirm('Delete this?', 'Only delete it if it was a mistake.', 'Delete', 'Keep')) { G.act.deleteTxn(el.dataset.id); G.render(); }
       }
     })
   };
