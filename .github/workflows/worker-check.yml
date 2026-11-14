@@ -1,0 +1,53 @@
+name: Worker checks
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "server/**"
+      - ".github/workflows/worker-check.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "server/**"
+      - ".github/workflows/worker-check.yml"
+
+jobs:
+  worker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install Worker tooling
+        run: |
+          npm init -y
+          npm install --no-save wrangler@4.162.0 typescript@5.7.3
+      - name: Generate Cloudflare binding types
+        working-directory: server
+        run: npx wrangler types
+      - name: Type-check Worker
+        working-directory: server
+        run: npx tsc -p tsconfig.json
+      - name: Validate family D1 schema
+        run: |
+          python - <<'PY'
+          import sqlite3
+          from pathlib import Path
+          db = sqlite3.connect(":memory:")
+          db.execute("PRAGMA foreign_keys = ON")
+          db.execute("CREATE TABLE users (user_id TEXT PRIMARY KEY)")
+          db.executescript(Path("server/family-schema.sql").read_text())
+          expected = {
+              "cloud_families",
+              "cloud_family_members",
+              "cloud_family_vaults",
+              "cloud_family_member_vaults",
+          }
+          actual = {row[0] for row in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+          missing = expected - actual
+          if missing:
+              raise SystemExit("Missing tables: " + ", ".join(sorted(missing)))
+          print("Family schema is valid.")
+          PY
