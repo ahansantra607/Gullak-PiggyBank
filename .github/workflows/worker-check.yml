@@ -30,6 +30,8 @@ jobs:
       - name: Type-check Worker
         working-directory: server
         run: npx tsc -p tsconfig.json
+      - name: Check frontend syntax and encryption
+        run: node scripts/check-frontend.mjs
       - name: Validate family D1 schema
         run: |
           python - <<'PY'
