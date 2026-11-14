@@ -69,6 +69,7 @@
         <input class="input" id="cloud-password" type="password" maxlength="128" autocomplete="${authMode === 'register' ? 'new-password' : 'current-password'}" placeholder="At least 10 characters">
         <label class="label" for="cloud-secret">Separate encryption passphrase</label>
         <input class="input" id="cloud-secret" type="password" maxlength="256" autocomplete="off" placeholder="Do not reuse your account password">
+        ${authMode === 'register' ? '<label class="label" for="cloud-secret-confirm">Confirm encryption passphrase</label><input class="input" id="cloud-secret-confirm" type="password" maxlength="256" autocomplete="off" placeholder="Type it again">' : ''}
         <p class="hint">Keep this passphrase safe. If you lose it, the server cannot recover your encrypted diary.</p>
         <button class="btn primary block big" data-act="cloud-connect">${authMode === 'register' ? 'Create account & secure my Gullak' : 'Log in & unlock my Gullak'}</button>
         <button class="btn ghost block" data-act="cloud-mode">${authMode === 'register' ? 'I already have an account · Log in' : 'New here? · Create an account'}</button>
@@ -85,6 +86,7 @@
         if (authMode === 'register' && password.length < 10) return G.toast('Account password must be at least 10 characters.');
         if (!password || password.length > 128) return G.toast('Enter your account password.');
         if (secret.length < 10) return G.toast('Encryption passphrase must be at least 10 characters.');
+        if (authMode === 'register' && secret !== G.$('#cloud-secret-confirm').value) return G.toast('The encryption passphrases do not match.');
         if (!G.cr || !G.cr.available) return G.toast('Secure browser encryption is unavailable. Open Gullak over HTTPS.');
         button.disabled = true; button.textContent = '🔐 Connecting…';
         try {
