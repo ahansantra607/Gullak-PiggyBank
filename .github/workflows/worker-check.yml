@@ -5,6 +5,9 @@ on:
     branches: [main]
     paths:
       - "server/**"
+      - "js/**"
+      - "index.html"
+      - "scripts/**"
       - ".github/workflows/worker-check.yml"
   pull_request:
     branches: [main]
