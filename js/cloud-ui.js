@@ -473,21 +473,6 @@
     await G.famSave();
   };
 
-  const familyCreateScreen = G.screens['fam-create'];
-  if (familyCreateScreen) {
-    const renderCreate = familyCreateScreen.render;
-    familyCreateScreen.render = (...args) => {
-      const html = renderCreate(...args);
-      if (G.cloudAccount.unlocked) return html;
-      return html.replace('<header', '<section class="card"><h3>☁️ Cloud account required</h3><p class="small muted">Sign in before creating a family so its encrypted data can sync across devices.</p><button class="btn primary block" data-act="cloud-create-login">Log in / create account</button></section><header');
-    };
-    const handlersCreate = familyCreateScreen.handlers;
-    familyCreateScreen.handlers = (...args) => Object.assign(handlersCreate ? handlersCreate(...args) : {}, {
-      'cloud-create-login': () => { returnAfterLogin = 'fam-create'; authMode = 'login'; G.go('cloud-account'); }
-    });
-  }
-
-
   G.connectFamilyCloud = async usernames => {
     const F = G.FAM;
     const account = G.cloudAccount.user;
