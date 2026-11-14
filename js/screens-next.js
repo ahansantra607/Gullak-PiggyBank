@@ -482,12 +482,7 @@
           if (!pending) return say('That spend is no longer pending. Tell me again what you spent.', 'That spend is no longer pending.', voice);
           delete S().meta.chatPendingSpend; G.save();
           G.openTxn('out', { amount: pending.amount, cat: pending.category, nw: pending.needOrWant, note: pending.note });
-        }, 'primary')}${actBtn('✏️ Edit details', () => {
-          const pending = S().meta.chatPendingSpend;
-          if (!pending) return;
-          delete S().meta.chatPendingSpend; G.save();
-          G.openTxn('out', { amount: pending.amount, cat: pending.category, nw: pending.needOrWant, note: pending.note });
-        })}</div>`;
+        }, 'primary')}</div>;
       return say(m, `I heard ${n} rupees for ${note || c.n}. Say “Save it” to record it, or use the button to edit details.`, voice);
     }
     // got money
