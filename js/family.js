@@ -316,7 +316,7 @@
       if (f.cloudId && account && !visibleMembers.length) return `${back('Family', 'fam-pick')}<section class="card center"><p>This Gullak account has not been linked to a member of this family.</p><p class="small muted">Ask a supervisor to add your account username.</p></section>`;
       const sups = visibleMembers.filter(m => m.role === 'supervisor'), kids = visibleMembers.filter(m => m.role !== 'supervisor');
       const tile = (m) => `<button class="member-tile ${m.role}" data-act="who" data-m="${m.id}"><span class="av-big">${esc(m.avatar)}</span><b>${esc(m.name)}</b>
-        <small>${m.role === 'supervisor' ? '🛡️ Supervisor' : '🧒 Kid'}</small>${m.lockUntil > G.now() ? '<small class="minus">🔒 locked</small>' : ''}</button>`;
+        <small>${m.role === 'supervisor' ? '🛡️ Supervisor' + (m.position ? ' · ' + esc(m.position) : '') : '🧒 Kid'}</small>${m.lockUntil > G.now() ? '<small class="minus">🔒 locked</small>' : ''}</button>`;
       return `${back(`${esc(f.emoji)} ${esc(f.name)}`, 'fam-pick')}
         <h2 class="center">Who's using Gullak?</h2>
         ${kids.length ? `<div class="label">Kids</div><div class="member-grid">${kids.map(tile).join('')}</div>` : ''}
