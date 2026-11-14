@@ -291,11 +291,11 @@
         const member = meta.members.find(m => m.userId === G.cloudAccount.user.user_id);
         if (!member) throw new Error('Your Gullak account has not been linked to a family member. Ask a supervisor to link your username.');
         meta.cloudId = selected.id;
-        const cache = { meta, fkRaw: opened.familyKeyRaw };
-        familyCache.set(meta.cloudId, cache); activeFamilyId = meta.cloudId;
-        G.FAM = { meta, fk: await C.aesKey(opened.familyKeyRaw), fkRaw: opened.familyKeyRaw,
-          data: { v: 1, kids: {}, sups: {}, defaults: (opened.value.data || {}).defaults || {} }, mid: member.id, role: member.role, cloudId: meta.cloudId };
-        await loadFamily(cache, opened.familyKeyRaw, member.id);
+        familyCache.set(meta.cloudId, { meta, fkRaw: opened.familyKeyRaw });
+        activeFamilyId = meta.cloudId;
+        mode = 'family';
+        G.setMode('family');
+        G.go('fam-users', { f: meta.cloudId });
       } catch (error) { button.disabled = false; G.toast(error.message || (selected.is_member ? 'Could not open family.' : 'Could not join family.')); }
     }
   });
