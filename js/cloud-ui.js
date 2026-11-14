@@ -81,7 +81,7 @@
         <button class="btn primary block big" data-act="cloud-connect">${authMode === 'register' ? 'Create account & secure my Gullak' : 'Log in & unlock my Gullak'}</button>
         <button class="btn ghost block" data-act="cloud-mode">${authMode === 'register' ? 'I already have an account · Log in' : 'New here? · Create an account'}</button>
       </div>
-      <p class="fine">🔐 Only encrypted vault data is uploaded. Your existing on-device data is not deleted in this step.</p>
+      <p class="fine">🔐 Gullak syncs your diary to your cloud account. The server stores only encrypted vault data.</p>
     </section>`,
     handlers: () => ({
       'cloud-mode': () => { authMode = authMode === 'login' ? 'register' : 'login'; G.render(); },
@@ -277,22 +277,6 @@
       }
     })
   };
-
-  // Add a cloud entry point without replacing any existing screen or handler.
-  const welcome = G.screens.welcome;
-  if (welcome) {
-    const renderWelcome = welcome.render;
-    welcome.render = (...args) => {
-      const html = renderWelcome(...args);
-      if (html.includes('data-act="cloud-open"')) return html;
-      return html.replace('</section>', '<button class="btn ghost block" data-act="cloud-open">☁️ Cloud account · Log in / Sign up</button></section>');
-    };
-    const handlersWelcome = welcome.handlers;
-    welcome.handlers = (...args) => Object.assign(handlersWelcome ? handlersWelcome(...args) : {}, {
-      'cloud-open': () => { authMode = 'login'; G.go('cloud-account'); }
-    });
-  }
-
 
   const persistCloudFamilyMeta = meta => {
     let index = { list: [] };
