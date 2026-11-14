@@ -873,7 +873,7 @@ export default {
             "SELECT user_id, username FROM users WHERE username = ?"
           ).bind(username).first<{ user_id: string; username: string }>();
           if (!target && password) {
-            if (password.length < 8 || password.length > 128 || !/[a-z]/.test(password) || !/[A-Z]/.test(password) || !/[0-9]/.test(password) || !/[^A-Za-z0-9\\s]/.test(password)) {
+            if (password.length < 8 || password.length > 128 || !/[a-z]/.test(password) || !/[A-Z]/.test(password) || !/[0-9]/.test(password) || !/[^A-Za-z0-9\s]/.test(password)) {
               return json({ error: "Password must be at least 8 characters and include uppercase, lowercase, a number and a special character." }, 400);
             }
             const salt = randomBytes(16);
