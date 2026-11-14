@@ -65,6 +65,17 @@
       }
     });
   }
+  // Prevent even programmatic navigation or mode-switch buttons from opening Modes
+  // after login. Send users to the appropriate signed-in destination instead.
+  const goCloudOnly0 = G.go;
+  G.go = (name, q) => {
+    if (name === 'modes' && G.cloudAccount && G.cloudAccount.unlocked) {
+      if (mode === 'family') return goCloudOnly0(G.FAM ? (G.isSupervisor && G.isSupervisor() ? 'sup' : 'home') : 'fam-pick', q);
+      return goCloudOnly0(G.S && G.S.profile ? 'home' : 'me-pin', q);
+    }
+    return goCloudOnly0(name, q);
+  };
+
   const routeGuardCloudOnly0 = G.routeGuard;
   G.routeGuard = (name, q) => {
     const prior = routeGuardCloudOnly0 ? routeGuardCloudOnly0(name, q) : null;
