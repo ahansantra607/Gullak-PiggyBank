@@ -593,8 +593,9 @@
     const pickerHandlers = familyPicker.handlers;
     familyPicker.handlers = (...args) => Object.assign(pickerHandlers ? pickerHandlers(...args) : {}, {
       'cloud-families-open': () => {
-        if (!G.cloudAccount.unlocked) { returnAfterLogin = 'cloud-families'; authMode = 'login'; G.go('cloud-account'); }
-        else G.go('cloud-families');
+        // Browsing the public family directory must not require an account login.
+        G.setMode('family');
+        G.go('cloud-families');
       }
     });
   }
