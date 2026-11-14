@@ -10,7 +10,7 @@
      ===================================================================== */
   G.openTxn = (type = 'out', opts = {}) => {
     const isOut = type === 'out';
-    const st = { amount: 0, cat: opts.cat || null, nw: opts.nw || null };
+    const st = { amount: Number(opts.amount) || 0, cat: opts.cat || null, nw: opts.nw || null };
     const cats = isOut ? G.SPEND_CATS.map(k => [k, G.CATS[k]]) : Object.entries(G.SOURCES);
     const g = G.activeGoal();
     let upd = () => {};
@@ -21,9 +21,9 @@
         <div class="label">${isOut ? 'What was it for?' : 'Where did it come from?'}</div>
         <div class="pick-grid">${cats.map(([k, c]) => `<button class="pick ${st.cat === k ? 'on' : ''}" data-act="cat" data-v="${k}"><span>${c.e}</span><small>${c.n}</small></button>`).join('')}</div>
         ${isOut ? `<div class="label">Was it a… ${G.speakBtn('Was it a need, something you must have, or a want, something nice to have?')}</div>
-          <div class="seg"><button class="seg-b" data-act="nw" data-v="need">🧩 Need<small>I must have it</small></button>
-          <button class="seg-b" data-act="nw" data-v="want">✨ Want<small>nice to have</small></button></div>` : ''}
-        <input class="input" id="tx-note" maxlength="40" placeholder="${isOut ? 'What was it? e.g. samosa (optional)' : 'Note, e.g. from Nani (optional)'}" aria-label="Note">
+          <div class="seg"><button class="seg-b ${st.nw === 'need' ? 'on' : ''}" data-act="nw" data-v="need">🧩 Need<small>I must have it</small></button>
+          <button class="seg-b ${st.nw === 'want' ? 'on' : ''}" data-act="nw" data-v="want">✨ Want<small>nice to have</small></button></div>` : ''}
+        <input class="input" id="tx-note" maxlength="40" value="${esc(opts.note || '')}" placeholder="${isOut ? 'What was it? e.g. samosa (optional)' : 'Note, e.g. from Nani (optional)'}" aria-label="Note">
         <button class="btn primary block big" data-act="save" disabled>Save</button>`,
       handlers: {
         speak: (el) => G.speak(el.dataset.text, true),
@@ -40,7 +40,8 @@
           if (isOut) {
             G.sound('pop');
             const dly = g ? G.daysBack(st.amount) : 0;
-            G.toast(`Noted! ${rs(st.amount)} on ${G.CATS[st.cat].e}${g ? ` · your ${esc(g.name)} moved back ${G.plural(dly, 'day')} ⏪` : ''}`);
+            if (typeof opts.onSaved === 'function') opts.onSaved(t, { daysBack: dly, goal: g });
+            else G.toast(`Noted! ${rs(st.amount)} on ${G.CATS[st.cat].e}${g ? ` · your ${esc(g.name)} moved back ${G.plural(dly, 'day')} ⏪` : ''}`);
             G.after(); G.render();
           } else {
             G.sound('coin');
