@@ -480,6 +480,7 @@
       const m = `I heard: <b>${rs(n)}</b> for ${esc(note || c.n)} — a ${nw}.${g ? `<br><small>⏪ Saving this would push your ${esc(g.name)} back ${G.plural(G.daysBack(n), 'day')}.</small>` : ''}
         <div class="row gap mt"><button class="btn primary" data-act="chat-spend-open" data-id="${spendId}">💾 Save it?</button></div><span class="small muted" data-spend-id="${spendId}"></span>`;
       S().meta.chatPendingSpend.id = spendId;
+      G.save();
       return say(m, `I heard ${n} rupees for ${note || c.n}. Use Save it to review and record the spend.`, voice);
     }
     // got money
