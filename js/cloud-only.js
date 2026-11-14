@@ -105,7 +105,9 @@
   let familyChain = Promise.resolve();
   G.famSave = function () {
     const F = G.FAM;
-    if (!F || !F.cloudId || !G.cloudAccount.unlocked) return Promise.reject(new Error('Family cloud account is locked.'));
+    if (!F) return Promise.resolve();
+    if (!F.cloudId) return Promise.resolve();
+    if (!G.cloudAccount.unlocked) return Promise.reject(new Error('Family cloud account is locked.'));
     const snap = safeCopy(F);
     familyChain = familyChain.catch(() => {}).then(async () => {
       if (snap.role === 'supervisor') {
@@ -266,7 +268,8 @@
       await connect(button);
       if (wasFamily && G.cloudAccount.unlocked) {
         G.cloudFamilyReturn = false;
-        if (G.mode() === 'family') G.go('cloud-families');
+        mode = 'family';
+        G.go('cloud-families');
       }
     };
     return handlers;
