@@ -215,6 +215,117 @@
     });
   }
 
+
+  const persistCloudFamilyMeta = meta => {
+    let index = { list: [] };
+    try { index = JSON.parse(localStorage.getItem('gullak:families')) || index; } catch (_) {}
+    index.list = index.list.filter(item => item.id !== meta.id);
+    index.list.push(meta);
+    localStorage.setItem('gullak:families', JSON.stringify(index));
+  };
+
+  let familySyncChain = Promise.resolve();
+  const saveFamilyLocal = G.famSave;
+  G.famSave = function () {
+    const F = G.FAM;
+    const localSave = saveFamilyLocal ? saveFamilyLocal() : Promise.resolve();
+    if (!F || !F.cloudId || !G.cloudAccount.unlocked) return localSave;
+    familySyncChain = familySyncChain.catch(() => {}).then(async () => {
+      await localSave;
+      if (F.role === 'supervisor') {
+        await G.cloud.saveFamilyVault(F.cloudId, F.fkRaw, {
+          meta: F.meta,
+          data: { v: 1, defaults: F.data.defaults || {}, createdAt: F.data.createdAt }
+        });
+        for (const member of F.meta.members.filter(m => m.role === 'member' && m.userId)) {
+          const state = F.data.kids[member.id];
+          if (state) await G.cloud.saveMemberVault(F.cloudId, member.userId, F.fkRaw, state);
+        }
+      } else {
+        const user = G.cloudAccount.user;
+        if (!user || !F.meta.members.some(m => m.id === F.mid && m.userId === user.user_id)) {
+          throw new Error('This cloud account is not linked to the selected family member.');
+        }
+        await G.cloud.saveMemberVault(F.cloudId, user.user_id, F.fkRaw, G.S);
+      }
+    }).catch(error => {
+      syncError = error;
+      console.error('Gullak family cloud sync failed:', error);
+      G.toast('Family cloud sync failed. Your local encrypted copy is still here.');
+      throw error;
+    });
+    return familySyncChain;
+  };
+
+  const createFamilyLocal = G.famCreate;
+  G.famCreate = async args => {
+    if (!G.cloudAccount.unlocked) throw new Error('Log in to a Gullak Cloud account before creating a cloud family.');
+    const code = await createFamilyLocal(args);
+    const F = G.FAM;
+    const supervisor = F.meta.members.find(m => m.role === 'supervisor');
+    supervisor.userId = G.cloudAccount.user.user_id;
+    const remote = await G.cloud.createFamily({
+      name: F.meta.name, joinCode: code, familyKeyRaw: F.fkRaw,
+      value: { meta: F.meta, data: { v: 1, defaults: F.data.defaults || {}, createdAt: F.data.createdAt } }
+    });
+    F.cloudId = remote.family_id;
+    F.meta.cloudId = remote.family_id;
+    persistCloudFamilyMeta(F.meta);
+    await G.famSave();
+    return code;
+  };
+
+  const unlockFamilyLocal = G.famUnlock;
+  G.famUnlock = async (familyId, memberId, pin) => {
+    await unlockFamilyLocal(familyId, memberId, pin);
+    const F = G.FAM;
+    if (!F || !F.meta.cloudId) return;
+    if (!G.cloudAccount.unlocked) throw new Error('Log in to your Gullak Cloud account before unlocking this cloud family.');
+    F.cloudId = F.meta.cloudId;
+    const account = G.cloudAccount.user;
+    const selected = F.meta.members.find(m => m.id === memberId);
+    if (!selected || selected.userId !== account.user_id) {
+      if (selected && selected.role === 'supervisor') throw new Error('This supervisor account is not linked to this member.');
+      throw new Error('Log in with the Gullak account linked to this family member.');
+    }
+    const remote = await G.cloud.getFamilyVault(F.cloudId, F.fkRaw);
+    if (remote.value && remote.value.meta) {
+      F.meta = remote.value.meta;
+      F.meta.cloudId = F.cloudId;
+      F.data.defaults = (remote.value.data && remote.value.data.defaults) || F.data.defaults || {};
+      persistCloudFamilyMeta(F.meta);
+    }
+    if (F.role === 'supervisor') {
+      for (const member of F.meta.members.filter(m => m.role === 'member' && m.userId)) {
+        const row = await G.cloud.getMemberVault(F.cloudId, member.userId, F.fkRaw);
+        if (row.exists) F.data.kids[member.id] = row.value;
+      }
+    } else {
+      const row = await G.cloud.getMemberVault(F.cloudId, account.user_id, F.fkRaw);
+      if (row.exists) {
+        F.data.kids[memberId] = row.value;
+        G.S = row.value;
+      }
+    }
+    await G.famSave();
+  };
+
+  const familyPicker = G.screens['fam-pick'];
+  if (familyPicker) {
+    const renderPicker = familyPicker.render;
+    familyPicker.render = (...args) => renderPicker(...args).replace(
+      '<button class="btn primary block big" data-act="go" data-to="fam-create">',
+      '<button class="btn soft block" data-act="cloud-families-open">☁️ Find / open a cloud family</button><button class="btn primary block big" data-act="go" data-to="fam-create">'
+    );
+    const pickerHandlers = familyPicker.handlers;
+    familyPicker.handlers = (...args) => Object.assign(pickerHandlers ? pickerHandlers(...args) : {}, {
+      'cloud-families-open': () => {
+        if (!G.cloudAccount.unlocked) { returnAfterLogin = 'cloud-families'; authMode = 'login'; G.go('cloud-account'); }
+        else G.go('cloud-families');
+      }
+    });
+  }
+
   const routeGuardBeforeCloud = G.routeGuard;
   G.routeGuard = (name, q) => ['cloud-account', 'cloud-families', 'cloud-family-join'].includes(name) ? null :
     (routeGuardBeforeCloud ? routeGuardBeforeCloud(name, q) : null);
