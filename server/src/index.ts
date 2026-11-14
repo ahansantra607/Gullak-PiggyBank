@@ -137,10 +137,21 @@ function validOrigin(request: Request): boolean {
   }
 }
 
+async function getCurrentUserAccountType(env: Env, userId: string): Promise<"individual" | "family"> {
+  const familyMember = await env.gullak_db.prepare(
+    "SELECT 1 AS found FROM cloud_family_members WHERE user_id = ? LIMIT 1"
+  ).bind(userId).first<{ found: number }>();
+  if (familyMember) return "family";
+  const row = await env.gullak_db.prepare(
+    "SELECT account_type FROM user_account_types WHERE user_id = ?"
+  ).bind(userId).first<{ account_type: "individual" | "family" }>();
+  return row?.account_type === "family" ? "family" : "individual";
+}
+
 async function getCurrentUser(
   request: Request,
   env: Env
-): Promise<{ user_id: string; username: string } | null> {
+): Promise<{ user_id: string; username: string; account_type: "individual" | "family" } | null> {
   const token = getCookie(request, "gullak_session");
   if (!token || token.length > 200) return null;
 
@@ -148,14 +159,18 @@ async function getCurrentUser(
 
   const session = await env.gullak_db
     .prepare(`
-      SELECT users.user_id, users.username
+      SELECT users.user_id, users.username,
+        CASE
+          WHEN EXISTS (SELECT 1 FROM cloud_family_members fm WHERE fm.user_id = users.user_id) THEN 'family'
+          ELSE COALESCE((SELECT account_type FROM user_account_types at WHERE at.user_id = users.user_id), 'individual')
+        END AS account_type
       FROM sessions
       JOIN users ON users.user_id = sessions.user_id
       WHERE sessions.session_id_hash = ?
         AND sessions.expires_at > ?
     `)
     .bind(tokenHash, new Date().toISOString())
-    .first<{ user_id: string; username: string }>();
+    .first<{ user_id: string; username: string; account_type: "individual" | "family" }>();
 
   return session || null;
 }
@@ -195,7 +210,7 @@ export default {
         }
 
         const requiredTables = [
-          "users", "sessions", "user_vaults",
+          "users", "sessions", "user_vaults", "user_account_types",
           "cloud_families", "cloud_family_members",
           "cloud_family_vaults", "cloud_family_member_vaults", "user_key_wraps"
         ];
@@ -206,6 +221,7 @@ export default {
         ));
         const requiredColumns: Record<string, string[]> = {
           users: ["user_id", "username", "password_salt", "password_hash", "password_iterations", "created_at"],
+          user_account_types: ["user_id", "account_type", "created_at"],
           sessions: ["session_id_hash", "user_id", "created_at", "expires_at"],
           user_vaults: ["user_id", "ciphertext", "iv", "salt", "schema_version", "updated_at"]
         };
@@ -216,7 +232,7 @@ export default {
         }));
         const missingColumns = columnChecks.flat();
         const tablesReady = tableChecks.every(Boolean);
-        const familySchemaReady = tableChecks.slice(3).every(Boolean);
+        const familySchemaReady = tableChecks.slice(4).every(Boolean);
         const authSchemaReady = !!tableChecks[0] && !!tableChecks[1] && missingColumns.length === 0;
         const allReady = tablesReady && missingColumns.length === 0;
 
@@ -243,8 +259,9 @@ export default {
       return json({ error: "Invalid request origin" }, 403);
     }
 
-    // REGISTER
-    if (path === "/api/register" && request.method === "POST") {
+    // REGISTER: Individual and Family identities use distinct endpoint types.
+    if ((path === "/api/register" || path === "/api/family/register") && request.method === "POST") {
+      const accountType = path === "/api/family/register" ? "family" : "individual";
       try {
         const body = await request.json() as {
           username?: string;
@@ -289,6 +306,8 @@ export default {
             userId, username, toBase64(salt),
             passwordHash, ITERATIONS, now.toISOString()
           ),
+          env.gullak_db.prepare("INSERT INTO user_account_types (user_id, account_type, created_at) VALUES (?, ?, ?)")
+            .bind(userId, accountType, now.toISOString()),
           env.gullak_db.prepare(`
             INSERT INTO sessions (
               session_id_hash, user_id, created_at, expires_at
@@ -323,8 +342,9 @@ export default {
       }
     }
 
-    // LOGIN
-    if (path === "/api/login" && request.method === "POST") {
+    // LOGIN: credentials are valid only in their own mode.
+    if ((path === "/api/login" || path === "/api/family/login") && request.method === "POST") {
+      const expectedAccountType = path === "/api/family/login" ? "family" : "individual";
       try {
         const body = await request.json() as {
           username?: string;
@@ -358,6 +378,10 @@ export default {
 
         if (!user) {
           return json({ error: "Invalid username or password." }, 401);
+        }
+        const accountIdentity = await getCurrentUserAccountType(env, user.user_id);
+        if (accountIdentity !== expectedAccountType) {
+          return json({ error: "These credentials belong to a different Gullak mode." }, 403);
         }
 
         if (!constantTimeEqual(calculatedHash, user.password_hash)) {
@@ -552,6 +576,7 @@ export default {
         if (!user) {
           return json({ error: "Authentication required." }, 401);
         }
+        if (user.account_type !== "individual") return json({ error: "Family accounts cannot access Individual diaries." }, 403);
 
         const vault = await env.gullak_db.prepare(`
           SELECT ciphertext, iv, salt, schema_version, updated_at
@@ -583,6 +608,7 @@ export default {
         if (!user) {
           return json({ error: "Authentication required." }, 401);
         }
+        if (user.account_type !== "individual") return json({ error: "Family accounts cannot access Individual diaries." }, 403);
 
         const contentLength = Number(
           request.headers.get("Content-Length") || 0
@@ -731,6 +757,7 @@ export default {
 
         if (path === "/api/families" && request.method === "POST") {
           if (!user) return json({ error: "Authentication required." }, 401);
+          if (user.account_type !== "family") return json({ error: "Use a Family account to create or manage cloud families." }, 403);
           const creatorId = user.user_id;
           const body = await request.json() as any;
           const name = String(body.name || "").trim();
@@ -866,6 +893,9 @@ export default {
           let target = await env.gullak_db.prepare(
             "SELECT user_id, username FROM users WHERE username = ?"
           ).bind(username).first<{ user_id: string; username: string }>();
+          if (target && await getCurrentUserAccountType(env, target.user_id) !== "family") {
+            return json({ error: "That username belongs to an Individual account. Create a new Family account for this member." }, 409);
+          }
           if (!target && password) {
             if (password.length < 8 || password.length > 128 || !/[a-z]/.test(password) || !/[A-Z]/.test(password) || !/[0-9]/.test(password) || !/[^A-Za-z0-9\s]/.test(password)) {
               return json({ error: "Password must be at least 8 characters and include uppercase, lowercase, a number and a special character." }, 400);
@@ -886,6 +916,8 @@ export default {
             await env.gullak_db.batch([
               env.gullak_db.prepare("INSERT INTO users (user_id, username, password_salt, password_hash, password_iterations, created_at) VALUES (?, ?, ?, ?, ?, ?)")
                 .bind(userId, username, toBase64(salt), passwordHash, ITERATIONS, now),
+              env.gullak_db.prepare("INSERT INTO user_account_types (user_id, account_type, created_at) VALUES (?, 'family', ?)")
+                .bind(userId, now),
               env.gullak_db.prepare("INSERT INTO user_key_wraps (user_id, wrapped_secret, salt, iterations, updated_at) VALUES (?, ?, ?, ?, ?)")
                 .bind(userId, String(body.wrapped_secret), keySalt, keyIterations, now),
               env.gullak_db.prepare("INSERT INTO cloud_family_members (family_id, user_id, role, joined_at) VALUES (?, ?, ?, ?)")
