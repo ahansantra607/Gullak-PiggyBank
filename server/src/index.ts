@@ -204,17 +204,30 @@ export default {
             "SELECT name FROM sqlite_master WHERE type = ? AND name = ?"
           ).bind("table", name).first()
         ));
+        const requiredColumns: Record<string, string[]> = {
+          users: ["user_id", "username", "password_salt", "password_hash", "password_iterations", "created_at"],
+          sessions: ["session_id_hash", "user_id", "created_at", "expires_at"],
+          user_vaults: ["user_id", "ciphertext", "iv", "salt", "schema_version", "updated_at"]
+        };
+        const columnChecks = await Promise.all(Object.entries(requiredColumns).map(async ([table, expected]) => {
+          const result = await env.gullak_db.prepare("PRAGMA table_info(" + table + ")").all<{ name: string }>();
+          const actual = new Set((result.results || []).map(row => row.name));
+          return expected.filter(name => !actual.has(name)).map(name => table + "." + name);
+        }));
+        const missingColumns = columnChecks.flat();
         const tablesReady = tableChecks.every(Boolean);
         const familySchemaReady = tableChecks.slice(3).every(Boolean);
-        const authSchemaReady = !!tableChecks[0] && !!tableChecks[1];
+        const authSchemaReady = !!tableChecks[0] && !!tableChecks[1] && missingColumns.length === 0;
+        const allReady = tablesReady && missingColumns.length === 0;
 
         return json({
-          status: tablesReady ? "healthy" : "error",
+          status: allReady ? "healthy" : "error",
           database: "connected",
           authSchema: authSchemaReady ? "ready" : "migration_required",
-          vaultTable: tableChecks[2] ? "ready" : "migration_required",
-          familySchema: familySchemaReady ? "ready" : "migration_required"
-        }, tablesReady ? 200 : 500);
+          vaultTable: tableChecks[2] && !missingColumns.some(name => name.startsWith("user_vaults.")) ? "ready" : "migration_required",
+          familySchema: familySchemaReady ? "ready" : "migration_required",
+          schemaIssues: missingColumns
+        }, allReady ? 200 : 500);
       } catch {
         return json({
           status: "error",
