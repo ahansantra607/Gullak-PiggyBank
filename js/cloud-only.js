@@ -203,10 +203,24 @@
     if (!G.cloudAccount.unlocked) throw new Error('Log in to your Gullak Cloud account first.');
     const code = await famCreate0(args);
     const F = G.FAM;
-    const creator = F && F.meta.members.find(m => m.id === F.mid);
-    if (creator && G.cloudAccount.user) creator.userId = G.cloudAccount.user.user_id;
-    if (!F || !F.cloudId) throw new Error('Cloud family creation did not finish.');
+    if (!F) throw new Error('Family setup did not finish.');
+    const creator = F.meta.members.find(m => m.id === F.mid);
+    if (!creator || !G.cloudAccount.user) throw new Error('The first Supervisor account is missing.');
+    creator.userId = G.cloudAccount.user.user_id;
+    const initialValue = {
+      meta: F.meta,
+      data: { v: 1, defaults: F.data.defaults || {}, createdAt: F.data.createdAt }
+    };
+    const created = await G.cloud.createFamily({
+      name: F.meta.name,
+      joinCode: code,
+      familyKeyRaw: F.fkRaw,
+      value: initialValue
+    });
+    F.cloudId = created.family_id;
+    F.meta.cloudId = created.family_id;
     familyCache.set(F.cloudId, { meta: F.meta, fkRaw: F.fkRaw });
+    await G.cloud.saveFamilyVault(F.cloudId, F.fkRaw, initialValue);
     await G.famSave();
     return code;
   };
@@ -335,8 +349,6 @@
         const opened = await G.cloud.openFamily(selected.id, code);
         const meta = opened.value && opened.value.meta;
         if (!meta || !Array.isArray(meta.members)) throw new Error('Family metadata is invalid.');
-        const member = meta.members.find(m => m.userId === G.cloudAccount.user.user_id);
-        if (!member) throw new Error('Your Gullak account has not been linked to a family member. Ask a supervisor to link your username.');
         meta.cloudId = selected.id;
         familyCache.set(meta.cloudId, { meta, fkRaw: opened.familyKeyRaw });
         activeFamilyId = meta.cloudId;
