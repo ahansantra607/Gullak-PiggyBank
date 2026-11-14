@@ -53,7 +53,7 @@
       nav.innerHTML = NAV.map(([k, e, n]) => `<button class="nav-b ${k === active ? 'on' : ''}" data-act="go" data-to="${k}" aria-label="${n}">
         <span>${e}</span><small>${n}</small>${k === 'ask' && pend ? `<i class="dot">${pend}</i>` : ''}</button>`).join('');
     }
-    if (opt.keepScroll) window.scrollTo(0, y); else if (G._last !== name || JSON.stringify(q) !== G._lastQ) window.scrollTo(0, 0);
+    if (opt.keepScroll) window.scrollTo(0, y); else window.scrollTo(0, 0);
     G._last = name; G._lastQ = JSON.stringify(q);
   };
 
