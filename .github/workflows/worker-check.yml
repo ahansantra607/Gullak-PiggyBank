@@ -1,4 +1,4 @@
-name: Worker checks
+name: Worker checks and Cloudflare deploy
 
 on:
   push:
@@ -17,6 +17,7 @@ on:
     paths:
       - "server/**"
       - ".github/workflows/worker-check.yml"
+  workflow_dispatch:
 
 jobs:
   worker:
@@ -61,9 +62,13 @@ jobs:
           PY
 
   deploy:
-    name: Deploy and verify live Gullak
+    name: Deploy and verify live Gullak on Cloudflare
     runs-on: ubuntu-latest
     needs: worker
+    if: github.event_name != 'pull_request'
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -71,32 +76,33 @@ jobs:
           node-version: 22
       - name: Install Wrangler
         run: npm install --no-save wrangler@4.162.0
-      - name: Report missing Cloudflare credentials
-        if: ${{ secrets.CLOUDFLARE_API_TOKEN == '' || secrets.CLOUDFLARE_ACCOUNT_ID == '' }}
+      - name: Check Cloudflare credentials
+        id: credentials
+        shell: bash
         run: |
-          echo "::warning::Deployment skipped. Add CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID as repository Actions secrets."
-      - name: Apply additive family database schema and deploy cloud API
-        if: ${{ secrets.CLOUDFLARE_API_TOKEN != '' && secrets.CLOUDFLARE_ACCOUNT_ID != '' }}
+          if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "::error::Cloudflare deployment secrets are missing. Add CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID in repository Settings > Secrets and variables > Actions."
+            exit 1
+          fi
+          echo "available=true" >> "$GITHUB_OUTPUT"
+      - name: Apply family D1 schema and deploy cloud API Worker
+        if: steps.credentials.outputs.available == 'true'
+        working-directory: server
+        run: |
+          npx wrangler d1 execute gullak-db --remote --file=family-schema.sql --yes --config=wrangler.jsonc
+          npx wrangler deploy --config=wrangler.jsonc
+      - name: Build and deploy latest static frontend Worker
+        if: steps.credentials.outputs.available == 'true'
         working-directory: .
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: |
-          npx wrangler d1 execute gullak-db --remote --file=server/family-schema.sql --yes --config=server/wrangler.jsonc
-          npx wrangler deploy --config=server/wrangler.jsonc
-      - name: Build and deploy latest static frontend
-        if: ${{ secrets.CLOUDFLARE_API_TOKEN != '' && secrets.CLOUDFLARE_ACCOUNT_ID != '' }}
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           rm -rf public
           mkdir -p public
           cp index.html 404.html public/
           cp -R css js public/
           npx wrangler deploy --config=wrangler.jsonc
-      - name: Verify deployed app and API
-        if: ${{ secrets.CLOUDFLARE_API_TOKEN != '' && secrets.CLOUDFLARE_ACCOUNT_ID != '' }}
+      - name: Verify deployed frontend and cloud API
+        if: steps.credentials.outputs.available == 'true'
         env:
           APP_URL: https://gullak-piggybank.ahansantra607.workers.dev
           API_URL: https://server.ahansantra607.workers.dev
