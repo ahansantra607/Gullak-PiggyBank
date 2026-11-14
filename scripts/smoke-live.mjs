@@ -54,7 +54,7 @@ assert(clientText.includes("/api/families/") && clientText.includes("/api/vault"
   "Deployed frontend is missing cloud API integration.");
 const healthData = await health.json();
 assert(healthData.status === "healthy" && healthData.database === "connected" &&
-  healthData.familySchema === "ready", "Cloud Worker health/schema check failed: " + JSON.stringify(healthData));
+  healthData.authSchema === "ready" && healthData.familySchema === "ready", "Cloud Worker health/schema check failed: " + JSON.stringify(healthData));
 
 // Exercise real account registration, cookie sessions, encrypted vault isolation,
 // family creation/linking, role enforcement, member vaults, and logout.
