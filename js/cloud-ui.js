@@ -132,24 +132,28 @@
     const renderWelcome = welcome.render;
     welcome.render = (...args) => {
       const html = renderWelcome(...args);
-      return html.includes('Start my Gullak') ? html.replace(
-        '<button class="btn soft block" data-act="sample">👀 Try it with sample data</button>',
-        '<button class="btn soft block" data-act="sample">👀 Try it with sample data</button><button class="btn ghost block" data-act="cloud-open">☁️ Cloud account · Log in / Sign up</button>'
-      ) : html;
+      if (html.includes('data-act="cloud-open"')) return html;
+      return html.replace('</section>', '<button class="btn ghost block" data-act="cloud-open">☁️ Cloud account · Log in / Sign up</button></section>');
     };
     const handlersWelcome = welcome.handlers;
     welcome.handlers = (...args) => Object.assign(handlersWelcome ? handlersWelcome(...args) : {}, {
       'cloud-open': () => { authMode = 'login'; G.go('cloud-account'); },
       'cloud-logout': async () => {
-        if (!(await G.confirm('Log out of Gullak Cloud?', 'The decrypted diary will be cleared from this tab. Your saved local copy is not deleted in this migration step.', 'Log out', 'Stay'))) return;
-        try { await G.cloudAccount.logout(); } catch (error) { G.toast(error.message || 'Could not log out.'); return; }
-        G.S = G.fresh(); G.parentUnlocked = false;
+        if (!(await G.confirm('Log out of Gullak Cloud?', 'The decrypted diary will be cleared from this tab. Your existing local copy is retained during migration.', 'Log out', 'Stay'))) return;
+        let logoutError = null;
+        try { await G.cloudAccount.logout(); } catch (error) { logoutError = error; }
+        G.S = G.fresh(); G.parentUnlocked = false; G.FAM = null;
         if (G.chat) G.chat.length = 0;
         if (G.coachCtx) { G.coachCtx.last = null; G.coachCtx.pending = null; }
         G.go('welcome');
+        if (logoutError) G.toast('This tab was cleared, but server logout could not be confirmed. Close the tab and retry later.');
       }
     });
   }
+
+  const routeGuardBeforeCloud = G.routeGuard;
+  G.routeGuard = (name, q) => name === 'cloud-account' ? null :
+    (routeGuardBeforeCloud ? routeGuardBeforeCloud(name, q) : null);
 
   const settings = G.screens.settings;
   if (settings) {
