@@ -91,6 +91,11 @@
       try { await request('/api/logout', { method: 'POST' }); }
       finally { await clearRememberedDevice().catch(() => {}); }
     },
+    async deleteAccount(password) {
+      const result = await request('/api/account', { method: 'DELETE', body: JSON.stringify({ password }) });
+      await clearRememberedDevice().catch(() => {});
+      return result;
+    },
     async saveKeyWrap(secret, accountPassword) {
       const salt = C.salt();
       const wrapped = await C.wrapWithSecret(accountPassword, salt, encoder.encode(secret), ITERATIONS);
