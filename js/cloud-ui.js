@@ -139,7 +139,15 @@
     };
     const handlersWelcome = welcome.handlers;
     welcome.handlers = (...args) => Object.assign(handlersWelcome ? handlersWelcome(...args) : {}, {
-      'cloud-open': () => { authMode = 'login'; G.go('cloud-account'); }
+      'cloud-open': () => { authMode = 'login'; G.go('cloud-account'); },
+      'cloud-logout': async () => {
+        if (!(await G.confirm('Log out of Gullak Cloud?', 'The decrypted diary will be cleared from this tab. Your saved local copy is not deleted in this migration step.', 'Log out', 'Stay'))) return;
+        try { await G.cloudAccount.logout(); } catch (error) { G.toast(error.message || 'Could not log out.'); return; }
+        G.S = G.fresh(); G.parentUnlocked = false;
+        if (G.chat) G.chat.length = 0;
+        if (G.coachCtx) { G.coachCtx.last = null; G.coachCtx.pending = null; }
+        G.go('welcome');
+      }
     });
   }
 
@@ -151,7 +159,7 @@
       const note = cloudUser
         ? (cloudSecret ? 'Connected and unlocked in this tab.' : 'Account session may be active; enter your passphrase to unlock.')
         : 'Create an account or log in to sync an encrypted copy.';
-      const card = `<section class="card"><h3>☁️ Cloud account</h3><p class="small muted">${esc(note)}</p><button class="btn soft block" data-act="cloud-open">${cloudUser ? 'Unlock / manage cloud account' : 'Log in / create cloud account'}</button></section>`;
+      const card = `<section class="card"><h3>☁️ Cloud account</h3><p class="small muted">${esc(note)}</p><div class="col gap"><button class="btn soft block" data-act="cloud-open">${cloudUser ? 'Unlock / manage cloud account' : 'Log in / create cloud account'}</button>${cloudUser ? '<button class="btn ghost block" data-act="cloud-logout">Log out & clear this tab</button>' : ''}</div></section>`;
       return html.replace('<section class="card"><h3>My data</h3>', card + '<section class="card"><h3>My data</h3>');
     };
     const handlersSettings = settings.handlers;
