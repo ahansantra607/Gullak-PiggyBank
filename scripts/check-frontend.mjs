@@ -14,6 +14,7 @@ const files = [
   'js/cloud.js',
   'js/family.js',
   'js/cloud-ui.js',
+  'js/cloud-only.js',
   'js/app.js'
 ];
 
@@ -27,7 +28,7 @@ const scripts = [...html.matchAll(/<script\s+src="([^"]+)"><\/script>/g)].map(ma
 for (const script of scripts) {
   if (!existsSync(script)) throw new Error('Missing script referenced by index.html: ' + script);
 }
-const positions = ['js/crypto.js', 'js/cloud.js', 'js/family.js', 'js/cloud-ui.js', 'js/app.js'].map(file => scripts.indexOf(file));
+const positions = ['js/crypto.js', 'js/cloud.js', 'js/family.js', 'js/cloud-ui.js', 'js/cloud-only.js', 'js/app.js'].map(file => scripts.indexOf(file));
 if (positions.some(index => index < 0) || positions.some((index, i) => i && index <= positions[i - 1])) {
   throw new Error('Cloud scripts are not loaded in the required order.');
 }
