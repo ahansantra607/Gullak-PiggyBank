@@ -38,6 +38,27 @@
     G.storeKey = 'gullak:none';
   };
 
+
+  // A diary cannot be started or edited until its cloud account is unlocked.
+  const modesHandlers0 = G.screens.modes && G.screens.modes.handlers;
+  if (G.screens.modes) G.screens.modes.handlers = () => Object.assign(modesHandlers0 ? modesHandlers0() : {}, {
+    'mode-me': () => {
+      mode = 'individual';
+      if (!G.cloudAccount.unlocked) { G.go('cloud-account'); return; }
+      G.setMode('individual'); G.go(G.S.profile ? 'home' : 'me-pin');
+    },
+    'mode-fam': () => {
+      mode = 'family'; G.setMode('family');
+      if (!G.cloudAccount.unlocked) { G.cloudFamilyReturn = true; G.go('cloud-account'); return; }
+      G.go('fam-pick');
+    }
+  });
+  const routeGuardCloudOnly0 = G.routeGuard;
+  G.routeGuard = (name, q) => {
+    if (!G.cloudAccount.unlocked && !['welcome', 'modes', 'cloud-account', 'cloud-families', 'cloud-family-join', 'fam-pick'].includes(name)) return 'cloud-account';
+    return routeGuardCloudOnly0 ? routeGuardCloudOnly0(name, q) : null;
+  };
+
   // Never fall back to browser persistence. An unavailable cloud session is a visible error.
   const cloudSave0 = G.save;
   let individualChain = Promise.resolve();
