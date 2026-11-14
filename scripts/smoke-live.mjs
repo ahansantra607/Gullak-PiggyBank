@@ -63,7 +63,7 @@ const supervisorName = "smokesup_" + suffix;
 const memberName = "smokekid_" + suffix;
 const password = "Smoke-test-account-" + randomUUID();
 const familyName = "Smoke Family " + suffix;
-const joinCode = randomUUID().replace(/-/g, "").slice(0, 20).toUpperCase();
+const joinCode = String(100000 + (randomBytes(4).readUInt32BE(0) % 900000)); // Shared Family PIN
 
 const supervisor = expect(await request("/api/register", {
   method: "POST", body: { username: supervisorName, password }
