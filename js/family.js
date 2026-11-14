@@ -154,10 +154,10 @@
     return s;
   };
 
-  G.famCreate = async ({ famName, famEmoji, name, avatar, pin, qIds, answers }) => {
+  G.famCreate = async ({ famName, famEmoji, name, avatar, pin, familyPin, qIds, answers }) => {
     const fkRaw = C.rand(32); const iter = C.ITER;
     const sup = await makeMember({ name, avatar, role: 'supervisor', pin }, fkRaw, iter);
-    const code = C.recoveryCode(); const rcSalt = C.salt(); const qSalt = C.salt();
+    const code = String(familyPin || C.recoveryCode()); const rcSalt = C.salt(); const qSalt = C.salt();
     const meta = {
       id: 'f' + G.uid(8).toLowerCase(), name: famName, emoji: famEmoji, createdAt: G.now(), iter, members: [sup],
       rc: { salt: rcSalt, wrap: await C.wrapWithSecret(C.normCode(code), rcSalt, fkRaw, iter) },
@@ -445,7 +445,7 @@
         <div class="avatar-grid sm">${['🧑', '👩', '👨', '👵', '👴', '🧔', '👩‍🦱', '🦸', '🦁', '🐘', '🌟', '🛡️'].map(a => `<button class="av ${a === cr.avatar ? 'on' : ''}" data-act="cav" data-v="${a}">${a}</button>`).join('')}</div>
         <button class="btn primary block big" data-act="c1">Next →</button></section>`;
       if (cr.step === 2) return `${back('➕ New family', 'fam-pick')}${dots}<section class="card">
-        <h2>🔢 Your supervisor PIN</h2><p class="muted small">4–6 digits. Tip: grown-ups should use 6 digits, kids can't guess it as easily.</p>
+        <h2>🔐 Shared Family PIN</h2><p class="muted small">Everyone uses this same 4–6 digit PIN to open the family and view its member list. It is not a personal account password.</p>
         <input class="input big" id="c-p1" type="password" inputmode="numeric" maxlength="6" placeholder="PIN">
         <input class="input big" id="c-p2" type="password" inputmode="numeric" maxlength="6" placeholder="Type it again">
         <button class="btn primary block big" data-act="c2">Next →</button><button class="btn ghost block" data-act="cback">← Back</button></section>`;
@@ -459,7 +459,7 @@
         <button class="btn primary block big" data-act="c3" ${cr.busy ? 'disabled' : ''}>${cr.busy ? '🔐 Locking your family vault…' : 'Create family 🎉'}</button>
         <button class="btn ghost block" data-act="cback">← Back</button></section>`;
       return `${back('🎉 Family created', 'sup')}${dots}<section class="card center">
-        <h2>🛟 Your Family Recovery Code</h2><p>Write this down and keep it safe (not in the app!). It unlocks the family if everyone forgets their PIN.</p>
+        <h2>🔐 Your Shared Family PIN</h2><p>Share this with family members. It is required to open the family and view the member list. Supervisors can change it later.</p>
         <div class="code big-code">${esc(cr.code)}</div>
         <div class="row gap"><button class="btn soft grow" data-act="ccopy">📋 Copy</button><button class="btn soft grow" data-act="csave">💾 Save as file</button></div>
         <label class="toggle"><input type="checkbox" id="c-ok" ${cr.saved ? 'checked' : ''}> I saved my recovery code</label>
@@ -497,15 +497,15 @@
         cr.busy = true; G.render();
         try {
           if (G.mode() !== 'family') G.setMode('family');
-          cr.code = await G.famCreate({ famName: cr.famName.trim(), famEmoji: cr.famEmoji, name: cr.name.trim(), avatar: cr.avatar, pin: cr.pin, qIds: cr.q.slice(), answers: cr.a.slice() });
+          cr.code = await G.famCreate({ famName: cr.famName.trim(), famEmoji: cr.famEmoji, name: cr.name.trim(), avatar: cr.avatar, pin: cr.pin, qIds: cr.q.slice(), answers: cr.a.slice(), familyPin: cr.pin });
           G.FAM.data.defaults = Object.assign({}, cr.rules); await G.famSave();
           cr.pin = ''; cr.a = ['', '']; cr.step = 5; G.sound('win'); G.confetti();
         } catch (e) { console.error(e); G.toast(e.message || 'Something went wrong creating the family 😕'); }
         cr.busy = false; G.render();
       },
       ccopy: () => G.copy(cr.code),
-      csave: () => download(`gullak-recovery-code.txt`, `Gullak family "${cr.famName}" recovery code:\n${cr.code}\n\nKeep this safe. It can unlock your family if everyone forgets their PIN.`, 'text/plain'),
-      cdone: () => { if (!cr.saved) return G.toast('Please save the code first, then tick the box ✅'); Object.assign(cr, { step: 1, famName: '', name: '', code: '', saved: false, rules: Object.assign({}, G.RULE_DEFAULTS) }); G.go('sup'); }
+      csave: () => download(`gullak-family-pin.txt`, `Gullak family "${cr.famName}" shared Family PIN:\n${cr.code}\n\nShare this PIN only with family members.`, 'text/plain'),
+      cdone: () => { if (!cr.saved) return G.toast('Please save the Family PIN first, then tick the box ✅'); Object.assign(cr, { step: 1, famName: '', name: '', code: '', saved: false, rules: Object.assign({}, G.RULE_DEFAULTS) }); G.go('sup'); }
     })
   };
 
@@ -590,14 +590,14 @@
       },
       'f-code': async () => {
         if (!(await G.confirm('Make a new recovery code?', 'The old code will stop working.', 'Make new code', 'Cancel'))) return;
-        const F = G.FAM; const code = C.recoveryCode(); const salt = C.salt();
+        const F = G.FAM; const code = window.prompt('Set a new shared Family PIN (4–6 digits):', ''); if (!/^\\d{4,6}$/.test(String(code || ''))) return G.toast('Family PIN must be 4–6 digits.'); const salt = C.salt();
         const wrap = await C.wrapWithSecret(C.normCode(code), salt, F.fkRaw, F.meta.iter);
         if (F.cloudId) {
           try { await G.cloud.updateFamilyCode(F.cloudId, F.fkRaw, code); }
           catch (error) { return G.toast(error.message || 'Could not update the cloud recovery code.'); }
         }
         F.meta.rc = { salt, wrap }; putFam(F.meta); await G.famSave();
-        G.modal({ html: `<h2>🛟 New recovery code</h2><p>Write it down and keep it safe.</p><div class="code big-code">${esc(code)}</div>
+        G.modal({ html: `<h2>🛟 New shared Family PIN</h2><p>Share it only with family members.</p><div class="code big-code">${esc(code)}</div>
           <button class="btn soft block" data-act="cp">📋 Copy</button>`, handlers: { cp: () => G.copy(code) } });
       },
       'f-export': async () => {
