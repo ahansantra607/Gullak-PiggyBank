@@ -264,13 +264,41 @@
       inp.addEventListener('change', () => {
         const f = inp.files[0]; if (!f) return; const fr = new FileReader();
         fr.onload = async () => {
-          try {
-            const d = JSON.parse(fr.result);
-            if (!d || d.gullakFamily !== 1 || !d.meta || !Array.isArray(d.meta.members) || typeof d.data !== 'string') throw 0;
+          const importFamily = async d => {
+            if (!d || d.gullakFamily !== 1 || !d.meta || !Array.isArray(d.meta.members) || typeof d.data !== 'string') {
+              throw new Error('This is not a valid Gullak family backup.');
+            }
             if (getFam(d.meta.id) && !(await G.confirm('Replace this family?', `"${esc(d.meta.name)}" is already on this device. Replace it with the backup?`, 'Replace', 'Cancel'))) return;
             putFam(d.meta); localStorage.setItem(DATA(d.meta.id), d.data);
             G.toast(`📂 ${esc(d.meta.name)} family opened!`); G.render();
-          } catch (e) { G.toast('That is not a Gullak family file 😕'); }
+          };
+          try {
+            const parsed = JSON.parse(fr.result);
+            if (parsed && parsed.format === 'gullak-encrypted-backup') {
+              const modal = G.modal({
+                html: '<h2>🔐 Unlock family backup</h2><p class="muted small">Enter the separate backup passphrase used when exporting this file.</p><input class="input" id="family-backup-pass" type="password" maxlength="256" autocomplete="off" placeholder="Backup passphrase"><button class="btn primary block mt" data-act="unlock-family-backup">Unlock backup</button>',
+                handlers: {
+                  'unlock-family-backup': async button => {
+                    const pass = G.$('#family-backup-pass', modal.el).value;
+                    if (pass.length < 10) return G.toast('Enter the backup passphrase.');
+                    button.disabled = true; button.textContent = '🔐 Unlocking…';
+                    try {
+                      const d = await G.cloudBackup.decode(String(fr.result), pass);
+                      await importFamily(d); modal.close();
+                    } catch (error) {
+                      button.disabled = false; button.textContent = 'Unlock backup';
+                      G.toast(error.message || 'Could not unlock this family backup.');
+                    }
+                  }
+                }
+              });
+            } else if (parsed && parsed.gullakFamily === 1) {
+              if (!(await G.confirm('Import older family backup?', 'This older backup format does not protect family metadata with a separate backup passphrase. Import it only if you trust the file.', 'Import older backup', 'Cancel'))) return;
+              await importFamily(parsed);
+            } else {
+              throw new Error('Unsupported family backup.');
+            }
+          } catch (e) { G.toast(e.message || 'That is not a Gullak family file 😕'); }
         };
         fr.readAsText(f);
       });
@@ -576,9 +604,27 @@
       },
       'f-export': async () => {
         await G.famSave(); const F = G.FAM;
-        download(`gullak-family-${F.meta.name.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}.gullak`,
-          JSON.stringify({ gullakFamily: 1, savedAt: G.now(), meta: F.meta, data: localStorage.getItem(DATA(F.meta.id)) }), 'application/json');
-        G.toast('💾 Saved! The file is encrypted. Open it on another device with "Open a family backup file".', 4500);
+        const payload = { gullakFamily: 1, savedAt: G.now(), meta: F.meta, data: localStorage.getItem(DATA(F.meta.id)) };
+        const modal = G.modal({
+          html: '<h2>🔐 Export encrypted family backup</h2><p class="muted small">Choose a separate passphrase. You will need it to open this file on another device.</p><label class="label">Backup passphrase</label><input class="input" id="family-backup-export-pass" type="password" maxlength="256" autocomplete="new-password"><label class="label">Confirm passphrase</label><input class="input" id="family-backup-export-confirm" type="password" maxlength="256" autocomplete="new-password"><button class="btn primary block mt" data-act="make-family-backup">Create encrypted file</button>',
+          handlers: {
+            'make-family-backup': async button => {
+              const pass = G.$('#family-backup-export-pass', modal.el).value;
+              const confirm = G.$('#family-backup-export-confirm', modal.el).value;
+              if (pass.length < 10) return G.toast('Use at least 10 characters for the backup passphrase.');
+              if (pass !== confirm) return G.toast('The two passphrases do not match.');
+              button.disabled = true; button.textContent = '🔐 Encrypting…';
+              try {
+                const text = await G.cloudBackup.encode(payload, pass);
+                download(`gullak-family-${F.meta.name.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}.gullak`, text, 'application/json');
+                modal.close(); G.toast('Encrypted family backup created. Keep its passphrase safe.');
+              } catch (error) {
+                button.disabled = false; button.textContent = 'Create encrypted file';
+                G.toast(error.message || 'Could not create family backup.');
+              }
+            }
+          }
+        });
       },
       'f-delete': async () => {
         const F = G.FAM;
