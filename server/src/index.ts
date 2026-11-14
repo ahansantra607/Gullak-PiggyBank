@@ -733,6 +733,7 @@ export default {
 
         if (path === "/api/families" && request.method === "POST") {
           if (!user) return json({ error: "Authentication required." }, 401);
+          const creatorId = user.user_id;
           const body = await request.json() as any;
           const name = String(body.name || "").trim();
           const joinCode = String(body.join_code || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
@@ -764,11 +765,11 @@ export default {
                 family_id, name, join_code_hash, family_key_wrap, key_wrap_salt,
                 key_wrap_iterations, created_by, created_at
               ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            `).bind(familyId, name, codeHash, keyWrap, keySalt, keyIterations, user.user_id, now),
+            `).bind(familyId, name, codeHash, keyWrap, keySalt, keyIterations, creatorId, now),
             env.gullak_db.prepare(`
               INSERT INTO cloud_family_members (family_id, user_id, role, joined_at)
               VALUES (?, ?, 'supervisor', ?)
-            `).bind(familyId, user.user_id, now),
+            `).bind(familyId, creatorId, now),
             env.gullak_db.prepare(`
               INSERT INTO cloud_family_vaults (
                 family_id, ciphertext, iv, salt, schema_version, updated_at
