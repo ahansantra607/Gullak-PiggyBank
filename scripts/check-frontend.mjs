@@ -24,6 +24,9 @@ for (const file of files) {
 }
 
 const cloudOnlySource = readFileSync('js/cloud-only.js', 'utf8');
+const appSource = readFileSync('js/app.js', 'utf8');
+if (!appSource.includes('(G.FREE_ROUTES || FREE).includes(name)')) throw new Error('Pre-profile routes do not use the live route allowlist; Family screens may redirect to welcome.');
+if (!cloudOnlySource.includes("G.FREE_ROUTES.push('family-account')")) throw new Error('Dedicated Family account creator is not allowed before profile setup.');
 const cloudUiSource = readFileSync('js/cloud-ui.js', 'utf8');
 if (!cloudUiSource.includes('!!G.cloudFamilyReturn')) throw new Error('Cloud login does not preserve an explicit Family-mode return.');
 if (!cloudOnlySource.includes("const destination = familyReturn === 'create' ? 'fam-create' : familyReturn === 'open' ? 'cloud-families' : 'fam-pick';")) throw new Error('Family login does not return to the correct next step.');
