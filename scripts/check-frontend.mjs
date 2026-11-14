@@ -36,6 +36,12 @@ if (!cloudOnlySource.includes('G.cloud.createFamily({')) throw new Error('Family
 if (!cloudOnlySource.includes('familyKey: C.b64(F.fkRaw)')) throw new Error('New Family exports do not include the encrypted-file-wrapped family key.');
 if (!cloudSource.includes('passwordOrRole')) throw new Error('Supervisor-created member accounts are not supported by the cloud client.');
 if (!serverSource.includes('Family PIN must be 4–6 digits.')) throw new Error('The server does not enforce the shared Family PIN format.');
+if (!cloudSource.includes("registerFamilyAccount") || !cloudSource.includes("loginFamilyAccount")) throw new Error('Family accounts do not use dedicated authentication endpoints.');
+if (!cloudOnlySource.includes("G.screens['family-account']") || !cloudOnlySource.includes('Family-only login')) throw new Error('Family mode does not have a dedicated Family account creator/login screen.');
+if (!familySource.includes("G.go('family-account')")) throw new Error('First Supervisor setup does not use the dedicated Family account screen.');
+if (!serverSource.includes('path === "/api/family/register"') || !serverSource.includes('path === "/api/family/login"')) throw new Error('Server does not separate Family account registration and login.');
+if (!serverSource.includes('getCurrentUserAccountType') || !serverSource.includes("Family accounts cannot access Individual diaries.")) throw new Error('Server does not enforce account-type separation and Individual vault isolation.');
+if (!serverSource.includes("That username belongs to an Individual account. Create a new Family account for this member.")) throw new Error('Family member creation can still link an Individual account.');
 if (!serverSource.includes('Password must be at least 8 characters and include uppercase, lowercase, a number and a special character.')) throw new Error('Supervisor-created accounts do not enforce the account password policy.');
 
 if (!cloudOnlySource.includes('G.cloud.saveFamilyVault(q.f, cached.fkRaw, remote.value)')) throw new Error('Supervisor PIN recovery does not sync updated family metadata.');
