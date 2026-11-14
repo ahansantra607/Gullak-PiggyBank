@@ -420,24 +420,6 @@
     return familySyncChain;
   };
 
-  const createFamilyLocal = G.famCreate;
-  G.famCreate = async args => {
-    if (!G.cloudAccount.unlocked) throw new Error('Log in to a Gullak Cloud account before creating a cloud family.');
-    const code = await createFamilyLocal(args);
-    const F = G.FAM;
-    const supervisor = F.meta.members.find(m => m.role === 'supervisor');
-    supervisor.userId = G.cloudAccount.user.user_id;
-    const remote = await G.cloud.createFamily({
-      name: F.meta.name, joinCode: code, familyKeyRaw: F.fkRaw,
-      value: { meta: F.meta, data: { v: 1, defaults: F.data.defaults || {}, createdAt: F.data.createdAt } }
-    });
-    F.cloudId = remote.family_id;
-    F.meta.cloudId = remote.family_id;
-    persistCloudFamilyMeta(F.meta);
-    await G.famSave();
-    return code;
-  };
-
   const unlockFamilyLocal = G.famUnlock;
   G.famUnlock = async (familyId, memberId, pin) => {
     await unlockFamilyLocal(familyId, memberId, pin);
