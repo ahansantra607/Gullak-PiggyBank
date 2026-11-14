@@ -1,0 +1,17 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "server",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-11-13",
+  "observability": {
+    "enabled": true
+  },
+  "upload_source_maps": true,
+  "d1_databases": [
+    {
+      "binding": "gullak_db",
+      "database_name": "gullak-db",
+      "database_id": "637a952d-ec2b-4620-ad39-d0543cdd05dd"
+    }
+  ]
+}
