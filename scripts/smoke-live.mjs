@@ -105,19 +105,18 @@ assert(directoryBeforeLogin.data.families.some(item => item.family_id === family
 const pinGate = expect(await request("/api/families/" + familyId + "/vault"), 200, "Shared PIN vault retrieval");
 assert(pinGate.data.exists && pinGate.data.family_key_wrap, "Shared PIN wrapper was not returned.");
 
-const codeSearch = expect(await request("/api/families/search?q=" + encodeURIComponent(joinCode)), 200, "Family PIN search");
-assert(codeSearch.data.families.some(item => item.family_id === familyId),
-  "Family invite code did not find the family.");
-
-const joined = expect(await request("/api/families/" + encodeURIComponent(familyId) + "/join", {
+const nameSearch = expect(await request("/api/families/search?q=" + encodeURIComponent(familyName)),
+  200, "Public family-name search");
+assert(nameSearch.data.families.some(item => item.family_id === familyId),
+  "Family name did not find the family.");
+expect(await request("/api/families/" + encodeURIComponent(familyId) + "/join", {
   method: "POST", cookie: member.cookie, body: { join_code: joinCode }
-}), 200, "Family join by invite code");
-assert(joined.data.family.role === "member", "Family join assigned an unexpected role.");
+}), 403, "Family PIN cannot self-join an account");
 
 const linked = expect(await request("/api/families/" + encodeURIComponent(familyId) + "/members", {
   method: "POST", cookie: supervisor.cookie,
   body: { username: memberName, role: "member" }
-}), 200, "Link family member");
+}), 200, "Supervisor links an existing member account");
 assert(linked.data.member.user_id === member.data.user.user_id, "Family linked the wrong account.");
 
 const createdKidName = "createdkid_" + suffix;
