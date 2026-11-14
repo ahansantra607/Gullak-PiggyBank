@@ -1,0 +1,79 @@
+name: Build and publish Gullak Android APK
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: gullak-android-release
+  cancel-in-progress: false
+
+jobs:
+  build-and-upload:
+    if: startsWith(github.event.release.tag_name, 'v')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out release tag
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name }}
+      - name: Validate release version
+        id: version
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          version="${RELEASE_TAG#v}"
+          if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Use a version tag like v1.0.0"
+            exit 1
+          fi
+          echo "value=$version" >> "$GITHUB_OUTPUT"
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - name: Decrypt permanent signing key
+        env:
+          KEY_ENCRYPTION_PASSWORD: ${{ secrets.ANDROID_KEY_ENCRYPTION_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [ -z "$KEY_ENCRYPTION_PASSWORD" ]; then
+            echo "::error::Missing ANDROID_KEY_ENCRYPTION_PASSWORD. Complete the signing setup first."
+            exit 1
+          fi
+          if [ ! -f android/signing/gullak-signing.zip.enc ]; then
+            echo "::error::Encrypted signing bundle not found. Run the signing setup workflow on main first."
+            exit 1
+          fi
+          openssl enc -d -aes-256-cbc -salt -pbkdf2 -iter 600000 \
+            -in android/signing/gullak-signing.zip.enc \
+            -out /tmp/gullak-signing.zip \
+            -pass env:KEY_ENCRYPTION_PASSWORD
+          mkdir -p android/signing
+          unzip -oq /tmp/gullak-signing.zip -d android/signing
+          rm -f /tmp/gullak-signing.zip
+      - name: Build signed universal APK
+        env:
+          GULLAK_VERSION: ${{ steps.version.outputs.value }}
+          GITHUB_RUN_NUMBER: ${{ github.run_number }}
+        run: |
+          set -euo pipefail
+          gradle --no-daemon assembleRelease
+          cp app/build/outputs/apk/release/app-release.apk Gullak.apk
+      - name: Attach APK to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.release.tag_name }}
+          files: Gullak.apk
+          fail_on_unmatched_files: true
+          make_latest: true
