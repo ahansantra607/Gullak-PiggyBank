@@ -75,4 +75,77 @@
       return request('/api/health');
     }
   };
+
+  const familyVaultPayload = async (value, familyKeyRaw) => {
+    const key = await C.aesKey(familyKeyRaw);
+    const packed = await C.enc(key, encoder.encode(JSON.stringify(value)));
+    const split = packed.indexOf('.');
+    return { ciphertext: packed.slice(split + 1), iv: packed.slice(0, split), salt: C.salt(), schema_version: 1 };
+  };
+  const decryptFamilyVault = async (vault, familyKeyRaw) => {
+    if (!vault) return null;
+    const key = await C.aesKey(familyKeyRaw);
+    const plain = await C.decStr(key, vault.iv + '.' + vault.ciphertext);
+    return JSON.parse(plain);
+  };
+  const familyPath = id => '/api/families/' + encodeURIComponent(id);
+
+  Object.assign(G.cloud, {
+    async listFamilies() {
+      return (await request('/api/families')).families || [];
+    },
+    async searchFamilies(query) {
+      return (await request('/api/families/search?q=' + encodeURIComponent(query))).families || [];
+    },
+    async createFamily({ name, joinCode, familyKeyRaw, value }) {
+      const salt = C.salt();
+      const wrappingKey = await C.deriveKey(C.normCode(joinCode), salt, ITERATIONS);
+      const familyKeyWrap = await C.enc(wrappingKey, familyKeyRaw);
+      const vault = await familyVaultPayload(value, familyKeyRaw);
+      const result = await request('/api/families', {
+        method: 'POST',
+        body: JSON.stringify({
+          name, join_code: C.normCode(joinCode), family_key_wrap: familyKeyWrap,
+          key_wrap_salt: salt, key_wrap_iterations: ITERATIONS, vault
+        })
+      });
+      return result.family;
+    },
+    async joinFamily(familyId, joinCode) {
+      await request(familyPath(familyId) + '/join', {
+        method: 'POST', body: JSON.stringify({ join_code: C.normCode(joinCode) })
+      });
+      const result = await request(familyPath(familyId) + '/vault');
+      const wrappingKey = await C.deriveKey(C.normCode(joinCode), result.key_wrap_salt, result.key_wrap_iterations);
+      const familyKeyRaw = await C.dec(wrappingKey, result.family_key_wrap);
+      const value = await decryptFamilyVault(result.vault, familyKeyRaw);
+      return { family: { family_id: familyId }, familyKeyRaw, value };
+    },
+    async getFamilyVault(familyId, familyKeyRaw) {
+      const result = await request(familyPath(familyId) + '/vault');
+      return { family: result, value: await decryptFamilyVault(result.vault, familyKeyRaw) };
+    },
+    async saveFamilyVault(familyId, familyKeyRaw, value) {
+      return request(familyPath(familyId) + '/vault', {
+        method: 'PUT', body: JSON.stringify(await familyVaultPayload(value, familyKeyRaw))
+      });
+    },
+    async listFamilyMembers(familyId) {
+      return (await request(familyPath(familyId) + '/members')).members || [];
+    },
+    addFamilyMember: (familyId, username, role = 'member') => request(familyPath(familyId) + '/members', {
+      method: 'POST', body: JSON.stringify({ username, role })
+    }),
+    async getMemberVault(familyId, userId, familyKeyRaw) {
+      const query = userId ? '?user_id=' + encodeURIComponent(userId) : '';
+      const result = await request(familyPath(familyId) + '/member-vault' + query);
+      return { exists: result.exists, value: await decryptFamilyVault(result.vault, familyKeyRaw) };
+    },
+    async saveMemberVault(familyId, familyKeyRaw, value) {
+      return request(familyPath(familyId) + '/member-vault', {
+        method: 'PUT', body: JSON.stringify(await familyVaultPayload(value, familyKeyRaw))
+      });
+    }
+  });
+
 })(window.G);
