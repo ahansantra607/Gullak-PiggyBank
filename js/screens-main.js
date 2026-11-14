@@ -316,6 +316,11 @@
           <button class="tile" data-act="go" data-to="chores"><span>🧹</span>Earn${choresOpen ? ` <i class="dot">${choresOpen}</i>` : ''}</button>
           <button class="tile" data-act="go" data-to="play"><span>🎪</span>Games</button>
           <button class="tile" data-act="go" data-to="badges"><span>🏅</span>Badges <i class="dot">${s.badges.length}</i></button>
+          <button class="tile" data-act="go" data-to="comic"><span>📖</span>Money Comic</button>
+          <button class="tile" data-act="go" data-to="thennow"><span>⏳</span>Then & Now</button>
+          <button class="tile" data-act="go" data-to="joy"><span>😍</span>Joy Meter</button>
+          <button class="tile" data-act="go" data-to="weather"><span>⛅</span>Money Weather</button>
+          <button class="tile" data-act="go" data-to="borrow"><span>🏦</span>Borrow</button>
           <button class="tile" data-act="go" data-to="settings"><span>⚙️</span>Settings</button>
         </div>`;
     },
