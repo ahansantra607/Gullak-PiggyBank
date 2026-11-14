@@ -402,19 +402,19 @@
     // Pending spend context: only an explicit save/record reply creates a transaction.
     const pendingSpend = S().meta.chatPendingSpend;
     const pendingIsFresh = pendingSpend && Date.now() - pendingSpend.createdAt < 30 * 60 * 1000;
-    if (pendingIsFresh && /\\b(?:save it|record it|yes,? save|yes,? record|confirm)\\b/.test(t)) {
-      const explicitNeed = /\\bneed\\b/.test(t), explicitWant = /\\bwant\\b/.test(t);
-      const extraItem = t.match(/\\b(?:for|on)\\s+(?:a|an|the)\\s+([a-z][a-z -]{0,35})/i);
-      const item = extraItem ? extraItem[1].replace(/\\b(?:as a )?(?:need|want)\\b.*$/i, '').trim() : pendingSpend.note;
+    if (pendingIsFresh && /\b(?:save it|record it|yes,? save|yes,? record|confirm)\b/.test(t)) {
+      const explicitNeed = /\bneed\b/.test(t), explicitWant = /\bwant\b/.test(t);
+      const extraItem = t.match(/\b(?:for|on)\s+(?:a|an|the)\s+([a-z][a-z -]{0,35})/i);
+      const item = extraItem ? extraItem[1].replace(/\b(?:as a )?(?:need|want)\b.*$/i, '').trim() : pendingSpend.note;
       const cat = item && item !== pendingSpend.note ? findCat(item) : pendingSpend.category;
       const nw = explicitNeed ? 'need' : explicitWant ? 'want' : pendingSpend.needOrWant;
-      const tx = G.act.addTxn({ type: 'out', amount: pendingSpend.amount, category: cat, needOrWant: nw, note: item ? item.replace(/^\\w/, x => x.toUpperCase()) : '' });
+      const tx = G.act.addTxn({ type: 'out', amount: pendingSpend.amount, category: cat, needOrWant: nw, note: item ? item.replace(/^\w/, x => x.toUpperCase()) : '' });
       delete S().meta.chatPendingSpend; G.save();
       if (!tx) return say(`You only have ${rs(Math.max(0, G.balance()))} available, so I haven't recorded that spend.`, `You only have ${Math.max(0, G.balance())} rupees available.`, voice);
       G.sound('pop');
       return say(`📝 Saved ${rs(tx.amount)} for ${esc(item || (G.CATS[cat] || G.CATS.other).n)} as a ${nw}. You have ${rs(G.balance())} left.`, `Saved ${tx.amount} rupees as a ${nw}. You have ${G.balance()} rupees left.`, voice);
     }
-    if (pendingIsFresh && /\\b(?:cancel|forget) (?:that|it|spend)\\b/.test(t)) {
+    if (pendingIsFresh && /\b(?:cancel|forget) (?:that|it|spend)\b/.test(t)) {
       delete S().meta.chatPendingSpend; G.save();
       return say('Okay, I have not recorded that spend.', 'Okay, I have not recorded that spend.', voice);
     }
@@ -470,10 +470,10 @@
       return say(m, m, voice);
     }
     // A spoken spend is a draft. The Save it? button opens the transaction editor.
-    if (/\\b(spent|spend|bought|buy|paid|pay|wasted)\\b/.test(t) && n != null) {
+    if (/\b(spent|spend|bought|buy|paid|pay|wasted)\b/.test(t) && n != null) {
       const cat = findCat(t); const nw = NEED_CATS.includes(cat) ? 'need' : 'want'; const thing = findThing(t);
       const c = G.CATS[cat] || G.CATS.other;
-      const note = thing ? thing.replace(/^\\w/, x => x.toUpperCase()) : '';
+      const note = thing ? thing.replace(/^\w/, x => x.toUpperCase()) : '';
       S().meta.chatPendingSpend = { amount: n, category: cat, needOrWant: nw, note, createdAt: Date.now() };
       G.save();
       const m = `I heard: <b>${rs(n)}</b> for ${esc(note || c.n)} — a ${nw}. Nothing has been recorded yet.${g ? `<br><small>⏪ This would push your ${esc(g.name)} back ${G.plural(G.daysBack(n), 'day')}.</small>` : ''}
