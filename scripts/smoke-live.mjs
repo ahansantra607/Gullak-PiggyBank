@@ -65,27 +65,37 @@ const password = "Smoke-test-account-" + randomUUID();
 const familyName = "QA Family " + suffix;
 const joinCode = String(100000 + (randomBytes(4).readUInt32BE(0) % 900000)); // Shared Family PIN
 
-const supervisor = expect(await request("/api/register", {
+const supervisor = expect(await request("/api/family/register", {
   method: "POST", body: { username: supervisorName, password }
 }), 201, "Supervisor registration");
 assert(supervisor.cookie, "Registration did not issue an HttpOnly session cookie.");
 assert(supervisor.response.headers.get("access-control-allow-origin") === origin,
   "Registration response is missing the expected CORS origin.");
-const member = expect(await request("/api/register", {
+const member = expect(await request("/api/family/register", {
   method: "POST", body: { username: memberName, password: "Member-" + password }
 }), 201, "Member registration");
 assert(member.cookie, "Member registration did not issue a session cookie.");
 
-const me = expect(await request("/api/me", { cookie: supervisor.cookie }), 200, "Session check");
-assert(me.data.authenticated && me.data.user.username === supervisorName, "Session identity mismatch.");
+const me = expect(await request("/api/me", { cookie: supervisor.cookie }), 200, "Family session check");
+assert(me.data.authenticated && me.data.user.username === supervisorName && me.data.user.account_type === "family", "Family account identity mismatch.");
+expect(await request("/api/login", { method: "POST", body: { username: supervisorName, password } }), 403, "Family credentials rejected by Individual login");
+expect(await request("/api/family/login", { method: "POST", body: { username: "individual_" + suffix, password } }), 401, "Unknown Family identity rejected");
 
+const individualName = "indivtest_" + suffix;
+const individual = expect(await request("/api/register", {
+  method: "POST", body: { username: individualName, password: "Individual-" + password }
+}), 201, "Individual registration");
+assert(individual.cookie, "Individual registration did not issue a session cookie.");
+const individualLogin = expect(await request("/api/login", {
+  method: "POST", body: { username: individualName, password: "Individual-" + password }
+}), 200, "Individual login");
 const privateVault = encrypted();
-expect(await request("/api/vault", { method: "PUT", cookie: supervisor.cookie, body: privateVault }), 200, "Encrypted vault save");
-const ownVault = expect(await request("/api/vault", { cookie: supervisor.cookie }), 200, "Encrypted vault read");
+expect(await request("/api/vault", { method: "PUT", cookie: individualLogin.cookie, body: privateVault }), 200, "Encrypted Individual vault save");
+const ownVault = expect(await request("/api/vault", { cookie: individualLogin.cookie }), 200, "Encrypted Individual vault read");
 assert(ownVault.data.exists && ownVault.data.vault.ciphertext === privateVault.ciphertext,
-  "Encrypted vault read did not return the saved ciphertext.");
-const isolatedVault = expect(await request("/api/vault", { cookie: member.cookie }), 200, "Other user's vault read");
-assert(!isolatedVault.data.exists, "A different account could read another user's vault.");
+  "Encrypted Individual vault read did not return the saved ciphertext.");
+expect(await request("/api/family/login", { method: "POST", body: { username: individualName, password: "Individual-" + password } }), 403, "Individual credentials rejected by Family login");
+expect(await request("/api/vault", { cookie: supervisor.cookie }), 403, "Family account blocked from Individual vault");
 
 const familyVault = encrypted();
 const familyKeyWrap = b64(randomBytes(12)) + "." + b64(randomBytes(48));
@@ -132,11 +142,13 @@ const createdKid = expect(await request("/api/families/" + familyId + "/members"
 }), 200, "Supervisor creates a new Gullak account");
 assert(createdKid.data.member.username === createdKidName && createdKid.data.member.user_id,
   "Supervisor-created account was not linked to the family.");
-const createdKidLogin = expect(await request("/api/login", {
+const createdKidLogin = expect(await request("/api/family/login", {
   method: "POST", body: { username: createdKidName, password: createdKidPassword }
 }), 200, "Supervisor-created member login");
 assert(createdKidLogin.data.user.user_id === createdKid.data.member.user_id,
-  "Supervisor-created member could not authenticate with its own credentials.");
+  "Supervisor-created member could not authenticate with its own Family credentials.");
+expect(await request("/api/login", { method: "POST", body: { username: createdKidName, password: createdKidPassword } }), 403, "Family Kid credentials rejected by Individual login");
+expect(await request("/api/vault", { cookie: createdKidLogin.cookie }), 403, "Family Kid blocked from Individual vault");
 const createdKidKey = expect(await request("/api/key-wrap", { cookie: createdKidLogin.cookie }),
   200, "Supervisor-created member encryption-key wrapper");
 assert(createdKidKey.data.exists, "Supervisor-created member has no password-wrapped encryption key.");
@@ -189,6 +201,7 @@ assert(transferred.data.members.some(item => item.username === memberName && ite
   "Family ownership/supervisor role was not transferred to the remaining member.");
 // Clean up every account and the family created by this live test.
 expect(await request("/api/account", { method: "DELETE", cookie: createdKidLogin.cookie, body: { password: createdKidPassword } }), 200, "Delete test-created kid account");
+expect(await request("/api/account", { method: "DELETE", cookie: individualLogin.cookie, body: { password: "Individual-" + password } }), 200, "Delete test Individual account");
 expect(await request("/api/account", { method: "DELETE", cookie: member.cookie, body: { password: "Member-" + password } }), 200, "Delete test member and empty test family");
 expect(await request("/api/me", { cookie: member.cookie }), 401, "Deleted test member session denial");
 
@@ -202,4 +215,4 @@ console.log("Live deployment integration tests passed.");
 console.log("Frontend:", appUrl);
 console.log("Cloud API:", apiUrl);
 console.log("Family schema:", healthData.familySchema);
-console.log("Verified: registration/login sessions, encrypted vault isolation, family directory/linking, role permissions, member vaults, logout, and Origin enforcement.");
+console.log("Verified: separate Individual/Family registration and login, cross-mode rejection, encrypted vault isolation, family directory/linking, role permissions, member vaults, logout, and Origin enforcement.");
