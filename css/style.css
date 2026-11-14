@@ -383,6 +383,15 @@ label small { color: var(--muted); }
 .chat-bar .input { margin: 0; }
 .comicg > span { background: #ffe3ee; } .tng > span { background: #fff4e0; } .joyg > span { background: #fff0f6; } .talkg > span { background: #efe6ff; }
 
+/* Live account-password checklist */
+.password-rules { margin: -2px 0 14px; padding: 12px 14px; border: 1px solid #e6dafc; border-radius: 14px; background: linear-gradient(135deg, #fbf8ff, #f3fbff); color: var(--muted); font-size: 13px; }
+.password-rules[hidden] { display: none; }
+.password-rules-title { color: var(--ink); font-weight: 800; margin-bottom: 6px; }
+.password-rules > div:not(.password-rules-title) { display: flex; gap: 8px; align-items: center; padding: 3px 0; transition: color .15s ease; }
+.password-rules > div span { width: 17px; text-align: center; font-weight: 900; }
+.password-rules > div.passed { color: #13845b; font-weight: 700; }
+.password-rules > div.passed span { color: #13845b; }
+
 /* ===== modes + family ===== */
 .brand.sm { font-size: 42px; }
 .modes { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; text-align: left; }
