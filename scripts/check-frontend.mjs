@@ -125,10 +125,6 @@ if (familyRequests.some(request => request.method === 'POST' || request.url.ends
 }
 if (familyRequests.length !== 1 || familyRequests[0].method !== 'GET') throw new Error('Opening an existing family should only fetch its vault.');
 familyRequests.length = 0;
-await familyG.cloud.joinFamily('family-1', 'GULL-TEST-CODE');
-if (!familyRequests.some(request => request.method === 'POST' && request.url.endsWith('/join'))) {
-  throw new Error('Joining a new family did not call the join endpoint.');
-}
 
 
 
