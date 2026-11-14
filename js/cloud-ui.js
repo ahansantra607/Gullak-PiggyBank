@@ -326,6 +326,15 @@
       return value;
     },
     download(text) {
+      if (window.GullakNative && typeof window.GullakNative.saveEncryptedBackup === 'function') {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const dataUrl = String(reader.result || '');
+          window.GullakNative.saveEncryptedBackup('gullak-encrypted-backup.gullak', 'application/json', dataUrl.slice(dataUrl.indexOf(',') + 1));
+        };
+        reader.readAsDataURL(new Blob([text], { type: 'application/json' }));
+        return;
+      }
       const a = document.createElement('a');
       a.href = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
       a.download = 'gullak-encrypted-backup.gullak'; a.click();
