@@ -276,7 +276,7 @@
       const snd = G.$('#s-sound', root), rd = G.$('#s-read', root), imp = G.$('#s-import', root);
       snd.addEventListener('change', () => { S().settings.sound = snd.checked; G.save(); });
       rd.addEventListener('change', () => { S().settings.readAloud = rd.checked; G.save(); if (rd.checked) G.speak('Okay! I will read things aloud for you.', true); });
-      imp.addEventListener('change', () => {
+      if (imp) imp.addEventListener('change', () => {
         const f = imp.files[0]; if (!f) return; const fr = new FileReader();
         fr.onload = () => {
           const backupText = String(fr.result || '');
