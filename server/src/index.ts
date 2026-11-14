@@ -379,13 +379,12 @@ export default {
         if (!user) {
           return json({ error: "Invalid username or password." }, 401);
         }
+        if (!constantTimeEqual(calculatedHash, user.password_hash)) {
+          return json({ error: "Invalid username or password." }, 401);
+        }
         const accountIdentity = await getCurrentUserAccountType(env, user.user_id);
         if (accountIdentity !== expectedAccountType) {
           return json({ error: "These credentials belong to a different Gullak mode." }, 403);
-        }
-
-        if (!constantTimeEqual(calculatedHash, user.password_hash)) {
-          return json({ error: "Invalid username or password." }, 401);
         }
 
         const now = new Date();
