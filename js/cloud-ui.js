@@ -287,11 +287,12 @@
         }
         await G.cloud.saveMemberVault(F.cloudId, user.user_id, F.fkRaw, G.S);
       }
+      syncError = null;
     }).catch(error => {
       syncError = error;
       console.error('Gullak family cloud sync failed:', error);
       G.toast('Family cloud sync failed. Your local encrypted copy is still here.');
-      throw error;
+      return false;
     });
     return familySyncChain;
   };
