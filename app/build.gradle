@@ -5,7 +5,7 @@ plugins {
 def appVersion = System.getenv("GULLAK_VERSION") ?: "1.0.0"
 def ciRunNumber = (System.getenv("GITHUB_RUN_NUMBER") ?: "1").toInteger()
 
-def signingBundle = rootProject.file("signing/signing.properties")
+def signingBundle = rootProject.file("android/signing/signing.properties")
 def signingValues = new Properties()
 if (signingBundle.exists()) {
     signingBundle.withInputStream { signingValues.load(it) }
@@ -26,7 +26,7 @@ android {
     signingConfigs {
         release {
             if (signingBundle.exists()) {
-                storeFile rootProject.file("signing/" + signingValues.getProperty("storeFile", "release.keystore"))
+                storeFile rootProject.file("android/signing/" + signingValues.getProperty("storeFile", "release.keystore"))
                 storeType signingValues.getProperty("storeType", "PKCS12")
                 storePassword signingValues.getProperty("storePassword")
                 keyAlias signingValues.getProperty("keyAlias")
