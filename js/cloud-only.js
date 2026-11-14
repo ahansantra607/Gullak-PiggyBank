@@ -405,10 +405,21 @@
   // Backup and restore entry points live on the cloud login screen, not Settings.
   const accountScreen = G.screens['cloud-account'];
   const accountRender0 = accountScreen.render;
-  accountScreen.render = (...args) => accountRender0(...args).replace(
-    '</div>\n      <p class="fine">🔐 Gullak syncs',
-    `</div>\n      ${G.cloudAccount.unlocked ? \'<section class="card"><h3>📦 Backups & restore</h3><button class="btn soft block" data-act="cloud-individual-export">Export Individual backup</button><label class="btn ghost block file-btn">Import Individual backup<input id="cloud-individual-import-file" type="file" accept=".gullak,.json,application/json" hidden></label><button class="btn soft block mt" data-act="open-family-backups">Import family backup</button>${G.FAM ? '<button class="btn soft block" data-act="export-family-backup">Export active family</button>' : ''}</section>\' : \'<section class="card"><h3>📦 Backups & restore</h3><p class="small muted">Log in to manage encrypted backups.</p></section>\'}\n      <p class="fine">🔐 Gullak syncs`
-  );
+  accountScreen.render = (...args) => {
+    const html = accountRender0(...args);
+    const panel = G.cloudAccount.unlocked
+      ? `<section class="card"><h3>📦 Backups & restore</h3>
+          <button class="btn soft block" data-act="cloud-individual-export">Export Individual backup</button>
+          <label class="btn ghost block file-btn">Import Individual backup<input id="cloud-individual-import-file" type="file" accept=".gullak,.json,application/json" hidden></label>
+          <button class="btn soft block mt" data-act="open-family-backups">Import family backup</button>
+          ${G.FAM ? '<button class="btn soft block" data-act="export-family-backup">Export active family</button>' : ''}
+        </section>`
+      : `<section class="card"><h3>📦 Backups & restore</h3><p class="small muted">Log in to manage encrypted backups.</p></section>`;
+    return html.replace(
+      '</div>\\n      <p class="fine">🔐 Gullak syncs',
+      `</div>\\n      ${panel}\\n      <p class="fine">🔐 Gullak syncs`
+    );
+  };
   const accountHandlers0 = accountScreen.handlers;
   accountScreen.handlers = (...args) => Object.assign(accountHandlers0(...args), {
     'open-family-backups': () => G.go('cloud-families'),
