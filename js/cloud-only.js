@@ -393,6 +393,24 @@
     handlers['cloud-connect'] = async button => {
       const wasFamily = !!G.cloudFamilyReturn;
       await connect(button);
+      if (G.cloudAccount.unlocked && G.pendingIndividualBackup && !wasFamily) {
+        const restored = G.pendingIndividualBackup;
+        if (mode !== 'individual') {
+          G.toast('Switch to Individual mode to restore this backup.');
+          return;
+        }
+        if (!(await G.confirm('Restore this Individual backup?', 'This replaces the destination cloud diary after it has been saved and verified.', 'Restore backup', 'Cancel'))) return;
+        try {
+          await G.cloud.saveVault(restored, G.cloudAccount.encryptionPassphrase);
+          const verify = await G.cloud.loadVault(G.cloudAccount.encryptionPassphrase);
+          if (!verify || JSON.stringify(verify) !== JSON.stringify(restored)) throw new Error('Cloud verification failed. The existing diary was not replaced.');
+          G.pendingIndividualBackup = null;
+          G.S = G.normState(verify);
+          G.toast('Backup restored and verified.');
+          G.go('home');
+        } catch (error) { G.toast(error.message || 'Backup restore failed.'); }
+        return;
+      }
       if (wasFamily && G.cloudAccount.unlocked) {
         G.cloudFamilyReturn = false;
         mode = 'family';
@@ -415,8 +433,8 @@
           ${G.FAM && G.cloudAccount.unlocked ? '<button class="btn soft block" data-act="export-family-backup">Export active family</button>' : ''}
         </section>`;
     return html.replace(
-      '</div>\n      <p class="fine">🔐 Gullak syncs',
-      `</div>\n      ${panel}\n      <p class="fine">🔐 Gullak syncs`
+      '<p class="fine">🔐 Gullak syncs',
+      `${panel}\n      <p class="fine">🔐 Gullak syncs`
     );
   };
   const accountHandlers0 = accountScreen.handlers;
@@ -465,15 +483,15 @@
             try {
               const payload = await G.cloudBackup.decode(String(reader.result), G.$('#ind-import-pass', modal.el).value);
               if (!payload || payload.gullakMode !== 'individual' || !payload.state || !payload.state.profile) throw new Error('This is not an Individual Gullak backup.');
+              const value = G.normState(payload.state);
               if (!G.cloudAccount.unlocked || mode !== 'individual') {
                 G.pendingIndividualBackup = value;
                 modal.close();
-                G.toast('Backup unlocked successfully. Log in to the destination Individual account, then select the backup file again to restore it.');
+                G.toast('Backup unlocked. Log in to the destination Individual account to finish restoring it.');
                 G.go('cloud-account');
                 return;
               }
               if (!(await G.confirm('Replace this account diary?', 'The imported backup replaces the current cloud diary only after verification.', 'Replace cloud diary', 'Cancel'))) { button.disabled = false; return; }
-              const value = G.normState(payload.state);
               await G.cloud.saveVault(value, G.cloudAccount.encryptionPassphrase);
               const verify = await G.cloud.loadVault(G.cloudAccount.encryptionPassphrase);
               if (!verify || JSON.stringify(verify) !== JSON.stringify(value)) throw new Error('Cloud verification failed. The current diary has not been replaced.');
