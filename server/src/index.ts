@@ -864,7 +864,7 @@ export default {
 
         if (action === "members" && request.method === "POST") {
           if (membership.role !== "supervisor") return json({ error: "Supervisor permission required." }, 403);
-          const body = await request.json() as { username?: string; password?: string; role?: string };
+          const body = await request.json() as { username?: string; password?: string; role?: string; wrapped_secret?: string; salt?: string; iterations?: number };
           const username = String(body.username || "").trim().toLowerCase();
           const password = String(body.password || "");
           const role = body.role === "supervisor" ? "supervisor" : "member";
@@ -876,6 +876,15 @@ export default {
             if (password.length < 8 || password.length > 128 || !/[a-z]/.test(password) || !/[A-Z]/.test(password) || !/[0-9]/.test(password) || !/[^A-Za-z0-9\s]/.test(password)) {
               return json({ error: "Password must be at least 8 characters and include uppercase, lowercase, a number and a special character." }, 400);
             }
+            const wrapParts = String(body.wrapped_secret || "").split(".");
+            const keySalt = String(body.salt || "");
+            const keyIterations = Number(body.iterations);
+            if (wrapParts.length !== 2 || !validBase64(wrapParts[0]) || !validBase64(wrapParts[1]) ||
+                fromBase64(wrapParts[0]).length !== 12 || fromBase64(wrapParts[1]).length < 16 ||
+                !validBase64(keySalt) || fromBase64(keySalt).length !== 16 ||
+                !Number.isInteger(keyIterations) || keyIterations < 100000 || keyIterations > 500000) {
+              return json({ error: "A valid encrypted account-key wrapper is required when creating a member account." }, 400);
+            }
             const salt = randomBytes(16);
             const passwordHash = await derivePasswordHash(password, salt, ITERATIONS);
             const userId = crypto.randomUUID();
@@ -883,6 +892,8 @@ export default {
             await env.gullak_db.batch([
               env.gullak_db.prepare("INSERT INTO users (user_id, username, password_salt, password_hash, password_iterations, created_at) VALUES (?, ?, ?, ?, ?, ?)")
                 .bind(userId, username, toBase64(salt), passwordHash, ITERATIONS, now),
+              env.gullak_db.prepare("INSERT INTO user_key_wraps (user_id, wrapped_secret, salt, iterations, updated_at) VALUES (?, ?, ?, ?, ?)")
+                .bind(userId, String(body.wrapped_secret), keySalt, keyIterations, now),
               env.gullak_db.prepare("INSERT INTO cloud_family_members (family_id, user_id, role, joined_at) VALUES (?, ?, ?, ?)")
                 .bind(familyId, userId, role, now)
             ]);
