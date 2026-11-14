@@ -39,6 +39,10 @@
       try {
         const remembered = await G.cloud.restoreRemembered();
         if (!remembered) return false;
+        if (remembered.user?.account_type === 'family') {
+          await G.cloud.logout().catch(() => {});
+          return false;
+        }
         cloudUser = remembered.user; cloudSecret = remembered.secret || ''; syncError = null;
         if (!cloudSecret) return true;
         if (G.setMode) G.setMode('individual');
