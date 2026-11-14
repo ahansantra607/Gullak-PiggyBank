@@ -195,6 +195,7 @@
       let m = t.match(/\b(?:dream|goal)\s+(?:called|named)\s+(.+?)(?=\s+(?:for|costing|worth|target)\b|$)/);
       if (!m) m = t.match(/\b(?:create|add|make|start|set up)\s+(?:a\s+|new\s+)?(?:dream|goal)\s+(?:for\s+)?(.+?)(?=\s+(?:for|costing|worth|target)\b|$)/);
       if (m) name = m[1].replace(/\b(?:called|named)\b/g, '').trim();
+      if (name && amount != null) name = name.replace(new RegExp('\\\\b' + String(amount) + '\\\\b'), '').replace(/\\s+/g, ' ').trim();
       if (!name && ctx.profilePending && ctx.profilePending.name) name = ctx.profilePending.name;
       if (!name && amount == null) {
         ctx.profilePending = { kind: 'dream' };
