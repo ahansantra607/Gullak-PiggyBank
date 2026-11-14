@@ -406,12 +406,27 @@
   const accountScreen = G.screens['cloud-account'];
   const accountRender0 = accountScreen.render;
   accountScreen.render = (...args) => accountRender0(...args).replace(
-    '</div>\\n      <p class="fine">🔐 Gullak syncs',
-    '</div>\\n      ${G.cloudAccount.unlocked ? \'<section class="card"><h3>📦 Backups & restore</h3><button class="btn soft block" data-act="cloud-individual-export">Export Individual backup</button><label class="btn ghost block file-btn">Import Individual backup<input id="cloud-individual-import-file" type="file" accept=".gullak,.json,application/json" hidden></label><button class="btn soft block mt" data-act="open-family-backups">Family backups (import / export)</button></section>\' : \'<section class="card"><h3>📦 Backups & restore</h3><p class="small muted">Log in to manage encrypted backups.</p></section>\'}\\n      <p class="fine">🔐 Gullak syncs'
+    '</div>\n      <p class="fine">🔐 Gullak syncs',
+    '</div>\n      ${G.cloudAccount.unlocked ? \'<section class="card"><h3>📦 Backups & restore</h3><button class="btn soft block" data-act="cloud-individual-export">Export Individual backup</button><label class="btn ghost block file-btn">Import Individual backup<input id="cloud-individual-import-file" type="file" accept=".gullak,.json,application/json" hidden></label><button class="btn soft block mt" data-act="open-family-backups">Import family backup</button>${G.FAM ? '<button class="btn soft block" data-act="export-family-backup">Export active family</button>' : ''}</section>\' : \'<section class="card"><h3>📦 Backups & restore</h3><p class="small muted">Log in to manage encrypted backups.</p></section>\'}\n      <p class="fine">🔐 Gullak syncs'
   );
   const accountHandlers0 = accountScreen.handlers;
   accountScreen.handlers = (...args) => Object.assign(accountHandlers0(...args), {
     'open-family-backups': () => G.go('cloud-families'),
+    'export-family-backup': async () => {
+      const F = G.FAM;
+      if (!F || !G.cloudAccount.unlocked) return G.toast('Open and unlock the family first.');
+      await G.famSave();
+      const payload = { gullakFamily: 1, savedAt: G.now(), meta: F.meta, data: await C.encStr(F.fk, JSON.stringify(F.data)) };
+      const m = G.modal({ html: '<h2>🔐 Export encrypted family backup</h2><p class="small muted">Choose a separate backup passphrase.</p><input class="input" id="family-backup-export-pass" type="password" placeholder="At least 10 characters"><input class="input" id="family-backup-export-confirm" type="password" placeholder="Confirm passphrase"><button class="btn primary block mt" data-act="make-family-backup">Create encrypted file</button>', handlers: {
+        'make-family-backup': async button => {
+          const pass = G.$('#family-backup-export-pass', m.el).value, confirm = G.$('#family-backup-export-confirm', m.el).value;
+          if (pass.length < 10 || pass !== confirm) return G.toast('Use matching passphrases of at least 10 characters.');
+          button.disabled = true;
+          try { G.cloudBackup.download(await G.cloudBackup.encode(payload, pass)); m.close(); G.toast('Encrypted family export created.'); }
+          catch (e) { button.disabled = false; G.toast(e.message || 'Export failed.'); }
+        }
+      }});
+    },
     'cloud-individual-export': () => {
       if (!G.cloudAccount.unlocked || !G.S.profile || mode !== 'individual') return G.toast('Log in to the Individual account first.');
       const m = G.modal({ html: '<h2>🔐 Export encrypted backup</h2><p class="small muted">Choose a separate backup passphrase.</p><input class="input" id="ind-export-pass" type="password" placeholder="At least 10 characters"><input class="input" id="ind-export-confirm" type="password" placeholder="Confirm passphrase"><button class="btn primary block mt" data-act="make-ind-export">Create backup</button>', handlers: {
