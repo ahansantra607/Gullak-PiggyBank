@@ -736,7 +736,7 @@ export default {
           if (name.length < 2 || name.length > 40) {
             return json({ error: "Family name must be 2–40 characters." }, 400);
           }
-          if (!/^\\d{4,6}$/.test(joinCode)) {
+          if (!/^\d{4,6}$/.test(joinCode)) {
             return json({ error: "Family PIN must be 4–6 digits." }, 400);
           }
           const wrapParts = keyWrap.split(".");
@@ -809,7 +809,7 @@ export default {
           const parts = String(body.family_key_wrap || "").split(".");
           const salt = String(body.key_wrap_salt || "");
           const iterations = Number(body.key_wrap_iterations);
-          if (!/^\\d{4,6}$/.test(code) || parts.length !== 2 ||
+          if (!/^\d{4,6}$/.test(code) || parts.length !== 2 ||
               !validBase64(parts[0]) || !validBase64(parts[1]) ||
               fromBase64(parts[0]).length !== 12 || fromBase64(parts[1]).length < 16 ||
               !validBase64(salt) || fromBase64(salt).length !== 16 ||
