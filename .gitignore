@@ -1,0 +1,11 @@
+# Android / Gradle build outputs
+.gradle/
+**/build/
+local.properties
+
+# Never commit a plaintext Android signing key or credentials
+*.jks
+*.keystore
+android/signing/signing.properties
+android/signing/release.keystore
+android/signing/*.zip
