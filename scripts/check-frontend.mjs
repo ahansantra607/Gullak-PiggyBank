@@ -28,6 +28,16 @@ const cloudUiSource = readFileSync('js/cloud-ui.js', 'utf8');
 if (!cloudUiSource.includes('!!G.cloudFamilyReturn')) throw new Error('Cloud login does not preserve an explicit Family-mode return.');
 if (!cloudOnlySource.includes("const destination = familyReturn === 'create' ? 'fam-create' : familyReturn === 'open' ? 'cloud-families' : 'fam-pick';")) throw new Error('Family login does not return to the correct next step.');
 if (!cloudOnlySource.includes("G.go('fam-users', { f: meta.cloudId })")) throw new Error('Shared Family PIN flow does not show the member picker.');
+const familySource = readFileSync('js/family.js', 'utf8');
+const cloudSource = readFileSync('js/cloud.js', 'utf8');
+const serverSource = readFileSync('server/src/index.ts', 'utf8');
+if (!familySource.includes('Shared Family PIN') || familySource.includes('Your supervisor PIN')) throw new Error('Family creation still asks for a personal supervisor PIN instead of the shared Family PIN.');
+if (!cloudOnlySource.includes('G.cloud.createFamily({')) throw new Error('Family creation is not being committed to the cloud.');
+if (!cloudOnlySource.includes('familyKey: C.b64(F.fkRaw)')) throw new Error('New Family exports do not include the encrypted-file-wrapped family key.');
+if (!cloudSource.includes('passwordOrRole')) throw new Error('Supervisor-created member accounts are not supported by the cloud client.');
+if (!serverSource.includes('Family PIN must be 4–6 digits.')) throw new Error('The server does not enforce the shared Family PIN format.');
+if (!serverSource.includes('Password must be at least 8 characters and include uppercase, lowercase, a number and a special character.')) throw new Error('Supervisor-created accounts do not enforce the account password policy.');
+
 if (!cloudOnlySource.includes("'recover-family-pin': () => G.go('fam-recover', { f: q.f || activeFamilyId, m: q.m })")) throw new Error('Family PIN recovery entry point is missing.');
 if (!cloudOnlySource.includes('G.cloud.saveFamilyVault(q.f, cached.fkRaw, remote.value)')) throw new Error('Supervisor PIN recovery does not sync updated family metadata.');
 if (!cloudOnlySource.includes("'family-create': () => G.go('fam-create')")) throw new Error('Cloud family search screen has no create-family route.');
@@ -99,7 +109,7 @@ const familyContext = vm.createContext({
   fetch: async (url, options = {}) => {
     familyRequests.push({ url: String(url), method: options.method || 'GET' });
     const body = String(url).endsWith('/api/families')
-      ? { families: [{ family_id: 'family-1', name: 'Test family', role: 'supervisor' }] }
+      ? { families: [{ family_id: 'family-1', name: 'Test family', role: 'supervisor', is_member: 1 }] }
       : String(url).endsWith('/join') ? { success: true }
       : { exists: true, vault: { iv: 'iv', ciphertext: 'ciphertext' }, key_wrap_salt: 'salt', key_wrap_iterations: 100000, family_key_wrap: 'wrapped-key' };
     return { ok: true, json: async () => body };
