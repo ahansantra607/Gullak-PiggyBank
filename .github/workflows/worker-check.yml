@@ -90,12 +90,13 @@ jobs:
             exit 1
           fi
           echo "available=true" >> "$GITHUB_OUTPUT"
-      - name: Apply family D1 schema and deploy cloud API Worker
+      - name: Apply database schemas and remove historical smoke-test data
         if: steps.credentials.outputs.available == 'true'
         working-directory: server
         run: |
           npx wrangler d1 execute gullak-db --remote --file=schema.sql --yes --config=wrangler.jsonc
           npx wrangler d1 execute gullak-db --remote --file=family-schema.sql --yes --config=wrangler.jsonc
+          npx wrangler d1 execute gullak-db --remote --file=cleanup-smoke-data.sql --yes --config=wrangler.jsonc
           npx wrangler deploy --config=wrangler.jsonc
       - name: Build and deploy latest static frontend Worker
         if: steps.credentials.outputs.available == 'true'
