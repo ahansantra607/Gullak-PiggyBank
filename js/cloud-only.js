@@ -286,11 +286,13 @@
       const member = cached && cached.meta.members.find(m => m.id === q.m);
       if (!cached || !member) return '<section class="ob"><header class="page-h"><button class="back" data-act="go" data-to="cloud-families">←</button><h1>Recover PIN</h1></header><section class="card"><p>Open the family with its recovery code first, then choose the member again.</p><button class="btn primary block" data-act="go" data-to="cloud-families">Find family</button></section></section>';
       if (member.role !== 'supervisor' || !G.cloudAccount.user || member.userId !== G.cloudAccount.user.user_id) {
-        return '<section class="ob"><header class="page-h"><button class="back" data-act="go" data-to="fam-pin">←</button><h1>Recover PIN</h1></header><section class="card"><p>Ask a linked family supervisor to reset this PIN from their account.</p><button class="btn primary block" data-act="go" data-to="fam-users">Back to members</button></section></section>';
+        return '<section class="ob"><header class="page-h"><button class="back" data-act="back-family-pin">←</button><h1>Recover PIN</h1></header><section class="card"><p>Ask a linked family supervisor to reset this PIN from their account.</p><button class="btn primary block" data-act="back-family-members">Back to members</button></section></section>';
       }
-      return '<section class="ob"><header class="page-h"><button class="back" data-act="go" data-to="fam-pin">←</button><h1>🔑 Reset supervisor PIN</h1></header><section class="card"><p class="small muted">The family recovery code has unlocked the family key. Choose a new 4–6 digit PIN.</p><label class="label">New PIN</label><input class="input big" id="recover-family-pin-1" type="password" inputmode="numeric" maxlength="6" autocomplete="new-password"><label class="label">Confirm PIN</label><input class="input big" id="recover-family-pin-2" type="password" inputmode="numeric" maxlength="6" autocomplete="new-password"><button class="btn primary block big" data-act="save-family-pin">Save new PIN</button></section></section>';
+      return '<section class="ob"><header class="page-h"><button class="back" data-act="back-family-pin">←</button><h1>🔑 Reset supervisor PIN</h1></header><section class="card"><p class="small muted">The family recovery code has unlocked the family key. Choose a new 4–6 digit PIN.</p><label class="label">New PIN</label><input class="input big" id="recover-family-pin-1" type="password" inputmode="numeric" maxlength="6" autocomplete="new-password"><label class="label">Confirm PIN</label><input class="input big" id="recover-family-pin-2" type="password" inputmode="numeric" maxlength="6" autocomplete="new-password"><button class="btn primary block big" data-act="save-family-pin">Save new PIN</button></section></section>';
     },
     handlers: q => ({
+      'back-family-pin': () => G.go('fam-pin', { f: q.f, m: q.m }),
+      'back-family-members': () => G.go('fam-users', { f: q.f }),
       'save-family-pin': async button => {
         const cached = familyCache.get(q.f);
         const member = cached && cached.meta.members.find(m => m.id === q.m);
