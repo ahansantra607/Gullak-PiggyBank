@@ -715,19 +715,16 @@ export default {
             return json({ error: "Enter at least 2 characters to search." }, 400);
           }
           const nameQuery = raw.replace(/[\\%_]/g, "") + "%";
-          const code = raw.toUpperCase().replace(/[^A-Z0-9]/g, "").replace(/^GULL/, "");
-          const codeHash = code.length >= 8 ? await sha256(code) : "";
           const rows = await env.gullak_db.prepare(`
             SELECT f.family_id, f.name, f.created_at,
               CASE WHEN m.user_id IS NULL THEN 0 ELSE 1 END AS is_member
             FROM cloud_families f
             LEFT JOIN cloud_family_members m
               ON m.family_id = f.family_id AND m.user_id = ?
-            WHERE f.name LIKE ? OR (? <> '' AND f.join_code_hash = ?)
-            ORDER BY CASE WHEN f.join_code_hash = ? THEN 0 ELSE 1 END,
-              f.created_at DESC
+            WHERE f.name LIKE ?
+            ORDER BY f.created_at DESC
             LIMIT 20
-          `).bind(user?.user_id || "", nameQuery, codeHash, codeHash, codeHash).all();
+          `).bind(user?.user_id || "", nameQuery).all();
           return json({ families: rows.results || [] });
         }
 
@@ -845,18 +842,7 @@ export default {
           return json({ success: true });
         }
 
-        if (action === "join" && request.method === "POST") {
-          const body = await request.json() as { join_code?: string };
-          const code = String(body.join_code || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
-          if (!code || !constantTimeEqual(await sha256(code), family.join_code_hash)) {
-            return json({ error: "That family code is not correct." }, 403);
-          }
-          await env.gullak_db.prepare(`
-            INSERT OR IGNORE INTO cloud_family_members (family_id, user_id, role, joined_at)
-            VALUES (?, ?, 'member', ?)
-          `).bind(familyId, user.user_id, new Date().toISOString()).run();
-          return json({ success: true, family: { family_id: familyId, name: family.name, role: membership?.role || "member" } });
-        }
+
 
         if (!membership) return json({ error: "You are not a member of this family." }, 403);
 
