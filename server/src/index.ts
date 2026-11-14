@@ -8,7 +8,7 @@ const APP_ORIGIN = "https://gullak-piggybank.ahansantra607.workers.dev";
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": APP_ORIGIN,
   "Access-Control-Allow-Credentials": "true",
-  "Access-Control-Allow-Methods": "GET, POST, PUT, OPTIONS",
+  "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type",
   "Vary": "Origin"
 };
