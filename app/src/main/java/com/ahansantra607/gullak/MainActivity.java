@@ -12,12 +12,17 @@ import android.view.View;
 import android.webkit.SafeBrowsingResponse;
 import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
+import android.webkit.WebChromeClient;
+import android.webkit.ValueCallback;
+import android.webkit.JavascriptInterface;
+import android.util.Base64;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -25,6 +30,7 @@ import org.json.JSONObject;
 import java.io.BufferedReader;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.Locale;
@@ -38,6 +44,10 @@ public class MainActivity extends Activity {
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
     private WebView webView;
     private boolean showingUpdate;
+    private static final int REQUEST_FILE_CHOOSER = 2101;
+    private static final int REQUEST_SAVE_BACKUP = 2102;
+    private ValueCallback<Uri[]> filePathCallback;
+    private byte[] pendingBackupBytes;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -214,6 +224,10 @@ public class MainActivity extends Activity {
 
     private void openApp() {
         showingUpdate = false;
+        if (filePathCallback != null) {
+            filePathCallback.onReceiveValue(null);
+            filePathCallback = null;
+        }
         if (webView != null) {
             setContentView(webView);
             return;
@@ -225,6 +239,24 @@ public class MainActivity extends Activity {
         webView.getSettings().setAllowFileAccess(false);
         webView.getSettings().setAllowContentAccess(false);
         webView.getSettings().setMixedContentMode(android.webkit.WebSettings.MIXED_CONTENT_NEVER_ALLOW);
+        webView.addJavascriptInterface(new GullakNativeBridge(), "GullakNative");
+        webView.setWebChromeClient(new WebChromeClient() {
+            @Override
+            public boolean onShowFileChooser(WebView view, ValueCallback<Uri[]> callback, FileChooserParams params) {
+                if (filePathCallback != null) filePathCallback.onReceiveValue(null);
+                filePathCallback = callback;
+                Intent pick = new Intent(Intent.ACTION_GET_CONTENT);
+                pick.addCategory(Intent.CATEGORY_OPENABLE);
+                pick.setType("*/*");
+                try {
+                    startActivityForResult(Intent.createChooser(pick, "Choose Gullak backup"), REQUEST_FILE_CHOOSER);
+                    return true;
+                } catch (Exception error) {
+                    filePathCallback = null;
+                    return false;
+                }
+            }
+        });
         webView.setWebViewClient(new WebViewClient() {
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
@@ -241,12 +273,74 @@ public class MainActivity extends Activity {
             @Override
             public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
                 if (request.isForMainFrame()) {
-                    view.loadData("<meta name='viewport' content='width=device-width, initial-scale=1'><div style='font-family:sans-serif;padding:28px;text-align:center'><h2>Can't connect to Gullak</h2><p>Check your internet connection and try again.</p><button onclick='location.reload()'>Try again</button></div>", "text/html", "UTF-8");
+                    view.loadData("<meta name='viewport' content='width=device-width, initial-scale=1'><div style='font-family:sans-serif;padding:28px;text-align:center'><h2>Can't connect to Gullak</h2><p>Check your internet connection and try again.</p><button onclick=\"location.href='https://gullak-piggybank.ahansantra607.workers.dev/#/'\">Try again</button></div>", "text/html", "UTF-8");
                 }
             }
         });
         setContentView(webView);
         webView.loadUrl(APP_URL);
+    }
+
+
+    private final class GullakNativeBridge {
+        @JavascriptInterface
+        public void saveEncryptedBackup(String filename, String mimeType, String base64) {
+            try {
+                byte[] bytes = Base64.decode(base64, Base64.DEFAULT);
+                if (bytes.length == 0 || bytes.length > 15 * 1024 * 1024) {
+                    runOnUiThread(() -> Toast.makeText(MainActivity.this, "Backup file is too large or empty.", Toast.LENGTH_LONG).show());
+                    return;
+                }
+                String safeName = filename == null ? "gullak-backup.gullak" : filename.replaceAll("[^A-Za-z0-9._-]", "_");
+                if (!safeName.endsWith(".gullak")) safeName += ".gullak";
+                runOnUiThread(() -> {
+                    pendingBackupBytes = bytes;
+                    Intent create = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+                    create.addCategory(Intent.CATEGORY_OPENABLE);
+                    create.setType("application/json");
+                    create.putExtra(Intent.EXTRA_TITLE, safeName);
+                    try {
+                        startActivityForResult(create, REQUEST_SAVE_BACKUP);
+                    } catch (Exception error) {
+                        pendingBackupBytes = null;
+                        Toast.makeText(MainActivity.this, "Unable to open the save dialog.", Toast.LENGTH_LONG).show();
+                    }
+                });
+            } catch (Exception error) {
+                runOnUiThread(() -> Toast.makeText(MainActivity.this, "Could not prepare the encrypted backup.", Toast.LENGTH_LONG).show());
+            }
+        }
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        if (requestCode == REQUEST_FILE_CHOOSER) {
+            if (filePathCallback != null) {
+                Uri[] result = resultCode == RESULT_OK && data != null && data.getData() != null
+                    ? new Uri[]{data.getData()} : null;
+                filePathCallback.onReceiveValue(result);
+                filePathCallback = null;
+            }
+            return;
+        }
+        if (requestCode == REQUEST_SAVE_BACKUP) {
+            try {
+                if (resultCode == RESULT_OK && data != null && data.getData() != null && pendingBackupBytes != null) {
+                    try (OutputStream output = getContentResolver().openOutputStream(data.getData())) {
+                        if (output == null) throw new IllegalStateException("Unable to open the selected destination.");
+                        output.write(pendingBackupBytes);
+                        output.flush();
+                    }
+                    Toast.makeText(this, "Encrypted Gullak backup saved.", Toast.LENGTH_LONG).show();
+                }
+            } catch (Exception error) {
+                Toast.makeText(this, "Could not save the backup. Please try again.", Toast.LENGTH_LONG).show();
+            } finally {
+                pendingBackupBytes = null;
+            }
+            return;
+        }
+        super.onActivityResult(requestCode, resultCode, data);
     }
 
     private Button makeButton(String text) {
