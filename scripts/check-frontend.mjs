@@ -33,7 +33,7 @@ if (positions.some(index => index < 0) || positions.some((index, i) => i && inde
 }
 
 const context = vm.createContext({
-  window: {},
+  window: { G: {}, crypto: webcrypto },
   crypto: webcrypto,
   TextEncoder,
   TextDecoder,
