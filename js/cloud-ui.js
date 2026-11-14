@@ -112,10 +112,30 @@
           const remote = await G.cloud.loadVault(secret);
           if (G.mode) G.setMode('individual');
           if (remote) {
-            G.S = normalize(remote);
+            const local = localIndividual();
+            if (local && JSON.stringify(local) !== JSON.stringify(remote)) {
+              const replaceCloud = await G.confirm(
+                'Two different Gullak copies',
+                'A different copy exists in this browser. Choose Yes to replace the cloud diary with this copy, or No to keep the cloud diary. The local copy is cleared only after the chosen cloud copy is verified.',
+                'Replace cloud with this copy', 'Keep cloud copy'
+              );
+              if (replaceCloud) {
+                await G.cloud.saveVault(local, secret);
+                const verifiedLocal = await G.cloud.loadVault(secret);
+                if (!verifiedLocal || JSON.stringify(verifiedLocal) !== JSON.stringify(local)) {
+                  throw new Error('Cloud verification failed. Neither copy was cleared.');
+                }
+                G.S = normalize(verifiedLocal);
+              } else {
+                G.S = normalize(remote);
+              }
+            } else {
+              G.S = normalize(remote);
+            }
             G.save();
             await G.waitForCloudSync();
-            G.toast('☁️ Your encrypted Gullak is unlocked.');
+            localStorage.removeItem('gullak:v1');
+            G.toast('☁️ Your encrypted Gullak is unlocked. Browser diary copy cleared.');
             G.go(returnAfterLogin || 'home');
             return;
           }
