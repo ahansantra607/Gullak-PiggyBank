@@ -24,6 +24,8 @@ for (const file of files) {
 }
 
 const cloudOnlySource = readFileSync('js/cloud-only.js', 'utf8');
+const cloudUiSource = readFileSync('js/cloud-ui.js', 'utf8');
+if (!cloudUiSource.includes('!!G.cloudFamilyReturn')) throw new Error('Cloud login does not preserve an explicit Family-mode return.');
 if (!cloudOnlySource.includes("const destination = familyReturn === 'create' ? 'fam-create' : familyReturn === 'open' ? 'cloud-families' : 'fam-pick';")) throw new Error('Family login does not return to the correct next step.');
 if (!cloudOnlySource.includes("'back-family-users': () => G.go('fam-users', { f: q.f || activeFamilyId })")) throw new Error('Family PIN back navigation loses the selected family.');
 if (!cloudOnlySource.includes("'family-create': () => G.go('fam-create')")) throw new Error('Cloud family search screen has no create-family route.');
