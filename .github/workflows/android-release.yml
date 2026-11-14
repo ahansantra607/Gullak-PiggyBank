@@ -45,7 +45,9 @@ jobs:
             echo "::error::Android SDK command-line tools were not found on the GitHub runner."
             exit 1
           fi
+          set +o pipefail
           yes | "$sdkmanager_path" --licenses >/dev/null
+          set -o pipefail
           "$sdkmanager_path" "platform-tools" "platforms;android-35" "build-tools;35.0.0"
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
