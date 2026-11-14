@@ -290,6 +290,11 @@
           <button class="pig-btn" data-act="oink" aria-label="Tap Gullak">${G.piggy(mood.mood, 130)}</button>
           <div class="bubble">${esc(mood.msg)} ${G.speakBtn(mood.msg)}</div>
         </section>
+        <button class="talk-bar" data-act="go" data-to="talk" aria-label="Talk with Hey Gullak">
+          <span class="mic sm">🎙️</span>
+          <span><b>Talk with Hey Gullak</b><small>Ask me anything about your money</small></span>
+          <span class="chev">›</span>
+        </button>
         <section class="balance card">
           <small>You can spend</small>
           <div class="bal">${rs(bal)}</div>
