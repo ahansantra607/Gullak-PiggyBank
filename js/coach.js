@@ -141,7 +141,7 @@
         detail.replace(/<[^>]*>/g, ''), intent);
 
     if (/\b(?:what is|what's|whats|tell me)\s+(?:my\s+)?name\b|\bwhat do you call me\b/.test(t))
-      return simpleReply('I have your name as <b>' + esc(p.nickname || 'not set') + '</b>.', 'Your name is ' + (p.nickname || 'not set') + '.', 'profile-name-query');
+      return simpleReply('Your name is <b>' + esc(p.nickname || 'not set') + '</b>.', 'Your name is ' + (p.nickname || 'not set') + '.', 'profile-name-query');
     if (/\b(?:what is|what's|whats|tell me)\s+my\s+(?:age\s*)?group\b|\bwhich age group am i\b/.test(t))
       return simpleReply('Your current age group is <b>' + esc(p.ageGroup || 'not set') + '</b>.', 'Your age group is ' + (p.ageGroup || 'not set') + '.', 'profile-group-query');
     if (/\b(?:what is|what's|whats|tell me)\s+my\s+(?:current\s+)?dream\b|\bwhat am i saving for\b/.test(t)) {
