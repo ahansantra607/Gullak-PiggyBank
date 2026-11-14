@@ -40,19 +40,28 @@
 
 
   // A diary cannot be started or edited until its cloud account is unlocked.
-  const modesHandlers0 = G.screens.modes && G.screens.modes.handlers;
-  if (G.screens.modes) G.screens.modes.handlers = () => Object.assign(modesHandlers0 ? modesHandlers0() : {}, {
-    'mode-me': () => {
-      mode = 'individual';
-      if (!G.cloudAccount.unlocked) { G.go('cloud-account'); return; }
-      G.setMode('individual'); G.go(G.S.profile ? 'home' : 'me-pin');
-    },
-    'mode-fam': () => {
-      mode = 'family'; G.setMode('family');
-      if (!G.cloudAccount.unlocked) { G.cloudFamilyReturn = true; G.go('cloud-account'); return; }
-      G.go('fam-pick');
-    }
-  });
+  const modesHandlers0 = G.screens.modes && G.screens.modes.handlers;\n  const modesRender0 = G.screens.modes && G.screens.modes.render;
+  if (G.screens.modes) {
+    G.screens.modes.render = () => {
+      const html = modesRender0();
+      return html
+        .replace(/Continue my Gullak|One kid on this device\\. A grown-up sets a PIN first\\./g, 'Open your cloud-synced Individual Gullak.')
+        .replace('Choose your family, pick who you are, enter your PIN. Supervisors approve asks.', 'Find or create a cloud family, then choose your profile.');
+    };
+    G.screens.modes.handlers = () => Object.assign(modesHandlers0 ? modesHandlers0() : {}, {
+      'mode-me': () => {
+        mode = 'individual';
+        if (!G.cloudAccount.unlocked) { G.go('cloud-account'); return; }
+        if (G.S && G.S.profile) { G.go('home'); return; }
+        G.setMode('individual'); G.go('me-pin');
+      },
+      'mode-fam': () => {
+        mode = 'family'; G.setMode('family');
+        if (!G.cloudAccount.unlocked) { G.cloudFamilyReturn = true; G.go('cloud-account'); return; }
+        G.go('fam-pick');
+      }
+    });
+  }
   const routeGuardCloudOnly0 = G.routeGuard;
   G.routeGuard = (name, q) => {
     if (!G.cloudAccount.unlocked && !['welcome', 'modes', 'cloud-account', 'cloud-families', 'cloud-family-join', 'fam-pick'].includes(name)) return 'cloud-account';
