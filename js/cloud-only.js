@@ -449,14 +449,14 @@
     render: () => `<section class="ob"><header class="page-h"><button class="back" data-act="family-account-back" aria-label="Cancel Family account setup">←</button><h1>👨‍👩‍👧 Gullak Family account</h1></header>
       <section class="card"><h2>${familyAuthMode === 'register' ? 'Create the first Supervisor account' : 'Log in to your Family account'}</h2>
         <p class="small muted">This is a Family-only login. It is separate from Individual Gullak and cannot open an Individual diary.</p>
-        <label class="label" for="family-account-username">${familyAuthMode === 'register' ? 'Supervisor’s Gullak username' : 'Gullak username'}</label>
-        <input class="input" id="family-account-username" maxlength="24" autocomplete="username" placeholder="${familyAuthMode === 'register' ? 'Username for this Supervisor' : 'Your personal Gullak username'}">
-        <p class="fine">${familyAuthMode === 'register' ? 'This username belongs only to the first Supervisor’s account, not to the family.' : 'Each family member signs in with their own personal Gullak account.'}</p>
+        <label class="label" for="family-account-username">${familyAuthMode === 'register' ? 'First Supervisor’s personal Gullak username' : 'Your personal Gullak username'}</label>
+        <input class="input" id="family-account-username" maxlength="24" autocomplete="username" placeholder="${familyAuthMode === 'register' ? 'Enter the first Supervisor’s username' : 'Enter your Gullak username'}">
+        <p class="fine">${familyAuthMode === 'register' ? 'This is the first Supervisor’s own account username. It is not a family username; every member has their own Gullak account.' : 'Each family member signs in with their own personal Gullak username.'}</p>
         <label class="label" for="family-account-password">Account password</label>
         <input class="input" id="family-account-password" type="password" maxlength="128" autocomplete="${familyAuthMode === 'register' ? 'new-password' : 'current-password'}" placeholder="8+ chars: upper, lower, number & symbol">
         ${familyAuthMode === 'register' ? '<div id="family-password-rules" class="password-rules" hidden aria-live="polite"><div class="password-rules-title">Password strength checklist</div><div data-rule="length"><span>○</span> At least 8 characters</div><div data-rule="upper"><span>○</span> One uppercase letter</div><div data-rule="lower"><span>○</span> One lowercase letter</div><div data-rule="number"><span>○</span> One number</div><div data-rule="special"><span>○</span> One special character</div></div>' : ''}
         <button class="btn primary block big" data-act="family-account-connect">${familyAuthMode === 'register' ? 'Create Family Supervisor account' : 'Log in to Family'}</button>
-        <button class="btn ghost block" data-act="family-account-mode">${familyAuthMode === 'register' ? 'I already have a Family account · Log in' : 'Create a new Family account'}</button>
+        ${familyAuthMode === 'login' ? '<button class="btn ghost block" data-act="family-account-mode">Create a new Family account</button>' : ''}
       </section></section>`,
     handlers: () => ({
       'family-account-mode': () => { familyAuthMode = familyAuthMode === 'register' ? 'login' : 'register'; G.render(); },
