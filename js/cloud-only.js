@@ -81,7 +81,7 @@
     if (mode === 'family' && ['cloud-account', 'cloud-families', 'cloud-family-join'].includes(name)) return null;
     const prior = routeGuardCloudOnly0 ? routeGuardCloudOnly0(name, q) : null;
     if (!G.cloudAccount.unlocked && !G.backupTemporary) {
-      if (!['welcome', 'modes', 'cloud-account', 'cloud-families', 'cloud-family-join', 'fam-pick', 'fam-users'].includes(name)) return 'cloud-account';
+      if (!['welcome', 'modes', 'cloud-account', 'cloud-families', 'cloud-family-join', 'fam-pick', 'fam-users'].includes(name) && !(mode === 'family' && name === 'fam-create')) return 'cloud-account';
       return prior;
     }
     // Once signed in, the welcome/mode chooser is never a destination.
@@ -252,7 +252,7 @@
     render: () => '<section class="ob"><header class="page-h"><h1>👨‍👩‍👧 Family</h1></header><section class="card"><p class="muted">What would you like to do?</p><button class="btn primary block" data-act="open-cloud-families">🔎 Find my family</button><button class="btn soft block mt" data-act="new-cloud-family">➕ Create my family</button><label class="btn ghost block file-btn mt">📦 Import family backup<input id="main-family-import" type="file" accept=".gullak,.json,application/json" hidden></label></section></section>',
     handlers: () => ({
       'open-cloud-families': () => { mode = 'family'; G.setMode('family'); G.go('cloud-families'); },
-      'new-cloud-family': () => { mode = 'family'; G.setMode('family'); if (!G.cloudAccount.unlocked) { G.cloudFamilyReturn = 'create'; G.go('cloud-account'); return; } G.cloudFamilyReturn = false; G.go('fam-create'); }
+      'new-cloud-family': () => { mode = 'family'; G.setMode('family'); G.cloudFamilyReturn = false; G.go('fam-create'); }
     })
   };
   const famUsers = G.screens['fam-users'];
