@@ -130,6 +130,9 @@ const createdKidLogin = expect(await request("/api/login", {
 }), 200, "Supervisor-created member login");
 assert(createdKidLogin.data.user.user_id === createdKid.data.member.user_id,
   "Supervisor-created member could not authenticate with its own credentials.");
+const createdKidKey = expect(await request("/api/key-wrap", { cookie: createdKidLogin.cookie }),
+  200, "Supervisor-created member encryption-key wrapper");
+assert(createdKidKey.data.exists, "Supervisor-created member has no password-wrapped encryption key.");
 const allFamilies = expect(await request("/api/families", { cookie: createdKidLogin.cookie }),
   200, "Cloud-wide family directory");
 assert(allFamilies.data.families.some(item => item.family_id === familyId),
