@@ -320,7 +320,7 @@ export default {
 
         return new Response(JSON.stringify({
           success: true,
-          user: { user_id: userId, username }
+          user: { user_id: userId, username, account_type: accountType }
         }), {
           status: 201,
           headers: {
@@ -408,7 +408,8 @@ export default {
           success: true,
           user: {
             user_id: user.user_id,
-            username: user.username
+            username: user.username,
+            account_type: expectedAccountType
           }
         }), {
           headers: {
