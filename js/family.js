@@ -555,8 +555,6 @@
         <section class="card"><h3>⚙️ Family settings</h3>
           <div class="row gap"><input class="input grow" id="fs-name" maxlength="24" value="${esc(F.meta.name)}"><button class="btn soft" data-act="f-rename">Rename</button></div>
           <div class="col gap mt"><button class="btn soft block" data-act="f-code">🛟 Make a new recovery code</button>
-            <button class="btn soft block" data-act="f-export">💾 Save encrypted family file (to move devices)</button>
-            <button class="btn ghost block" data-act="go" data-to="modes">🔀 Switch mode</button>
             <button class="btn danger block" data-act="f-delete">🗑️ Delete this family</button></div>
           <p class="fine">🔐 All money data is encrypted with AES-256 before cloud sync. PINs are never stored.</p></section>`;
     },
@@ -747,11 +745,10 @@
       if (G.mode() === 'family') {
         return html.replace(/<section class="card"><h3>My data<\/h3>[\s\S]*?<\/section>/, `<section class="card"><h3>👨‍👩‍👧 Family</h3>
           <p class="small muted">You're in <b>${esc(G.FAM.meta.emoji)} ${esc(G.FAM.meta.name)}</b>. Your money diary is encrypted before cloud sync. Supervisors manage members and PINs.</p>
-          <div class="col gap"><button class="btn soft block" data-act="fam-switch">👥 Switch user</button><button class="btn ghost block" data-act="go" data-to="modes">🔀 Switch mode</button></div></section>`)
+          <div class="col gap"><button class="btn soft block" data-act="fam-switch">👥 Switch user</button></div></section>`)
           .replace(/<input class="input" id="s-nick"[^>]*>/, `<input class="input" id="s-nick" maxlength="14" value="${esc(G.S.profile.nickname)}" aria-label="Nickname" disabled>`);
       }
-      return html.replace('<section class="card"><h3>My data</h3>', `<section class="card"><h3>🔀 Mode</h3><p class="small muted">You're using <b>🧒 Individual</b> mode.</p>
-        <button class="btn soft block" data-act="go" data-to="modes">Switch to Family mode</button></section><section class="card"><h3>My data</h3>`);
+      return html;
     };
     sc.handlers = (q) => Object.assign(h0(q), {
       'fam-switch': () => G.famLock('fam-users'),
