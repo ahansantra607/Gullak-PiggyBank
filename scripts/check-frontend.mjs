@@ -90,6 +90,8 @@ const G = {
   go: () => {},
   cloud: {
     login: async username => ({ user: { user_id: 'cloud-test-id', username } }),
+    loadKeyWrap: async () => 'SeparateEncryptionPassphrase123!',
+    saveKeyWrap: async () => ({ success: true }),
     register: async username => ({ user: { user_id: 'cloud-test-id', username } }),
     loadVault: async () => remoteVault,
     saveVault: async value => { remoteSaves++; remoteVault = JSON.parse(JSON.stringify(value)); }
