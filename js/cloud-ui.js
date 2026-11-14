@@ -74,7 +74,7 @@
         <input class="input" id="cloud-username" maxlength="24" autocomplete="username" placeholder="3–24 letters, numbers or _">
         <label class="label" for="cloud-password">Account password</label>
         <input class="input" id="cloud-password" type="password" maxlength="128" autocomplete="${authMode === 'register' ? 'new-password' : 'current-password'}" placeholder="8+ chars: upper, lower, number & symbol">
-        <div id="cloud-password-rules" class="password-rules" hidden aria-live="polite"><div class="password-rules-title">Password strength checklist</div><div data-rule="length"><span>○</span> At least 8 characters</div><div data-rule="upper"><span>○</span> One uppercase letter</div><div data-rule="lower"><span>○</span> One lowercase letter</div><div data-rule="number"><span>○</span> One number</div><div data-rule="special"><span>○</span> One special character</div></div>
+        ${authMode === 'register' ? '<div id="cloud-password-rules" class="password-rules" hidden aria-live="polite"><div class="password-rules-title">Password strength checklist</div><div data-rule="length"><span>○</span> At least 8 characters</div><div data-rule="upper"><span>○</span> One uppercase letter</div><div data-rule="lower"><span>○</span> One lowercase letter</div><div data-rule="number"><span>○</span> One number</div><div data-rule="special"><span>○</span> One special character</div></div>' : ''}
         ${authMode === 'register' ? '<label class="label" for="cloud-secret">Separate encryption passphrase</label><input class="input" id="cloud-secret" type="password" maxlength="256" autocomplete="new-password" placeholder="Choose a different passphrase"><label class="label" for="cloud-secret-confirm">Confirm encryption passphrase</label><input class="input" id="cloud-secret-confirm" type="password" maxlength="256" autocomplete="new-password" placeholder="Type it again"><p class="hint">Asked only when creating your account. It is encrypted with your account password so login can unlock your diary without asking again.</p>' : ''}
         <button class="btn primary block big" data-act="cloud-connect">${authMode === 'register' ? 'Create account & secure my Gullak' : 'Log in & unlock my Gullak'}</button>
         <button class="btn ghost block" data-act="cloud-mode">${authMode === 'register' ? 'I already have an account · Log in' : 'New here? · Create an account'}</button>
@@ -88,7 +88,7 @@
         const password = G.$('#cloud-password').value;
         let secret = authMode === 'register' ? G.$('#cloud-secret').value : '';
         if (!/^[a-z0-9_]{3,24}$/i.test(username)) return G.toast('Username must be 3–24 letters, numbers or underscores.');
-        const passwordOK = password.length >= 8 && password.length <= 128 && /[a-z]/.test(password) && /[A-Z]/.test(password) && /[0-9]/.test(password) && /[^A-Za-z0-9]/.test(password);
+        const passwordOK = password.length >= 8 && password.length <= 128 && /[a-z]/.test(password) && /[A-Z]/.test(password) && /[0-9]/.test(password) && /[^A-Za-z0-9\s]/.test(password);
         if (authMode === 'register' && !passwordOK) return G.toast('Use at least 8 characters with uppercase, lowercase, a number and a special character.');
         if (!password || password.length > 128) return G.toast('Enter your account password.');
         if (authMode === 'register' && secret.length < 10) return G.toast('Encryption passphrase must be at least 10 characters.');
@@ -193,7 +193,7 @@
   G.screens['cloud-account'].after = root => {
     const input = G.$('#cloud-password', root), panel = G.$('#cloud-password-rules', root);
     if (!input || !panel) return;
-    const rules = { length: v => v.length >= 8, upper: v => /[A-Z]/.test(v), lower: v => /[a-z]/.test(v), number: v => /[0-9]/.test(v), special: v => /[^A-Za-z0-9]/.test(v) };
+    const rules = { length: v => v.length >= 8, upper: v => /[A-Z]/.test(v), lower: v => /[a-z]/.test(v), number: v => /[0-9]/.test(v), special: v => /[^A-Za-z0-9\s]/.test(v) };
     const update = () => Object.entries(rules).forEach(([key, test]) => { const row = panel.querySelector('[data-rule="' + key + '"]'); if (!row) return; const good = test(input.value); row.classList.toggle('passed', good); row.querySelector('span').textContent = good ? '✓' : '○'; });
     input.addEventListener('focus', () => { panel.hidden = false; update(); });
     input.addEventListener('input', update);
