@@ -64,7 +64,11 @@
     G._last = name; G._lastQ = JSON.stringify(q);
   };
 
-  window.addEventListener('hashchange', () => { G.closeAllModals(); G.render(); });
+  window.addEventListener('hashchange', () => {
+    const target = parse().name;
+    if (G.handleFamilyCreationNavigation) G.handleFamilyCreationNavigation(G._last || '', target);
+    G.closeAllModals(); G.render();
+  });
 
   /* boot */
   Promise.resolve(G.bootReady).then(() => { // family mode may need to unlock (async) before the first render
