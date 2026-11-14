@@ -60,7 +60,6 @@
       },
       'mode-fam': () => {
         mode = 'family'; G.setMode('family');
-        if (!G.cloudAccount.unlocked) { G.cloudFamilyReturn = 'pick'; G.go('cloud-account'); return; }
         G.go('fam-pick');
       }
     });
@@ -80,7 +79,7 @@
   G.routeGuard = (name, q) => {
     const prior = routeGuardCloudOnly0 ? routeGuardCloudOnly0(name, q) : null;
     if (!G.cloudAccount.unlocked && !G.backupTemporary) {
-      if (!['welcome', 'modes', 'cloud-account', 'cloud-families', 'cloud-family-join', 'fam-pick'].includes(name)) return 'cloud-account';
+      if (!['welcome', 'modes', 'cloud-account', 'cloud-families', 'cloud-family-join', 'fam-pick', 'fam-users'].includes(name)) return 'cloud-account';
       return prior;
     }
     // Once signed in, the welcome/mode chooser is never a destination.
@@ -252,8 +251,7 @@
     handlers: () => ({
       'open-cloud-families': () => {
         mode = 'family';
-        if (!G.cloudAccount.unlocked) { G.cloudFamilyReturn = 'open'; G.go('cloud-account'); }
-        else G.go('cloud-families');
+        G.go('cloud-families');
       },
       'new-cloud-family': () => {
         mode = 'family';
@@ -276,15 +274,21 @@
       return '<section class="ob"><header class="page-h"><button class="back" data-act="go" data-to="cloud-families">←</button><h1>' + G.esc(meta.emoji || '👨‍👩‍👧') + ' ' + G.esc(meta.name) + '</h1></header><section class="card"><h2>Family members</h2><p class="small muted">Choose your profile. Each person signs in with their own Gullak account.</p>' +
         members.map(m => {
           const linked = !!linkedId && m.userId === linkedId;
-          return '<button class="kid-row block" ' + (linked ? '' : 'disabled') + ' data-act="choose-member" data-mid="' + G.esc(m.id) + '"><span class="av-mid">' + G.esc(m.avatar || '🙂') + '</span><b>' + G.esc(m.name) + '</b><small>' + (m.role === 'supervisor' ? 'Supervisor' : 'Kid') + (linked ? ' · This is your account' : ' · Sign in with this member account') + '</small></button>';
+          return '<button class="kid-row block" data-act="choose-member" data-mid="' + G.esc(m.id) + '"><b>' + G.esc(m.name) + '</b><small>' + (m.role === 'supervisor' ? 'Supervisor' : 'Kid') + '</small></button>';
         }).join('') +
         (!members.some(m => m.userId === linkedId) ? '<p class="small muted">Your signed-in Gullak account is not linked to a member. Ask a Supervisor to add your account.</p>' : '') +
         '</section></section>';
     },
     handlers: q => ({ 'choose-member': async el => {
       const familyId = q.f || activeFamilyId, memberId = el.dataset.mid;
+      if (!G.cloudAccount.unlocked) {
+        G.pendingFamilyMember = { familyId, memberId };
+        G.cloudFamilyReturn = 'member';
+        G.go('cloud-account');
+        return;
+      }
       try { await G.famUnlock(familyId, memberId); }
-      catch (error) { G.toast(error.message || 'Could not open this member account.'); }
+      catch (error) { G.toast(error.message || 'This account is not linked to the selected member.'); }
     } })
   };
   G.screens['fam-pin'] = {
@@ -340,7 +344,7 @@
   G.screens['cloud-family-join'].handlers = () => ({
     'family-join': async button => {
       const selected = G.selectedCloudFamily;
-      if (!G.cloudAccount.unlocked || !selected) return G.toast('Log in and choose a family first.');
+      if (!selected) return G.toast('Choose a family first.');
       if (!selected.is_member) return G.toast('Ask a family supervisor to add your Gullak username, then refresh the family list.');
       const code = G.$('#cloud-family-code').value.trim();
       if (!/^\d{4,6}$/.test(code)) return G.toast('Enter the 4–6 digit shared Family PIN.');
@@ -498,6 +502,13 @@
       if (familyReturn && G.cloudAccount.unlocked) {
         G.cloudFamilyReturn = false;
         mode = 'family';
+        if (familyReturn === 'member' && G.pendingFamilyMember) {
+          const pending = G.pendingFamilyMember;
+          G.pendingFamilyMember = null;
+          try { await G.famUnlock(pending.familyId, pending.memberId); }
+          catch (error) { G.toast(error.message || 'This Gullak account is not linked to that family member.'); G.go('fam-users', { f: pending.familyId }); }
+          return;
+        }
         const destination = familyReturn === 'create' ? 'fam-create' : familyReturn === 'open' ? 'cloud-families' : 'fam-pick';
         G.go(destination);
       }
