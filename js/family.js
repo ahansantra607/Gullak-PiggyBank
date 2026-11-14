@@ -154,9 +154,9 @@
     return s;
   };
 
-  G.famCreate = async ({ famName, famEmoji, name, avatar, pin, familyPin, qIds, answers }) => {
+  G.famCreate = async ({ famName, famEmoji, name, position, avatar, pin, familyPin, qIds, answers }) => {
     const fkRaw = C.rand(32); const iter = C.ITER;
-    const sup = await makeMember({ name, avatar, role: 'supervisor', pin }, fkRaw, iter);
+    const sup = await makeMember({ name, position: position || name, avatar, role: 'supervisor', pin }, fkRaw, iter);
     const code = String(familyPin || C.recoveryCode()); const rcSalt = C.salt(); const qSalt = C.salt();
     const meta = {
       id: 'f' + G.uid(8).toLowerCase(), name: famName, emoji: famEmoji, createdAt: G.now(), iter, members: [sup],
@@ -512,7 +512,7 @@
       c3: async () => {
         if (cr.q[0] === cr.q[1]) return G.toast('Pick two different questions');
         if (cr.a.some(a => C.norm(a).length < 2)) return G.toast('Answer both questions');
-        const args = { famName: cr.famName.trim(), famEmoji: cr.famEmoji, name: cr.name.trim(), avatar: cr.avatar, pin: cr.pin, qIds: cr.q.slice(), answers: cr.a.slice(), familyPin: cr.pin };
+        const args = { famName: cr.famName.trim(), famEmoji: cr.famEmoji, name: cr.name.trim(), position: cr.name.trim(), avatar: cr.avatar, pin: cr.pin, qIds: cr.q.slice(), answers: cr.a.slice(), familyPin: cr.pin };
         if (!G.cloudAccount?.unlocked || G.cloudAccount.user?.account_type !== 'family') {
           // Finish the family setup first; create/link its first Supervisor account next.
           G.pendingCloudFamilyCreation = { args, rules: Object.assign({}, cr.rules) };
@@ -686,13 +686,14 @@
   };
 
   const addMember = () => {
-    const st = { role: 'member', avatar: '🦁', age: 'junior', freq: 'weekly', busy: false };
+    const st = { role: 'member', avatar: '🦁', avatarSelected: false, age: 'junior', freq: 'weekly', busy: false };
     const m = G.modal({
       html: `<h2>➕ Add a family member</h2>
         <div class="seg"><button class="seg-b on" data-act="role" data-v="member">🧒 Kid<small>uses Gullak</small></button><button class="seg-b" data-act="role" data-v="supervisor">🛡️ Supervisor<small>grown-up, approves</small></button></div>
         <div class="label">Nickname</div><input class="input" id="am-name" maxlength="14" placeholder="e.g. Rocket (not a real name)">
+        <div id="am-supervisor" hidden><div class="label">What should the kids call this Supervisor?</div><input class="input" id="am-position" maxlength="20" placeholder="e.g. Mum, Mama, Bhaiya, Uncle"><p class="hint">Required for every additional Supervisor.</p></div>
         ${G.FAM.cloudId ? '<div class="label">Create their Gullak username</div><input class="input" id="am-username" maxlength="24" autocomplete="off" placeholder="username"><div class="label">Set their account password</div><input class="input" id="am-password" type="password" maxlength="128" autocomplete="new-password" placeholder="Strong password"><p class="hint">They will use this username and password to sign in. No personal Family PIN.</p>' : ''}
-        <div class="avatar-grid sm">${G.AVATARS.concat(['👩', '👨', '👵', '👴']).map(a => `<button class="av ${a === st.avatar ? 'on' : ''}" data-act="av" data-v="${a}">${a}</button>`).join('')}</div>
+        <div class="label">Picture</div><div class="avatar-grid sm">${G.AVATARS.concat(['👩', '👨', '👵', '👴']).map(a => `<button class="av ${a === st.avatar ? 'on' : ''}" data-act="av" data-v="${a}">${a}</button>`).join('')}</div><p class="hint" id="am-avatar-hint">Choose a picture.</p>
         <div id="am-kid"><div class="label">Age group</div>
           <div class="seg"><button class="seg-b on" data-act="age" data-v="junior">8–12</button><button class="seg-b" data-act="age" data-v="senior">13–18</button></div>
           <div class="label">Pocket money (pretend)</div>
@@ -701,14 +702,17 @@
         <div class="label">Member account</div><p class="hint">Each member has their own Gullak username and password. The shared Family PIN is used only before the member list appears.</p>
         <button class="btn primary block big" data-act="ok">Add member</button>`,
       handlers: {
-        role: (el) => { st.role = el.dataset.v; G.$$('[data-act=role]', m.el).forEach(b => b.classList.toggle('on', b === el)); G.$('#am-kid', m.el).hidden = st.role !== 'member'; },
-        av: (el) => { st.avatar = el.dataset.v; G.$$('.av', m.el).forEach(b => b.classList.toggle('on', b === el)); },
+        role: (el) => { st.role = el.dataset.v; G.$('[data-act=role]', m.el).forEach(b => b.classList.toggle('on', b === el)); G.$('#am-kid', m.el).hidden = st.role !== 'member'; G.$('#am-supervisor', m.el).hidden = st.role !== 'supervisor'; },
+        av: (el) => { st.avatar = el.dataset.v; st.avatarSelected = true; G.$('.av', m.el).forEach(b => b.classList.toggle('on', b === el)); },
         age: (el) => { st.age = el.dataset.v; G.$$('[data-act=age]', m.el).forEach(b => b.classList.toggle('on', b === el)); },
         freq: (el) => { st.freq = el.dataset.v; G.$$('[data-act=freq]', m.el).forEach(b => b.classList.toggle('on', b === el)); },
         ok: async (el) => {
           if (st.busy) return;
           const name = G.$('#am-name', m.el).value.trim();
           if (!name) return G.toast('Type a nickname');
+          const position = st.role === 'supervisor' ? (G.$('#am-position', m.el)?.value.trim() || '') : '';
+          if (st.role === 'supervisor' && !position) return G.toast('Choose what the kids should call this Supervisor.');
+          if (st.role === 'supervisor' && !st.avatarSelected) return G.toast('Choose a picture for this Supervisor.');
           const F = G.FAM; if (F.meta.members.some(x => x.name.toLowerCase() === name.toLowerCase())) return G.toast('Someone already has that nickname');
           st.busy = true; el.disabled = true; el.textContent = '🔐 Locking…';
           try {
@@ -723,7 +727,7 @@
             }
             const localMemberSecret = F.cloudId ? C.b64(C.rand(18)) : (G.$('#am-pin', m.el)?.value || '0000');
             if (!F.cloudId && !/^\d{4,6}$/.test(localMemberSecret)) throw new Error('PIN must be 4 to 6 digits.');
-            const mem = await makeMember({ name, avatar: st.avatar, role: st.role, ageGroup: st.age, pin: localMemberSecret }, F.fkRaw, F.meta.iter);
+            const mem = await makeMember({ name, position, avatar: st.avatar, role: st.role, ageGroup: st.age, pin: localMemberSecret }, F.fkRaw, F.meta.iter);
             if (userId) mem.userId = userId;
             F.meta.members.push(mem);
             if (st.role === 'member') F.data.kids[mem.id] = kidState(mem, { pocketMoney: Math.max(0, Math.round(Number(G.$('#am-pm', m.el).value) || 0)), frequency: st.freq });
