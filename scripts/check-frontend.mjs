@@ -39,7 +39,8 @@ if (!serverSource.includes('Family PIN must be 4–6 digits.')) throw new Error(
 if (!serverSource.includes('Password must be at least 8 characters and include uppercase, lowercase, a number and a special character.')) throw new Error('Supervisor-created accounts do not enforce the account password policy.');
 
 if (!cloudOnlySource.includes('G.cloud.saveFamilyVault(q.f, cached.fkRaw, remote.value)')) throw new Error('Supervisor PIN recovery does not sync updated family metadata.');
-if (!cloudOnlySource.includes("'new-cloud-family': () => { mode = 'family'; G.setMode('family'); if (!G.cloudAccount.unlocked) { G.cloudFamilyReturn = 'create'; G.go('cloud-account'); return; } G.cloudFamilyReturn = false; G.go('fam-create'); }")) throw new Error('Create my family does not preserve the create-wizard destination through cloud login.');
+if (!cloudOnlySource.includes("'new-cloud-family': () => { mode = 'family'; G.setMode('family'); G.cloudFamilyReturn = false; G.go('fam-create'); }")) throw new Error('Create my family does not open the original creation wizard directly.');
+if (!cloudOnlySource.includes("!(mode === 'family' && name === 'fam-create')")) throw new Error('Cloud-only route guard blocks the Family creation wizard before login.');
 if (!cloudOnlySource.includes("const destination = familyReturn === 'create' ? 'fam-create' : familyReturn === 'open' ? 'cloud-families' : 'fam-pick';")) throw new Error('Family account login does not return to the original Family creation wizard.');
 if (!cloudOnlySource.includes('G.cloud.listFamilies().then(rows => { G.cloudFamilyResults = rows; })')) throw new Error('Cloud family directory does not load the signed-in user\'s families automatically.');
 if (!cloudOnlySource.includes('Choose your profile. Each person signs in with their own Gullak account.')) throw new Error('Family member selection no longer explains individual account sign-in.');
