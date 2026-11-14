@@ -38,6 +38,17 @@
     }),
     me: () => request('/api/me'),
     logout: () => request('/api/logout', { method: 'POST' }),
+    async saveKeyWrap(secret, accountPassword) {
+      const salt = C.salt();
+      const wrapped = await C.wrapWithSecret(accountPassword, salt, encoder.encode(secret), ITERATIONS);
+      return request('/api/key-wrap', { method: 'PUT', body: JSON.stringify({ wrapped_secret: wrapped, salt, iterations: ITERATIONS }) });
+    },
+    async loadKeyWrap(accountPassword) {
+      const result = await request('/api/key-wrap');
+      if (!result.exists || !result.key_wrap) return null;
+      const row = result.key_wrap, key = await C.deriveKey(accountPassword, row.salt, row.iterations);
+      return new TextDecoder().decode(await C.dec(key, row.wrapped_secret));
+    },
     async loadVault(passphrase) {
       if (!C || !C.available) throw new Error('Secure browser encryption is unavailable.');
       const result = await request('/api/vault');
