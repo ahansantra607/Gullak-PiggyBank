@@ -476,14 +476,11 @@
       const note = thing ? thing.replace(/^\w/, x => x.toUpperCase()) : '';
       S().meta.chatPendingSpend = { amount: n, category: cat, needOrWant: nw, note, createdAt: Date.now() };
       G.save();
-      const m = `I heard: <b>${rs(n)}</b> for ${esc(note || c.n)} — a ${nw}. Nothing has been recorded yet.${g ? `<br><small>⏪ This would push your ${esc(g.name)} back ${G.plural(G.daysBack(n), 'day')}.</small>` : ''}
-        <div class="row gap mt">${actBtn('💾 Save it?', () => {
-          const pending = S().meta.chatPendingSpend;
-          if (!pending) return say('That spend is no longer pending. Tell me again what you spent.', 'That spend is no longer pending.', voice);
-          delete S().meta.chatPendingSpend; G.save();
-          G.openTxn('out', { amount: pending.amount, cat: pending.category, nw: pending.needOrWant, note: pending.note });
-        }, 'primary')}</div>`;
-      return say(m, `I heard ${n} rupees for ${note || c.n}. Say “Save it” to record it, or use the button to edit details.`, voice);
+      const spendId = 'spend-' + Date.now();
+      const m = `I heard: <b>${rs(n)}</b> for ${esc(note || c.n)} — a ${nw}.${g ? `<br><small>⏪ Saving this would push your ${esc(g.name)} back ${G.plural(G.daysBack(n), 'day')}.</small>` : ''}
+        <div class="row gap mt"><button class="btn primary" data-act="chat-spend-open" data-id="${spendId}">💾 Save it?</button></div><span class="small muted" data-spend-id="${spendId}"></span>`;
+      S().meta.chatPendingSpend.id = spendId;
+      return say(m, `I heard ${n} rupees for ${note || c.n}. Use Save it to review and record the spend.`, voice);
     }
     // got money
     if (/\b(got|get|received|earned|earn|gave me|given|pocket money|allowance|found)\b/.test(t) && n != null) {
@@ -550,10 +547,26 @@
     handlers: () => ({
       'chat-send': () => send(G.$('#chat-in').value),
       'chat-say': (el) => send(el.dataset.t),
+      'chat-spend-open': (el) => {
+        const pending = S().meta.chatPendingSpend;
+        if (!pending || pending.id !== el.dataset.id || Date.now() - pending.createdAt >= 30 * 60 * 1000) {
+          return say('That spend draft has expired. Tell me again what you spent.', 'That spend draft has expired.');
+        }
+        G.openTxn('out', {
+          amount: pending.amount, cat: pending.category, nw: pending.needOrWant, note: pending.note,
+          onSaved: (tx, details) => {
+            delete S().meta.chatPendingSpend;
+            const goalText = details.goal ? ` Your ${esc(details.goal.name)} moved back ${G.plural(details.daysBack, 'day')}.` : '';
+            const msg = G.chat.find(m => m.html.includes(`data-spend-id="${pending.id}"`));
+            if (msg) msg.html = `<b>✅ Saved!</b> ${rs(tx.amount)} for ${esc(tx.note || (G.CATS[tx.category] || G.CATS.other).n)} recorded as a ${tx.needOrWant || pending.needOrWant}.${goalText}`;
+            G.save();
+          }
+        });
+      },
       'chat-do': (el) => {
         const i = +el.dataset.i; const fn = acts[i]; if (!fn) return;
-        acts[i] = null; // each button works once; remove its button row from the chat history
-        G.chat.forEach(m => { if (m.html.includes(`data-i="${i}"`)) m.html = m.html.replace(/<div class="row gap mt">[\s\S]*?<\/div>/, '<div class="small muted mt">✔️ Done</div>'); });
+        acts[i] = null;
+        G.chat.forEach(m => { if (m.html.includes(`data-i="${i}"`)) m.html = m.html.replace(/<div class="row gap mt">[\\s\\S]*?<\\/div>/, '<div class="small muted mt">✔️ Done</div>'); });
         fn(); G.render({ keepScroll: true }); scrollChat();
       },
       mic: () => {
