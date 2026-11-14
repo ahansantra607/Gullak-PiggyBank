@@ -268,9 +268,9 @@
           <label class="toggle"><input type="checkbox" id="s-read" ${s.settings.readAloud ? 'checked' : ''}> 🗣️ Read things aloud for me</label>
           <div class="label">Money Lens unit</div>
           <div class="chips">${G.allUnits().map(u => `<button class="chip ${u.id === s.settings.unit ? 'on' : ''}" data-act="unit" data-v="${u.id}">${u.e} ${u.id === 'goal' ? 'my dream' : u.many}</button>`).join('')}</div></section>
-        <section class="card"><h3>My data</h3><p class="small muted">Everything is saved only on this device. Nothing is sent anywhere.</p>
-          <div class="col gap"><button class="btn soft block" data-act="export">💾 Save a backup file</button>
-          <label class="btn soft block file-btn">📂 Load a backup file<input type="file" id="s-import" accept="application/json,.json" hidden></label>
+        <section class="card"><h3>My data</h3><p class="small muted">Cloud diaries are encrypted before upload. Export makes a separate passphrase-protected backup.</p>
+          <div class="col gap"><button class="btn soft block" data-act="export">🔐 Export encrypted backup</button>
+          <label class="btn soft block file-btn">🔐 Import encrypted backup<input type="file" id="s-import" accept=".gullak,application/json,.json" hidden></label>
           <button class="btn soft block" data-act="sample">👀 Load sample data</button>
           <button class="btn danger block" data-act="reset">🗑️ Start over (delete everything)</button></div></section>
         <section class="card small muted"><h3>About Gullak</h3>
@@ -284,9 +284,25 @@
       imp.addEventListener('change', () => {
         const f = imp.files[0]; if (!f) return; const fr = new FileReader();
         fr.onload = () => {
-          try { const d = JSON.parse(fr.result); if (!d || !d.profile || !Array.isArray(d.txns)) throw 0;
-            localStorage.setItem(G.storeKey, JSON.stringify(d)); G.S = G.load(); G.toast('📂 Backup loaded!'); G.go('home'); }
-          catch (e) { G.toast('That file is not a Gullak backup 😕'); }
+          const backupText = String(fr.result || '');
+          const modal = G.modal({
+            html: '<h2>🔐 Unlock encrypted backup</h2><p class="muted small">Enter the separate backup passphrase used when exporting this file.</p><input class="input" id="backup-import-pass" type="password" maxlength="256" autocomplete="off" placeholder="Backup passphrase"><button class="btn primary block mt" data-act="unlock-backup">Unlock backup</button>',
+            handlers: {
+              'unlock-backup': async (button) => {
+                const pass = G.$('#backup-import-pass', modal.el).value;
+                if (pass.length < 10) return G.toast('Enter the backup passphrase.');
+                button.disabled = true; button.textContent = '🔐 Unlocking…';
+                try {
+                  const data = await G.cloudBackup.decode(backupText, pass);
+                  G.S = G.normState(data); G.save(); await G.waitForCloudSync();
+                  modal.close(); G.toast('📂 Encrypted backup restored!'); G.go('home');
+                } catch (error) {
+                  button.disabled = false; button.textContent = 'Unlock backup';
+                  G.toast(error.message || 'Could not unlock this backup.');
+                }
+              }
+            }
+          });
         };
         fr.readAsText(f);
       });
@@ -303,12 +319,29 @@
           G.save(); G.toast('Saved ✅'); G.render({ keepScroll: true });
         },
         export: () => {
-          const blob = new Blob([JSON.stringify(S(), null, 2)], { type: 'application/json' });
-          const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'gullak-backup.json'; a.click();
-          setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+          const modal = G.modal({
+            html: '<h2>🔐 Export encrypted backup</h2><p class="muted small">Choose a separate passphrase. You will need it to open this backup on another device.</p><label class="label">Backup passphrase</label><input class="input" id="backup-export-pass" type="password" maxlength="256" autocomplete="new-password"><label class="label">Confirm passphrase</label><input class="input" id="backup-export-confirm" type="password" maxlength="256" autocomplete="new-password"><button class="btn primary block mt" data-act="make-backup">Create encrypted file</button>',
+            handlers: {
+              'make-backup': async button => {
+                const pass = G.$('#backup-export-pass', modal.el).value;
+                const confirm = G.$('#backup-export-confirm', modal.el).value;
+                if (pass.length < 10) return G.toast('Use at least 10 characters for the backup passphrase.');
+                if (pass !== confirm) return G.toast('The two passphrases do not match.');
+                button.disabled = true; button.textContent = '🔐 Encrypting…';
+                try {
+                  const text = await G.cloudBackup.encode(S(), pass);
+                  G.cloudBackup.download(text); modal.close();
+                  G.toast('Encrypted backup file created. Keep its passphrase safe.');
+                } catch (error) {
+                  button.disabled = false; button.textContent = 'Create encrypted file';
+                  G.toast(error.message || 'Could not create backup.');
+                }
+              }
+            }
+          });
         },
         sample: async () => { if (await G.confirm('Load sample data?', 'This replaces your Gullak with an example one.', 'Load it', 'Cancel')) { G.act.loadSample(); G.toast('Sample loaded. Grown-up PIN is <b>1234</b>', 3500); G.go('home'); } },
-        reset: async () => { if (await G.confirm('Delete everything?', 'Your Gullak will be empty. This cannot be undone!', 'Delete all', 'Cancel')) { localStorage.removeItem(G.storeKey); G.S = G.fresh(); G.parentUnlocked = false; G.go('welcome'); } }
+        reset: async () => { if (await G.confirm('Delete everything?', 'Your Gullak will be empty. If cloud sync is active, the empty diary will replace the cloud copy too. This cannot be undone!', 'Delete all', 'Cancel')) { G.S = G.fresh(); G.parentUnlocked = false; G.save(); await G.waitForCloudSync(); localStorage.removeItem(G.storeKey); G.go('welcome'); } }
       };
     }
   };
