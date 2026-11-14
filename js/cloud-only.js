@@ -428,6 +428,15 @@
     G.go('sup');
   }
 
+  G.screens['cloud-families'].after = () => {
+    if (!Array.isArray(G.cloudFamilyResults) && !G.cloudFamilyLoading) {
+      G.cloudFamilyLoading = true;
+      G.cloud.listFamilies().then(rows => { G.cloudFamilyResults = rows; })
+        .catch(error => { G.cloudFamilyLoadError = error.message || 'Could not load families.'; })
+        .finally(() => { G.cloudFamilyLoading = false; if (G._last === 'cloud-families') G.render({ keepScroll: true }); });
+    }
+  };
+
   G.screens['fam-pick'].after = root => {
     const input = G.$('#main-family-import', root);
     if (!input) return;
