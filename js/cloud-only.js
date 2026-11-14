@@ -213,6 +213,9 @@
     if (!cached) throw new Error('Choose or join this cloud family first.');
     const member = cached.meta.members.find(m => m.id === memberId);
     if (!member) throw new Error('Family member not found.');
+    if (!G.cloudAccount.user || member.userId !== G.cloudAccount.user.user_id) {
+      throw new Error('This Gullak account is not linked to that family member.');
+    }
     let raw;
     try { raw = await C.unwrapWithSecret(pin, member.salt, member.wrap, cached.meta.iter); }
     catch (_) { throw new Error('That PIN is not correct.'); }
@@ -253,8 +256,10 @@
       const cached = familyCache.get(q.f) || (G.FAM && G.FAM.meta.id === q.f ? { meta: G.FAM.meta, fkRaw: G.FAM.fkRaw } : null);
       const meta = cached && cached.meta;
       if (!meta) return '<section class="card"><p>Open this family from Cloud families first.</p><button class="btn primary block" data-act="go" data-to="cloud-families">Find family</button></section>';
+      const linked = meta.members.filter(m => G.cloudAccount.user && m.userId === G.cloudAccount.user.user_id);
+      if (!linked.length) return '<section class="ob"><header class="page-h"><button class="back" data-act="go" data-to="cloud-families">←</button><h1>' + G.esc(meta.name) + '</h1></header><section class="card"><p>This Gullak account is not linked to a member of this family.</p><p class="small muted">Ask a supervisor to link your username first.</p></section></section>';
       return '<section class="ob"><header class="page-h"><button class="back" data-act="go" data-to="fam-pick">←</button><h1>' + G.esc(meta.emoji || '👨‍👩‍👧') + ' ' + G.esc(meta.name) + '</h1></header><section class="card"><h2>Who are you?</h2>' +
-        meta.members.map(m => '<button class="kid-row block" data-act="choose-member" data-mid="' + G.esc(m.id) + '"><span class="av-mid">' + G.esc(m.avatar) + '</span><b>' + G.esc(m.name) + '</b><small>' + (m.role === 'supervisor' ? 'Supervisor' : 'Member') + '</small></button>').join('') +
+        linked.map(m => '<button class="kid-row block" data-act="choose-member" data-mid="' + G.esc(m.id) + '"><span class="av-mid">' + G.esc(m.avatar) + '</span><b>' + G.esc(m.name) + '</b><small>' + (m.role === 'supervisor' ? 'Supervisor' : 'Member') + '</small></button>').join('') +
         '</section></section>';
     },
     handlers: () => ({ 'choose-member': el => G.go('fam-pin', { f: activeFamilyId, m: el.dataset.mid }) })
