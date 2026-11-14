@@ -60,8 +60,9 @@
       if (a && !isOut && g) html += `<div class="delay good">⏩ That's <b>${Math.round(a / g.target * 100)}%</b> of your ${esc(g.name)} ${g.emoji}!</div>`;
       if (a && isOut && a > G.balance()) html += `<div class="warn">⚠️ That's more than your Gullak has (${rs(Math.max(0, G.balance()))}). Did you forget to add some money you got?</div>`;
       prev.innerHTML = html;
-      saveBtn.disabled = !(a > 0 && st.cat && (!isOut || st.nw));
-      saveBtn.textContent = !a ? 'Type an amount' : !st.cat ? (isOut ? 'Pick what it was for' : 'Pick where it came from') : (isOut && !st.nw) ? 'Need or want?' : 'Save ' + rs(a);
+      const insufficient = isOut && a > G.balance();
+      saveBtn.disabled = !(a > 0 && st.cat && (!isOut || st.nw) && !insufficient);
+      saveBtn.textContent = insufficient ? 'Not enough money' : !a ? 'Type an amount' : !st.cat ? (isOut ? 'Pick what it was for' : 'Pick where it came from') : (isOut && !st.nw) ? 'Need or want?' : 'Save ' + rs(a);
     };
     G.attachKeypad(m.el, { value: opts.amount || 0, onChange: (v) => { st.amount = v; upd(); } });
   };
