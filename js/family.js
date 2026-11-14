@@ -283,7 +283,10 @@
     bare: true,
     render: (q) => {
       const f = famOf(q); if (!f) return `${back('Family', 'fam-pick')}<p class="muted center">Family not found.</p>`;
-      const sups = f.members.filter(m => m.role === 'supervisor'), kids = f.members.filter(m => m.role !== 'supervisor');
+      const account = G.cloudAccount && G.cloudAccount.user;
+      const visibleMembers = f.cloudId && account ? f.members.filter(m => m.userId === account.user_id) : f.members;
+      if (f.cloudId && account && !visibleMembers.length) return `${back('Family', 'fam-pick')}<section class="card center"><p>This Gullak account has not been linked to a member of this family.</p><p class="small muted">Ask a supervisor to add your account username.</p></section>`;
+      const sups = visibleMembers.filter(m => m.role === 'supervisor'), kids = visibleMembers.filter(m => m.role !== 'supervisor');
       const tile = (m) => `<button class="member-tile ${m.role}" data-act="who" data-m="${m.id}"><span class="av-big">${esc(m.avatar)}</span><b>${esc(m.name)}</b>
         <small>${m.role === 'supervisor' ? '🛡️ Supervisor' : '🧒 Kid'}</small>${m.lockUntil > G.now() ? '<small class="minus">🔒 locked</small>' : ''}</button>`;
       return `${back(`${esc(f.emoji)} ${esc(f.name)}`, 'fam-pick')}
@@ -469,7 +472,7 @@
           cr.code = await G.famCreate({ famName: cr.famName.trim(), famEmoji: cr.famEmoji, name: cr.name.trim(), avatar: cr.avatar, pin: cr.pin, qIds: cr.q.slice(), answers: cr.a.slice() });
           G.FAM.data.defaults = Object.assign({}, cr.rules); await G.famSave();
           cr.pin = ''; cr.a = ['', '']; cr.step = 5; G.sound('win'); G.confetti();
-        } catch (e) { console.error(e); G.toast('Something went wrong creating the family 😕'); }
+        } catch (e) { console.error(e); G.toast(e.message || 'Something went wrong creating the family 😕'); }
         cr.busy = false; G.render();
       },
       ccopy: () => G.copy(cr.code),
