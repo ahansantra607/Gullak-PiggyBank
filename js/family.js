@@ -492,6 +492,7 @@
         cr.pin = a; cr.step = 3; G.render();
       },
       c3: async () => {
+        if (!G.cloudAccount?.unlocked) { G.cloudFamilyReturn = 'create'; G.go('cloud-account'); return; }
         if (cr.q[0] === cr.q[1]) return G.toast('Pick two different questions');
         if (cr.a.some(a => C.norm(a).length < 2)) return G.toast('Answer both questions');
         cr.busy = true; G.render();
