@@ -864,18 +864,37 @@ export default {
 
         if (action === "members" && request.method === "POST") {
           if (membership.role !== "supervisor") return json({ error: "Supervisor permission required." }, 403);
-          const body = await request.json() as { username?: string; role?: string };
+          const body = await request.json() as { username?: string; password?: string; role?: string };
           const username = String(body.username || "").trim().toLowerCase();
+          const password = String(body.password || "");
           const role = body.role === "supervisor" ? "supervisor" : "member";
           if (!/^[a-z0-9_]{3,24}$/.test(username)) return json({ error: "Enter a valid account username." }, 400);
-          const target = await env.gullak_db.prepare(
+          let target = await env.gullak_db.prepare(
             "SELECT user_id, username FROM users WHERE username = ?"
           ).bind(username).first<{ user_id: string; username: string }>();
-          if (!target) return json({ error: "No Gullak account has that username yet." }, 404);
-          await env.gullak_db.prepare(`
-            INSERT OR IGNORE INTO cloud_family_members (family_id, user_id, role, joined_at)
-            VALUES (?, ?, ?, ?)
-          `).bind(familyId, target.user_id, role, new Date().toISOString()).run();
+          if (!target && password) {
+            if (password.length < 8 || password.length > 128 || !/[a-z]/.test(password) || !/[A-Z]/.test(password) || !/[0-9]/.test(password) || !/[^A-Za-z0-9\\s]/.test(password)) {
+              return json({ error: "Password must be at least 8 characters and include uppercase, lowercase, a number and a special character." }, 400);
+            }
+            const salt = randomBytes(16);
+            const passwordHash = await derivePasswordHash(password, salt, ITERATIONS);
+            const userId = crypto.randomUUID();
+            const now = new Date().toISOString();
+            await env.gullak_db.batch([
+              env.gullak_db.prepare("INSERT INTO users (user_id, username, password_salt, password_hash, password_iterations, created_at) VALUES (?, ?, ?, ?, ?, ?)")
+                .bind(userId, username, toBase64(salt), passwordHash, ITERATIONS, now),
+              env.gullak_db.prepare("INSERT INTO cloud_family_members (family_id, user_id, role, joined_at) VALUES (?, ?, ?, ?)")
+                .bind(familyId, userId, role, now)
+            ]);
+            target = { user_id: userId, username };
+          } else if (target) {
+            if (password) return json({ error: "That username already exists. Leave the password blank to link the existing account." }, 409);
+            await env.gullak_db.prepare(
+              "INSERT OR IGNORE INTO cloud_family_members (family_id, user_id, role, joined_at) VALUES (?, ?, ?, ?)"
+            ).bind(familyId, target.user_id, role, new Date().toISOString()).run();
+          } else {
+            return json({ error: "Enter a password to create this member's Gullak account." }, 400);
+          }
           return json({ success: true, member: { user_id: target.user_id, username: target.username, role } });
         }
 
