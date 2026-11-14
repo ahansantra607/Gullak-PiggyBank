@@ -28,6 +28,8 @@ const cloudUiSource = readFileSync('js/cloud-ui.js', 'utf8');
 if (!cloudUiSource.includes('!!G.cloudFamilyReturn')) throw new Error('Cloud login does not preserve an explicit Family-mode return.');
 if (!cloudOnlySource.includes("const destination = familyReturn === 'create' ? 'fam-create' : familyReturn === 'open' ? 'cloud-families' : 'fam-pick';")) throw new Error('Family login does not return to the correct next step.');
 if (!cloudOnlySource.includes("'back-family-users': () => G.go('fam-users', { f: q.f || activeFamilyId })")) throw new Error('Family PIN back navigation loses the selected family.');
+if (!cloudOnlySource.includes("'recover-family-pin': () => G.go('fam-recover', { f: q.f || activeFamilyId, m: q.m })")) throw new Error('Family PIN recovery entry point is missing.');
+if (!cloudOnlySource.includes('G.cloud.saveFamilyVault(q.f, cached.fkRaw, remote.value)')) throw new Error('Supervisor PIN recovery does not sync updated family metadata.');
 if (!cloudOnlySource.includes("'family-create': () => G.go('fam-create')")) throw new Error('Cloud family search screen has no create-family route.');
 if (!cloudOnlySource.includes("member ? '' : 'disabled'")) throw new Error('Unlinked family search results are still offered as a broken Join action.');
 if (!cloudOnlySource.includes('Ask a family supervisor to add your Gullak username')) throw new Error('Unlinked family guidance is missing.');
