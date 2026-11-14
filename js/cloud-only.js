@@ -446,7 +446,7 @@
   G.setFamilyAuthMode = next => { familyAuthMode = next === 'register' ? 'register' : 'login'; };
   G.screens['family-account'] = {
     bare: true,
-    render: () => `<section class="ob"><header class="page-h"><button class="back" data-act="go" data-to="${G.pendingCloudFamilyCreation ? 'fam-create' : 'fam-pick'}" aria-label="Back">←</button><h1>👨‍👩‍👧 Gullak Family account</h1></header>
+    render: () => `<section class="ob"><header class="page-h"><button class="back" data-act="family-account-back" aria-label="Cancel Family account setup">←</button><h1>👨‍👩‍👧 Gullak Family account</h1></header>
       <section class="card"><h2>${familyAuthMode === 'register' ? 'Create the first Supervisor account' : 'Log in to your Family account'}</h2>
         <p class="small muted">This is a Family-only login. It is separate from Individual Gullak and cannot open an Individual diary.</p>
         <label class="label" for="family-account-username">Family username</label>
@@ -459,6 +459,11 @@
       </section></section>`,
     handlers: () => ({
       'family-account-mode': () => { familyAuthMode = familyAuthMode === 'register' ? 'login' : 'register'; G.render(); },
+      'family-account-back': () => {
+        G.cancelPendingFamilyCreation?.();
+        G.cloudFamilyReturn = false;
+        G.go('fam-pick');
+      },
       'family-account-connect': async button => {
         const username = G.$('#family-account-username')?.value.trim() || '';
         const password = G.$('#family-account-password')?.value || '';
@@ -471,7 +476,7 @@
           G.cloudFamilyReturn = false;
           if (familyReturn === 'create-finalize' && G.pendingCloudFamilyCreation) {
             try { await G.completePendingCloudFamilyCreation(); }
-            catch (error) { G.toast(error.message || 'Family creation failed. Your setup has not been discarded.'); G.go('fam-create'); }
+            catch (error) { G.toast(error.message || 'Family creation failed. Your setup is still available; retry the Supervisor step.'); G.go('family-account'); }
             return;
           }
           if (familyReturn === 'member' && G.pendingFamilyMember) {
