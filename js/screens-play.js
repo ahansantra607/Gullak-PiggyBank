@@ -274,7 +274,7 @@
           <button class="btn soft block" data-act="sample">👀 Load sample data</button>
           <button class="btn danger block" data-act="reset">🗑️ Start over (delete everything)</button></div></section>
         <section class="card small muted"><h3>About Gullak</h3>
-          <p>Gullak is a practice money app for kids. It uses <b>pretend amounts only</b>: no bank, UPI, card or wallet. No sign-in, no ads, no real names, no photos.</p>
+          <p>Gullak is a practice money app for kids. It uses <b>pretend amounts only</b>: no bank, UPI, card or wallet. Cloud accounts sync encrypted diary data. No ads, no real names, no photos.</p>
           <p>Made for the Dezerv Children's Day Hackathon 2026. 🐷</p></section>`;
     },
     after: (root) => {
