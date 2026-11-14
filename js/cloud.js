@@ -188,16 +188,6 @@
       });
       return result.family;
     },
-    async joinFamily(familyId, joinCode) {
-      await request(familyPath(familyId) + '/join', {
-        method: 'POST', body: JSON.stringify({ join_code: C.normCode(joinCode) })
-      });
-      const result = await request(familyPath(familyId) + '/vault');
-      const wrappingKey = await C.deriveKey(C.normCode(joinCode), result.key_wrap_salt, result.key_wrap_iterations);
-      const familyKeyRaw = await C.dec(wrappingKey, result.family_key_wrap);
-      const value = await decryptFamilyVault(result.vault, familyKeyRaw);
-      return { family: { family_id: familyId }, familyKeyRaw, value };
-    },
     async getFamilyVault(familyId, familyKeyRaw) {
       const result = await request(familyPath(familyId) + '/vault');
       return { family: result, value: await decryptFamilyVault(result.vault, familyKeyRaw) };
