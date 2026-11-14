@@ -502,6 +502,11 @@
           catch (error) { G.toast(error.message || 'Family import failed.'); G.go('fam-pick'); }
           return;
         }
+        if (familyReturn === 'create-finalize' && G.pendingCloudFamilyCreation) {
+          try { await G.completePendingCloudFamilyCreation(); }
+          catch (error) { G.toast(error.message || 'Family creation failed. Your setup has not been discarded.'); G.go('fam-create'); }
+          return;
+        }
         if (familyReturn === 'member' && G.pendingFamilyMember) {
           const pending = G.pendingFamilyMember;
           G.pendingFamilyMember = null;
