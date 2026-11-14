@@ -704,6 +704,7 @@ export default {
             FROM cloud_families f
             LEFT JOIN cloud_family_members m
               ON m.family_id = f.family_id AND m.user_id = ?
+            WHERE f.name NOT LIKE 'Smoke Family %'
             ORDER BY f.created_at DESC
           `).bind(user?.user_id || "").all();
           return json({ families: rows.results || [] });
@@ -721,7 +722,7 @@ export default {
             FROM cloud_families f
             LEFT JOIN cloud_family_members m
               ON m.family_id = f.family_id AND m.user_id = ?
-            WHERE f.name LIKE ?
+            WHERE f.name LIKE ? AND f.name NOT LIKE 'Smoke Family %'
             ORDER BY f.created_at DESC
             LIMIT 20
           `).bind(user?.user_id || "", nameQuery).all();
