@@ -141,9 +141,9 @@
       const result = await request(familyPath(familyId) + '/member-vault' + query);
       return { exists: result.exists, value: await decryptFamilyVault(result.vault, familyKeyRaw) };
     },
-    async saveMemberVault(familyId, familyKeyRaw, value) {
+    async saveMemberVault(familyId, userId, familyKeyRaw, value) {
       return request(familyPath(familyId) + '/member-vault', {
-        method: 'PUT', body: JSON.stringify(await familyVaultPayload(value, familyKeyRaw))
+        method: 'PUT', body: JSON.stringify({ ...(await familyVaultPayload(value, familyKeyRaw)), ...(userId ? { user_id: userId } : {}) })
       });
     }
   });
