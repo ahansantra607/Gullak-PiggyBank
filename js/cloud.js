@@ -210,9 +210,13 @@
     async listFamilyMembers(familyId) {
       return (await request(familyPath(familyId) + '/members')).members || [];
     },
-    addFamilyMember: (familyId, username, role = 'member') => request(familyPath(familyId) + '/members', {
-      method: 'POST', body: JSON.stringify({ username, role })
-    }),
+    addFamilyMember: (familyId, username, passwordOrRole, maybeRole) => {
+      const password = maybeRole ? passwordOrRole : '';
+      const role = maybeRole || (passwordOrRole === 'supervisor' ? 'supervisor' : 'member');
+      return request(familyPath(familyId) + '/members', {
+        method: 'POST', body: JSON.stringify({ username, ...(password ? { password } : {}), role })
+      });
+    },
     removeFamilyMember: (familyId, userId) => request(familyPath(familyId) + '/members', {
       method: 'DELETE', body: JSON.stringify({ user_id: userId })
     }),
