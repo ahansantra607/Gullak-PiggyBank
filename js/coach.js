@@ -9,9 +9,33 @@
 
   const legacyAnswer = G.answer; // screens-next.js owns transaction logging and general chat
   const legacyBrain = G.brain || null;
+  const savedMemory = G.S.meta && G.S.meta.coachMemory && typeof G.S.meta.coachMemory === 'object' ? G.S.meta.coachMemory : {};
   const ctx = G.coachCtx = Object.assign({
-    last: null, pending: null, pendingAction: null, updatedAt: 0, version: 2
-  }, G.coachCtx || {});
+    last: null, pending: null, pendingAction: null, profilePending: null,
+    history: [], lastIntent: null, updatedAt: 0, version: 3
+  }, savedMemory, G.coachCtx || {});
+  ctx.history = Array.isArray(ctx.history) ? ctx.history.slice(-8) : [];
+  const coachActions = Object.create(null);
+  function persistMemory() {
+    if (!G.S.meta) G.S.meta = {};
+    G.S.meta.coachMemory = {
+      version: 1, pending: ctx.pending, profilePending: ctx.profilePending,
+      last: ctx.last, lastIntent: ctx.lastIntent,
+      history: ctx.history.slice(-8), updatedAt: Date.now()
+    };
+    G.save();
+  }
+  function coachButton(label, fn) {
+    const id = G.uid(8);
+    coachActions[id] = fn;
+    return '<div class="row gap mt"><button class="btn primary" data-act="coach-do" data-id="' + id + '">' + label + '</button></div>';
+  }
+  function coachReply(html, plain, intent) {
+    ctx.lastIntent = intent || ctx.lastIntent;
+    ctx.updatedAt = Date.now();
+    persistMemory();
+    return answer(html, plain);
+  }
 
   const isSenior = () => !!(G.S.profile && G.S.profile.ageGroup === 'senior');
   const esc = G.esc || (s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])));
@@ -98,6 +122,103 @@
       /\b(all time|ever|lifetime|total)\b/.test(t) ? 'all' : null;
     (rest.match(/\d+(?:\.\d+)?/g) || []).forEach(x => e.amounts.push(Number(x)));
     return e;
+  }
+
+  // Profile and dream commands are handled before the legacy chat brain.
+  // Mutations require a clear confirmation button; no guessed profile or goal changes.
+  function profileBrain(raw) {
+    const t = normalize(raw);
+    const p = G.S.profile;
+    if (!p) return null;
+    const simpleReply = (html, plain, intent) => coachReply(html, plain, intent);
+    const confirm = (label, detail, fn, intent) =>
+      simpleReply('<p>' + detail + '</p>' + coachButton(label, fn),
+        detail.replace(/<[^>]*>/g, ''), intent);
+
+    if (/\b(?:what is|what's|whats|tell me)\s+(?:my\s+)?name\b|\bwhat do you call me\b/.test(t))
+      return simpleReply('I have your name as <b>' + esc(p.nickname || 'not set') + '</b>.', 'Your name is ' + (p.nickname || 'not set') + '.', 'profile-name-query');
+    if (/\b(?:what is|what's|whats|tell me)\s+my\s+(?:age\s*)?group\b|\bwhich age group am i\b/.test(t))
+      return simpleReply('Your current age group is <b>' + esc(p.ageGroup || 'not set') + '</b>.', 'Your age group is ' + (p.ageGroup || 'not set') + '.', 'profile-group-query');
+    if (/\b(?:what is|what's|whats|tell me)\s+my\s+(?:current\s+)?dream\b|\bwhat am i saving for\b/.test(t)) {
+      const g = G.activeGoal();
+      return simpleReply(g ? 'Your active dream is <b>' + esc(g.name) + '</b> (' + money(g.target) + ' target, ' + G.goalPct(g) + '% saved).' : 'You have not created an active dream yet.',
+        g ? 'Your active dream is ' + g.name + ', target ' + g.target + ' rupees.' : 'You do not have an active dream.', 'dream-query');
+    }
+
+    const nameMatch = t.match(/\b(?:change|update|edit|set)\s+(?:my\s+)?name\s+(?:to|as)\s+(.+)$|\bcall\s+me\s+(.+)$/) || t.match(/\bmy\s+name\s+is\s+(.+)$/);
+    if (nameMatch) {
+      const value = String(nameMatch[1] || nameMatch[2] || '').replace(/[?!.,]+$/g, '').trim().slice(0, 24);
+      if (!value) return simpleReply('What name should I call you?', 'What name should I call you?', 'profile-name-clarify');
+      ctx.profilePending = { kind: 'name', value };
+      return confirm('Yes, change my name', 'Should I call you <b>' + esc(value) + '</b> from now on?', () => {
+        p.nickname = value; ctx.profilePending = null; persistMemory();
+        sayCoach('Got it! I will call you ' + esc(value) + ' from now on. 🐷');
+      }, 'profile-name-change');
+    }
+    if (/\b(?:change|update|edit|set)\s+(?:my\s+)?name\b/.test(t)) {
+      ctx.profilePending = { kind: 'name' };
+      return simpleReply('What should I call you? Tell me the name you want to use.', 'What should I call you?', 'profile-name-clarify');
+    }
+    if (ctx.profilePending && ctx.profilePending.kind === 'name' && /^[\p{L}][\p{L} .'-]{0,23}$/u.test(String(raw).trim())) {
+      const value = String(raw).trim();
+      return confirm('Confirm name change', 'Should I call you <b>' + esc(value) + '</b>?', () => {
+        p.nickname = value; ctx.profilePending = null; persistMemory();
+        sayCoach('Got it! I will call you ' + esc(value) + ' from now on. 🐷');
+      }, 'profile-name-change');
+    }
+
+    const groupMatch = t.match(/\b(?:change|update|set)\s+(?:my\s+)?(?:age\s*)?group\s+(?:to|as)\s+(junior|senior|kid|child|children|teen|teenager|adult|grown.?up)\b/);
+    if (groupMatch) {
+      const group = /junior|kid|child/.test(groupMatch[1]) ? 'junior' : 'senior';
+      return confirm('Confirm age group', 'Change your age group from <b>' + esc(p.ageGroup || 'unset') + '</b> to <b>' + group + '</b>?', () => {
+        p.ageGroup = group; ctx.profilePending = null; persistMemory();
+        sayCoach('Done. Your age group is now ' + group + '.');
+      }, 'profile-group-change');
+    }
+    if (/\b(?:change|update|set)\s+(?:my\s+)?(?:age\s*)?group\b/.test(t)) {
+      ctx.profilePending = { kind: 'group' };
+      return simpleReply('Which age group should I use: <b>junior</b> or <b>senior</b>?', 'Say junior or senior.', 'profile-group-clarify');
+    }
+    if (ctx.profilePending && ctx.profilePending.kind === 'group' && /\b(junior|senior|kid|child|teen|teenager|adult)\b/.test(t)) {
+      const group = /junior|kid|child/.test(t) ? 'junior' : 'senior';
+      return confirm('Confirm age group', 'Change your age group to <b>' + group + '</b>?', () => {
+        p.ageGroup = group; ctx.profilePending = null; persistMemory();
+        sayCoach('Done. Your age group is now ' + group + '.');
+      }, 'profile-group-change');
+    }
+
+    const wantsDream = /\b(?:create|add|make|start|set up)\s+(?:a\s+|new\s+)?(?:dream|goal)\b/.test(t) || /\bnew\s+(?:dream|goal)\b/.test(t);
+    if (wantsDream || (ctx.profilePending && ctx.profilePending.kind === 'dream')) {
+      const ent = parseEntities(t);
+      const amount = ent.amounts.length ? ent.amounts[0] : null;
+      let name = '';
+      let m = t.match(/\b(?:dream|goal)\s+(?:called|named)\s+(.+?)(?=\s+(?:for|costing|worth|target)\b|$)/);
+      if (!m) m = t.match(/\b(?:create|add|make|start|set up)\s+(?:a\s+|new\s+)?(?:dream|goal)\s+(?:for\s+)?(.+?)(?=\s+(?:for|costing|worth|target)\b|$)/);
+      if (m) name = m[1].replace(/\b(?:called|named)\b/g, '').trim();
+      if (!name && ctx.profilePending && ctx.profilePending.name) name = ctx.profilePending.name;
+      if (!name && amount == null) {
+        ctx.profilePending = { kind: 'dream' };
+        return simpleReply('Sure! What should the dream be called, and what is its target amount? For example: <i>Create a dream called bicycle for 5000</i>.', 'Tell me the dream name and target amount.', 'dream-create-clarify');
+      }
+      if (!name) name = 'My dream';
+      if (!(Number.isSafeInteger(amount) && amount > 0)) {
+        ctx.profilePending = { kind: 'dream', name };
+        return simpleReply('What is the target amount for <b>' + esc(name) + '</b>? Tell me a whole number of rupees.', 'What is the target amount?', 'dream-target-clarify');
+      }
+      const cleanName = name.replace(/[<>]/g, '').replace(/\s+/g, ' ').trim().slice(0, 32);
+      if (!cleanName) return simpleReply('Please give the dream a short name.', 'Please give the dream a name.', 'dream-name-clarify');
+      return confirm('Create this dream', 'Create <b>' + esc(cleanName) + '</b> with a target of <b>' + money(amount) + '</b>?', () => {
+        const goal = G.act.addGoal({ name: cleanName, emoji: '🎯', target: amount });
+        ctx.profilePending = null; persistMemory();
+        sayCoach(goal ? 'Your dream <b>' + esc(goal.name) + '</b> is ready! Target: ' + money(goal.target) + '. 🌈' : 'I could not create that dream. Check that the target is a whole number of rupees.');
+      }, 'dream-create');
+    }
+    return null;
+  }
+  function sayCoach(html) {
+    G.chat.push({ from: 'pig', html });
+    if (G.S.settings && G.S.settings.readAloud) G.speak(String(html).replace(/<[^>]*>/g, ''), true);
+    G.after(); G.render({ keepScroll: true });
   }
 
   function missingMath(type, have, keys, example) {
@@ -496,6 +617,8 @@
   }
 
   function brain(raw) {
+    const profileResult = profileBrain(raw);
+    if (profileResult) return profileResult;
     const t=normalize(raw), e=parseEntities(t), has=re=>re.test(t);
     const advanced=mathBrain(raw);
     if (advanced) return advanced;
@@ -508,17 +631,21 @@
   G.brain=brain;
 
   G.answer=(raw,voice)=>{
+    const userText = String(raw || '').trim();
+    if (userText) { ctx.history.push({ role: 'user', text: userText.slice(0, 180), at: Date.now() }); ctx.history = ctx.history.slice(-8); }
     let out=null;
-    try { out=brain(raw); } catch(err) { console.error('Gullak coach:',err); out=invalid('I could not safely calculate that. Please check the numbers and try again.'); }
-    if (!out) return legacyAnswer(raw,voice);
+    try { out=brain(raw); } catch(err) { console.error('Gullak coach:',err); out=invalid('I could not safely handle that. Please check the details and try again.'); }
+    if (!out) { persistMemory(); return legacyAnswer(raw,voice); }
     G.S.meta.talked=(G.S.meta.talked||0)+1;
     G.chat.push({from:'pig',html:out.html});
+    persistMemory();
     if (voice || (G.S.settings && G.S.settings.readAloud)) G.speak(out.plain || 'Here is the calculation.',true);
   };
 
   // Keep legacy chat actions working, while exposing a safe reset for context.
   G.resetCoachContext=()=>{
-    ctx.last=null; ctx.pending=null; ctx.pendingAction=null; ctx.updatedAt=0;
+    ctx.last=null; ctx.pending=null; ctx.pendingAction=null; ctx.profilePending=null;
+    ctx.history=[]; ctx.lastIntent=null; ctx.updatedAt=0; persistMemory();
   };
   const talk=G.screens && G.screens.talk;
   if (talk && talk.handlers) {
@@ -526,6 +653,13 @@
     talk.handlers=(q)=>{
       const h=oldHandlers(q)||{};
       h['coach-clear-context']=()=>G.resetCoachContext();
+      h['coach-do']=(el)=> {
+        const id = el && el.dataset && el.dataset.id;
+        const fn = id && coachActions[id];
+        if (!fn) return;
+        delete coachActions[id];
+        try { fn(); } catch (err) { console.error('Gullak coach action:', err); sayCoach('I could not complete that change. Nothing else was changed.'); }
+      };
       return h;
     };
   }
