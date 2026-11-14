@@ -49,7 +49,7 @@
     const strip = [];
     for (let i = 1; i <= Math.min(daysLeft, 7); i++) {
       const b = bal - burn * i;
-      strip.push({ d: new Date(G.now() + i * DAY).toLocaleDateString('en-IN', { weekday: 'short' }), b: Math.round(b),
+      strip.push({ d: new Date(G.now() + i * DAY).toLocaleDateString('en-IN', { weekday: 'short' }), b: Math.max(0, Math.round(b)),
         e: b <= 0 ? '⛈️' : b < bal * 0.25 ? '🌧️' : b < bal * 0.5 ? '⛅' : '☀️' });
     }
     let w;
