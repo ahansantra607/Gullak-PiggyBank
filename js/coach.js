@@ -128,6 +128,7 @@
   // Mutations require a clear confirmation button; no guessed profile or goal changes.
   function profileBrain(raw) {
     const t = normalize(raw);
+    const rawText = String(raw || '').trim();
     const p = G.S.profile;
     if (!p) return null;
     const simpleReply = (html, plain, intent) => coachReply(html, plain, intent);
@@ -145,7 +146,7 @@
         g ? 'Your active dream is ' + g.name + ', target ' + g.target + ' rupees.' : 'You do not have an active dream.', 'dream-query');
     }
 
-    const nameMatch = t.match(/\b(?:change|update|edit|set)\s+(?:my\s+)?name\s+(?:to|as)\s+(.+)$|\bcall\s+me\s+(.+)$/) || t.match(/\bmy\s+name\s+is\s+(.+)$/);
+    const nameMatch = rawText.match(/\b(?:change|update|edit|set)\s+(?:my\s+)?name\s+(?:to|as)\s+(.+)$/i) || rawText.match(/\bcall\s+me\s+(.+)$/i) || rawText.match(/\bmy\s+name\s+is\s+(.+)$/i);
     if (nameMatch) {
       const value = String(nameMatch[1] || nameMatch[2] || '').replace(/[?!.,]+$/g, '').trim().slice(0, 24);
       if (!value) return simpleReply('What name should I call you?', 'What name should I call you?', 'profile-name-clarify');
@@ -192,8 +193,8 @@
       const ent = parseEntities(t);
       const amount = ent.amounts.length ? ent.amounts[0] : null;
       let name = '';
-      let m = t.match(/\b(?:dream|goal)\s+(?:called|named)\s+(.+?)(?=\s+(?:for|costing|worth|target)\b|$)/);
-      if (!m) m = t.match(/\b(?:create|add|make|start|set up)\s+(?:a\s+|new\s+)?(?:dream|goal)\s+(?:for\s+)?(.+?)(?=\s+(?:for|costing|worth|target)\b|$)/);
+      let m = rawText.match(/\b(?:dream|goal)\s+(?:called|named)\s+(.+?)(?=\s+(?:for|costing|worth|target)\b|$)/i);
+      if (!m) m = rawText.match(/\b(?:create|add|make|start|set up)\s+(?:a\s+|new\s+)?(?:dream|goal)\s+(?:for\s+)?(.+?)(?=\s+(?:for|costing|worth|target)\b|$)/i);
       if (m) name = m[1].replace(/\b(?:called|named)\b/g, '').trim();
       if (name && amount != null) name = name.replace(new RegExp('\\b' + String(amount) + '\\b'), '').replace(/\s+/g, ' ').trim();
       if (!name && ctx.profilePending && ctx.profilePending.name) name = ctx.profilePending.name;
