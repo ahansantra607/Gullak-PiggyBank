@@ -137,17 +137,7 @@
     };
     const handlersWelcome = welcome.handlers;
     welcome.handlers = (...args) => Object.assign(handlersWelcome ? handlersWelcome(...args) : {}, {
-      'cloud-open': () => { authMode = 'login'; G.go('cloud-account'); },
-      'cloud-logout': async () => {
-        if (!(await G.confirm('Log out of Gullak Cloud?', 'The decrypted diary will be cleared from this tab. Your existing local copy is retained during migration.', 'Log out', 'Stay'))) return;
-        let logoutError = null;
-        try { await G.cloudAccount.logout(); } catch (error) { logoutError = error; }
-        G.S = G.fresh(); G.parentUnlocked = false; G.FAM = null;
-        if (G.chat) G.chat.length = 0;
-        if (G.coachCtx) { G.coachCtx.last = null; G.coachCtx.pending = null; }
-        G.go('welcome');
-        if (logoutError) G.toast('This tab was cleared, but server logout could not be confirmed. Close the tab and retry later.');
-      }
+      'cloud-open': () => { authMode = 'login'; G.go('cloud-account'); }
     });
   }
 
@@ -168,7 +158,17 @@
     };
     const handlersSettings = settings.handlers;
     settings.handlers = (...args) => Object.assign(handlersSettings ? handlersSettings(...args) : {}, {
-      'cloud-open': () => { authMode = 'login'; G.go('cloud-account'); }
+      'cloud-open': () => { authMode = 'login'; G.go('cloud-account'); },
+      'cloud-logout': async () => {
+        if (!(await G.confirm('Log out of Gullak Cloud?', 'The decrypted diary will be cleared from this tab. Your existing local copy is retained during migration.', 'Log out', 'Stay'))) return;
+        let logoutError = null;
+        try { await G.cloudAccount.logout(); } catch (error) { logoutError = error; }
+        G.S = G.fresh(); G.parentUnlocked = false; G.FAM = null;
+        if (G.chat) G.chat.length = 0;
+        if (G.coachCtx) { G.coachCtx.last = null; G.coachCtx.pending = null; }
+        G.go('welcome');
+        if (logoutError) G.toast('This tab was cleared, but server logout could not be confirmed. Close the tab and retry later.');
+      }
     });
   }
 })(window.G);
