@@ -62,7 +62,7 @@ const suffix = randomUUID().replace(/-/g, "").slice(0, 12);
 const supervisorName = "smokesup_" + suffix;
 const memberName = "smokekid_" + suffix;
 const password = "Smoke-test-account-" + randomUUID();
-const familyName = "Smoke Family " + suffix;
+const familyName = "QA Family " + suffix;
 const joinCode = String(100000 + (randomBytes(4).readUInt32BE(0) % 900000)); // Shared Family PIN
 
 const supervisor = expect(await request("/api/register", {
@@ -187,8 +187,10 @@ expect(await request("/api/me", { cookie: supervisor.cookie }), 401, "Deleted ac
 const transferred = expect(await request("/api/families/" + familyId + "/members", { cookie: member.cookie }), 200, "Family survives creator deletion");
 assert(transferred.data.members.some(item => item.username === memberName && item.role === "supervisor"),
   "Family ownership/supervisor role was not transferred to the remaining member.");
-expect(await request("/api/logout", { method: "POST", cookie: member.cookie }), 200, "Logout");
-expect(await request("/api/me", { cookie: member.cookie }), 401, "Revoked session denial");
+// Clean up every account and the family created by this live test.
+expect(await request("/api/account", { method: "DELETE", cookie: createdKidLogin.cookie, body: { password: createdKidPassword } }), 200, "Delete test-created kid account");
+expect(await request("/api/account", { method: "DELETE", cookie: member.cookie, body: { password: "Member-" + password } }), 200, "Delete test member and empty test family");
+expect(await request("/api/me", { cookie: member.cookie }), 401, "Deleted test member session denial");
 
 // Mutating requests without an Origin must be rejected (CSRF hardening).
 const noOrigin = await fetch(apiUrl + "/api/logout", {
