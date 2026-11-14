@@ -60,6 +60,45 @@ if (recoveredSecret !== 'SeparateEncryptionPassphrase123!') throw new Error('Pas
 const validAccountPassword = value => value.length >= 8 && /[a-z]/.test(value) && /[A-Z]/.test(value) && /[0-9]/.test(value) && /[^A-Za-z0-9\s]/.test(value);
 if (!validAccountPassword('AccountPassword123!') || validAccountPassword('weakpassword') || validAccountPassword('NoSpecial123') || validAccountPassword('Abcdef1 ')) throw new Error('Account password policy validation failed.');
 
+// Existing family members must OPEN directly; only non-members should JOIN.
+const familyRequests = [];
+const familyG = { cr: {
+  normCode: value => String(value).replace(/[^A-Z0-9]/gi, '').toUpperCase(),
+  deriveKey: async () => 'wrapping-key',
+  dec: async () => 'family-key',
+  aesKey: async () => 'family-aes-key',
+  decStr: async () => JSON.stringify({ meta: { members: [] }, data: { defaults: {} } }),
+  salt: () => 'salt',
+  enc: async () => 'iv.ciphertext'
+} };
+const familyContext = vm.createContext({
+  window: { G: familyG },
+  fetch: async (url, options = {}) => {
+    familyRequests.push({ url: String(url), method: options.method || 'GET' });
+    const body = String(url).endsWith('/api/families')
+      ? { families: [{ family_id: 'family-1', name: 'Test family', role: 'supervisor' }] }
+      : String(url).endsWith('/join') ? { success: true }
+      : { exists: true, vault: { iv: 'iv', ciphertext: 'ciphertext' }, key_wrap_salt: 'salt', key_wrap_iterations: 100000, family_key_wrap: 'wrapped-key' };
+    return { ok: true, json: async () => body };
+  },
+  TextEncoder, TextDecoder, Uint8Array, JSON, encodeURIComponent
+});
+vm.runInContext(readFileSync('js/cloud.js', 'utf8'), familyContext, { filename: 'js/cloud.js' });
+const listedFamilies = await familyG.cloud.listFamilies();
+if (!listedFamilies[0]?.is_member) throw new Error('My families list did not mark existing memberships.');
+familyRequests.length = 0;
+await familyG.cloud.openFamily('family-1', 'GULL-TEST-CODE');
+if (familyRequests.some(request => request.method === 'POST' || request.url.endsWith('/join'))) {
+  throw new Error('Opening an existing family incorrectly called the join endpoint.');
+}
+if (familyRequests.length !== 1 || familyRequests[0].method !== 'GET') throw new Error('Opening an existing family should only fetch its vault.');
+familyRequests.length = 0;
+await familyG.cloud.joinFamily('family-1', 'GULL-TEST-CODE');
+if (!familyRequests.some(request => request.method === 'POST' && request.url.endsWith('/join'))) {
+  throw new Error('Joining a new family did not call the join endpoint.');
+}
+
+
 
 const localDiary = {
   profile: { nickname: 'Cloud test', createdAt: 1 },
