@@ -194,10 +194,24 @@ export default {
           }, 500);
         }
 
+        const familyTables = [
+          "cloud_families",
+          "cloud_family_members",
+          "cloud_family_vaults",
+          "cloud_family_member_vaults"
+        ];
+        const familyChecks = await Promise.all(familyTables.map(name =>
+          env.gullak_db.prepare(
+            "SELECT name FROM sqlite_master WHERE type = ? AND name = ?"
+          ).bind("table", name).first()
+        ));
+        const familySchemaReady = familyChecks.every(Boolean);
+
         return json({
           status: "healthy",
           database: "connected",
-          vaultTable: "ready"
+          vaultTable: "ready",
+          familySchema: familySchemaReady ? "ready" : "migration_required"
         });
       } catch {
         return json({
