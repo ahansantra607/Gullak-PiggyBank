@@ -293,12 +293,13 @@ public class MainActivity extends Activity {
                 }
                 String safeName = filename == null ? "gullak-backup.gullak" : filename.replaceAll("[^A-Za-z0-9._-]", "_");
                 if (!safeName.endsWith(".gullak")) safeName += ".gullak";
+                final String finalSafeName = safeName;
                 runOnUiThread(() -> {
                     pendingBackupBytes = bytes;
                     Intent create = new Intent(Intent.ACTION_CREATE_DOCUMENT);
                     create.addCategory(Intent.CATEGORY_OPENABLE);
                     create.setType("application/json");
-                    create.putExtra(Intent.EXTRA_TITLE, safeName);
+                    create.putExtra(Intent.EXTRA_TITLE, finalSafeName);
                     try {
                         startActivityForResult(create, REQUEST_SAVE_BACKUP);
                     } catch (Exception error) {
