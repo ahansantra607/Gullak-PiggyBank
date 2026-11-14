@@ -53,4 +53,68 @@ const wrapped = await C.wrapWithSecret('test-family-code', salt, C.rand(32), 100
 const unwrapped = await C.unwrapWithSecret('test-family-code', salt, wrapped, 100000);
 if (unwrapped.length !== 32) throw new Error('Family-key wrapping round-trip failed.');
 
-console.log('Frontend JavaScript syntax, script order and Web Crypto round-trips passed.');
+
+const localDiary = {
+  profile: { nickname: 'Cloud test', createdAt: 1 },
+  txns: [], goals: [], requests: [], chores: [], badges: [],
+  settings: {}, meta: {}
+};
+const localMap = new Map([['gullak:v1', JSON.stringify(localDiary)]]);
+const storage = {
+  getItem: key => localMap.has(key) ? localMap.get(key) : null,
+  setItem: (key, value) => localMap.set(key, String(value)),
+  removeItem: key => localMap.delete(key)
+};
+let localWrites = 0;
+let remoteSaves = 0;
+let remoteVault = null;
+const fields = {
+  '#cloud-username': { value: 'cloud_smoke_user' },
+  '#cloud-password': { value: 'AccountPassword123!' },
+  '#cloud-secret': { value: 'SeparateEncryptionPassphrase123!' }
+};
+const G = {
+  esc: value => String(value == null ? '' : value),
+  screens: {},
+  FREE_ROUTES: [],
+  cr: { available: true },
+  mode: () => 'individual',
+  setMode: () => {},
+  fresh: () => ({ profile: null, txns: [], goals: [], requests: [], chores: [], badges: [], settings: {}, meta: {} }),
+  normState: value => value,
+  save: () => { localWrites++; },
+  $: selector => fields[selector],
+  confirm: async () => true,
+  toast: () => {},
+  go: () => {},
+  cloud: {
+    login: async username => ({ user: { user_id: 'cloud-test-id', username } }),
+    register: async username => ({ user: { user_id: 'cloud-test-id', username } }),
+    loadVault: async () => remoteVault,
+    saveVault: async value => { remoteSaves++; remoteVault = JSON.parse(JSON.stringify(value)); }
+  }
+};
+const cloudContext = vm.createContext({
+  window: { G },
+  localStorage: storage,
+  console,
+  TextEncoder,
+  TextDecoder,
+  Uint8Array,
+  ArrayBuffer,
+  JSON
+});
+vm.runInContext(readFileSync('js/cloud-ui.js', 'utf8'), cloudContext, { filename: 'js/cloud-ui.js' });
+const connect = G.screens['cloud-account'].handlers()['cloud-connect'];
+const button = { disabled: false, textContent: '' };
+await connect(button);
+if (!G.cloudAccount.unlocked) throw new Error('Cloud account did not unlock in the client test.');
+if (localMap.has('gullak:v1')) throw new Error('Verified local migration did not clear the plaintext diary.');
+if (!remoteVault || remoteVault.profile.nickname !== 'Cloud test') throw new Error('Local diary did not reach the encrypted-cloud save adapter.');
+G.S = { ...localDiary, profile: { ...localDiary.profile } };
+G.save();
+await G.waitForCloudSync();
+if (localWrites !== 0) throw new Error('Cloud-unlocked Individual saves still write to local storage.');
+if (remoteSaves < 2) throw new Error('Cloud-unlocked Individual saves did not sync remotely.');
+
+console.log('Frontend syntax, script order, Web Crypto, verified migration and cloud-only Individual saves passed.');
