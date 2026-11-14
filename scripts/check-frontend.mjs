@@ -23,7 +23,7 @@ for (const file of files) {
 }
 
 const html = readFileSync('index.html', 'utf8');
-const scripts = [...html.matchAll(/<script\\s+src="([^"]+)"><\\/script>/g)].map(match => match[1]);
+const scripts = [...html.matchAll(/<script\s+src="([^"]+)"><\/script>/g)].map(match => match[1]);
 for (const script of scripts) {
   if (!existsSync(script)) throw new Error('Missing script referenced by index.html: ' + script);
 }
