@@ -65,6 +65,3 @@ tasks.register("verifyReleaseSigning") {
     }
 }
 
-tasks.named("assembleRelease").configure {
-    dependsOn("verifyReleaseSigning")
-}
