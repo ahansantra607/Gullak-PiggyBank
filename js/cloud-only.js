@@ -53,6 +53,9 @@
     };
     G.screens.modes.handlers = () => Object.assign(modesHandlers0 ? modesHandlers0() : {}, {
       'mode-me': () => {
+        if (G.cloudAccount.unlocked && G.cloudAccount.user?.account_type === 'family') {
+          mode = 'family'; G.setMode('family'); G.toast('Family accounts can only be used in Family mode.'); G.go('fam-pick'); return;
+        }
         mode = 'individual';
         if (!G.cloudAccount.unlocked) { G.go('cloud-account'); return; }
         if (G.S && G.S.profile) { G.go('home'); return; }
@@ -77,6 +80,10 @@
 
   const routeGuardCloudOnly0 = G.routeGuard;
   G.routeGuard = (name, q) => {
+    if (G.cloudAccount?.user?.account_type === 'family' && mode !== 'family') {
+      mode = 'family'; G.setMode('family');
+      if (name !== 'fam-pick' && name !== 'family-account' && name !== 'cloud-families' && name !== 'cloud-family-join' && name !== 'fam-users' && name !== 'fam-create') return 'fam-pick';
+    }
     // These Family cloud entry routes must remain reachable before a family is unlocked.
     if (mode === 'family' && name === 'cloud-account') return 'family-account';
     if (mode === 'family' && ['family-account', 'cloud-families', 'cloud-family-join'].includes(name)) return null;
