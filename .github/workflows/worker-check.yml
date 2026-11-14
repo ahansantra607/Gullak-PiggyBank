@@ -102,6 +102,20 @@ jobs:
           cp index.html 404.html public/
           cp -R css js public/
           npx wrangler deploy --config=wrangler.jsonc
+
+      - name: Capture Cloud API logs if live verification fails
+        if: failure()
+        working-directory: .
+        run: |
+          timeout 18s npx wrangler tail server --config=server/wrangler.jsonc --format=json > /tmp/gullak-worker-tail.log 2>&1 &
+          TAIL_PID=$!
+          sleep 3
+          node scripts/smoke-live.mjs || true
+          sleep 2
+          kill $TAIL_PID 2>/dev/null || true
+          wait $TAIL_PID 2>/dev/null || true
+          cat /tmp/gullak-worker-tail.log
+
       - name: Verify deployed frontend and cloud API
         if: steps.credentials.outputs.available == 'true'
         env:
