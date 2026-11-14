@@ -314,7 +314,8 @@ export default {
           }
         });
       } catch (error) {
-        const message = error instanceof Error ? error.message : "";
+        const message = error instanceof Error ? error.message : String(error);
+        console.error("Gullak account registration failed:", message);
 
         if (message.includes("UNIQUE")) {
           return json({ error: "That username is already taken." }, 409);
