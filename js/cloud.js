@@ -85,7 +85,7 @@
     async restoreRemembered() {
       const user = await request('/api/me');
       const secret = await readRememberedDevice();
-      return secret ? { user: user.user || user, secret } : null;
+      return { user: user.user || user, secret: secret || '' };
     },
     async logout() {
       try { await request('/api/logout', { method: 'POST' }); }
