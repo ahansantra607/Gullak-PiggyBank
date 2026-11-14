@@ -391,9 +391,11 @@
     const payload = await G.cloudBackup.decode(rawText, backupPass);
     if (!payload || payload.gullakFamily !== 1 || !payload.meta || !Array.isArray(payload.meta.members) || typeof payload.data !== 'string') throw new Error('Invalid Family backup.');
     const meta = safeCopy(payload.meta);
-    const recovery = window.prompt('Enter the shared Family PIN saved with this backup:');
-    if (!recovery) throw new Error('Shared Family PIN is required.');
-    const raw = await C.unwrapWithSecret(C.normCode(recovery), meta.rc.salt, meta.rc.wrap, meta.iter);
+    const raw = payload.familyKey ? C.unb64(payload.familyKey) : await (async () => {
+      const recovery = window.prompt('This is an older Family backup. Enter its previous recovery code:');
+      if (!recovery) throw new Error('The legacy recovery code is required for this older backup.');
+      return C.unwrapWithSecret(C.normCode(recovery), meta.rc.salt, meta.rc.wrap, meta.iter);
+    })();
     const key = await C.aesKey(raw);
     const data = JSON.parse(await C.decStr(key, payload.data));
     data.kids = data.kids || {}; data.sups = data.sups || {};
@@ -528,7 +530,7 @@
       const F = G.FAM;
       if (!F || !G.cloudAccount.unlocked) return G.toast('Open and unlock the family first.');
       await G.famSave();
-      const payload = { gullakFamily: 1, savedAt: G.now(), meta: F.meta, data: await C.encStr(F.fk, JSON.stringify(F.data)) };
+      const payload = { gullakFamily: 1, savedAt: G.now(), meta: F.meta, familyKey: C.b64(F.fkRaw), data: await C.encStr(F.fk, JSON.stringify(F.data)) };
       const m = G.modal({ html: '<h2>🔐 Export encrypted family backup</h2><p class="small muted">Choose a separate backup passphrase.</p><input class="input" id="family-backup-export-pass" type="password" placeholder="At least 10 characters"><input class="input" id="family-backup-export-confirm" type="password" placeholder="Confirm passphrase"><button class="btn primary block mt" data-act="make-family-backup">Create encrypted file</button>', handlers: {
         'make-family-backup': async button => {
           const pass = G.$('#family-backup-export-pass', m.el).value, confirm = G.$('#family-backup-export-confirm', m.el).value;
