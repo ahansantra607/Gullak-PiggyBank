@@ -555,6 +555,15 @@
   };
 
   const download = (name, text, type) => {
+    if (window.GullakNative && typeof window.GullakNative.saveEncryptedBackup === 'function') {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const dataUrl = String(reader.result || '');
+        window.GullakNative.saveEncryptedBackup(name, type || 'application/json', dataUrl.slice(dataUrl.indexOf(',') + 1));
+      };
+      reader.readAsDataURL(new Blob([text], { type: type || 'application/json' }));
+      return;
+    }
     const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], { type })); a.download = name; a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 2000);
   };
