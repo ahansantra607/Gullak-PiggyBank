@@ -329,7 +329,7 @@
       if (!G.cloudAccount.unlocked || !selected) return G.toast('Log in and choose a family first.');
       if (!selected.is_member) return G.toast('Ask a family supervisor to add your Gullak username, then refresh the family list.');
       const code = G.$('#cloud-family-code').value.trim();
-      if (!/^\\d{4,6}$/.test(code)) return G.toast('Enter the 4–6 digit shared Family PIN.');
+      if (!/^\d{4,6}$/.test(code)) return G.toast('Enter the 4–6 digit shared Family PIN.');
       button.disabled = true;
       try {
         const opened = await G.cloud.openFamily(selected.id, code);
