@@ -53,6 +53,12 @@ if (decrypted !== 'Gullak cloud encryption smoke test') throw new Error('AES-GCM
 const wrapped = await C.wrapWithSecret('test-family-code', salt, C.rand(32), 100000);
 const unwrapped = await C.unwrapWithSecret('test-family-code', salt, wrapped, 100000);
 if (unwrapped.length !== 32) throw new Error('Family-key wrapping round-trip failed.');
+const accountWrap = await C.wrapWithSecret('AccountPassword123!', salt, new TextEncoder().encode('SeparateEncryptionPassphrase123!'), 310000);
+const accountKey = await C.deriveKey('AccountPassword123!', salt, 310000);
+const recoveredSecret = new TextDecoder().decode(await C.dec(accountKey, accountWrap));
+if (recoveredSecret !== 'SeparateEncryptionPassphrase123!') throw new Error('Password-only encryption-key recovery failed.');
+const validAccountPassword = value => value.length >= 8 && /[a-z]/.test(value) && /[A-Z]/.test(value) && /[0-9]/.test(value) && /[^A-Za-z0-9]/.test(value);
+if (!validAccountPassword('AccountPassword123!') || validAccountPassword('weakpassword') || validAccountPassword('NoSpecial123')) throw new Error('Account password policy validation failed.');
 
 
 const localDiary = {
