@@ -17,6 +17,24 @@
     get encryptionPassphrase() { return cloudSecret; },
     get unlocked() { return !!cloudSecret && !!cloudUser; },
     get status() { return syncError ? 'error' : (cloudSecret ? 'connected' : 'locked'); },
+    async connectFamily(username, password, create) {
+      const auth = create
+        ? await G.cloud.registerFamilyAccount(username, password)
+        : await G.cloud.loginFamilyAccount(username, password);
+      cloudUser = auth.user;
+      if (create) {
+        cloudSecret = G.cr.b64(G.cr.rand(32));
+        await G.cloud.saveKeyWrap(cloudSecret, password);
+      } else {
+        cloudSecret = await G.cloud.loadKeyWrap(password);
+        if (!cloudSecret) {
+          cloudSecret = G.cr.b64(G.cr.rand(32));
+          await G.cloud.saveKeyWrap(cloudSecret, password);
+        }
+      }
+      syncError = null;
+      return auth;
+    },
     async restoreSession() {
       try {
         const remembered = await G.cloud.restoreRemembered();
