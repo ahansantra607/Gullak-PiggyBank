@@ -415,6 +415,86 @@ export default {
       }
     }
 
+    // PERMANENT ACCOUNT DELETION. Password re-authentication is required.
+    if (path === "/api/account" && request.method === "DELETE") {
+      try {
+        const user = await getCurrentUser(request, env);
+        if (!user) return json({ error: "Authentication required." }, 401);
+        const body = await request.json() as { password?: string };
+        const password = String(body.password || "");
+        if (!password || password.length > 128) return json({ error: "Enter your account password." }, 400);
+        const credentials = await env.gullak_db.prepare(
+          "SELECT password_salt, password_hash, password_iterations FROM users WHERE user_id = ?"
+        ).bind(user.user_id).first<{ password_salt: string; password_hash: string; password_iterations: number }>();
+        if (!credentials) return json({ error: "Account not found." }, 404);
+        const calculated = await derivePasswordHash(password, fromBase64(credentials.password_salt), credentials.password_iterations);
+        if (!constantTimeEqual(calculated, credentials.password_hash)) {
+          return json({ error: "The account password is incorrect. Nothing has been deleted." }, 403);
+        }
+
+        const familyRows = await env.gullak_db.prepare(`
+          SELECT f.family_id, f.created_by, m.role
+          FROM cloud_families f
+          LEFT JOIN cloud_family_members m
+            ON m.family_id = f.family_id AND m.user_id = ?
+          WHERE f.created_by = ? OR m.user_id = ?
+        `).bind(user.user_id, user.user_id, user.user_id).all<{
+          family_id: string; created_by: string; role: string | null;
+        }>();
+
+        const changes: D1PreparedStatement[] = [];
+        for (const family of familyRows.results || []) {
+          const remaining = await env.gullak_db.prepare(`
+            SELECT user_id, role FROM cloud_family_members
+            WHERE family_id = ? AND user_id <> ? ORDER BY joined_at ASC
+          `).bind(family.family_id, user.user_id).all<{ user_id: string; role: string }>();
+          const members = remaining.results || [];
+          if (!members.length) {
+            changes.push(env.gullak_db.prepare(
+              "DELETE FROM cloud_families WHERE family_id = ?"
+            ).bind(family.family_id));
+            continue;
+          }
+
+          const existingSupervisor = members.find(member => member.role === "supervisor");
+          if (family.created_by === user.user_id) {
+            const successor = existingSupervisor || members[0];
+            if (successor.role !== "supervisor") {
+              changes.push(env.gullak_db.prepare(
+                "UPDATE cloud_family_members SET role = 'supervisor' WHERE family_id = ? AND user_id = ?"
+              ).bind(family.family_id, successor.user_id));
+            }
+            changes.push(env.gullak_db.prepare(
+              "UPDATE cloud_families SET created_by = ? WHERE family_id = ?"
+            ).bind(successor.user_id, family.family_id));
+          } else if (family.role === "supervisor" && !existingSupervisor) {
+            const successor = members[0];
+            changes.push(env.gullak_db.prepare(
+              "UPDATE cloud_family_members SET role = 'supervisor' WHERE family_id = ? AND user_id = ?"
+            ).bind(family.family_id, successor.user_id));
+          }
+        }
+
+        changes.push(env.gullak_db.prepare(
+          "DELETE FROM users WHERE user_id = ?"
+        ).bind(user.user_id));
+        await env.gullak_db.batch(changes);
+
+        return new Response(JSON.stringify({ success: true, deleted: true }), {
+          status: 200,
+          headers: {
+            "Content-Type": "application/json",
+            "Cache-Control": "no-store",
+            "Set-Cookie": clearSessionCookie(request),
+            ...CORS_HEADERS
+          }
+        });
+      } catch (error) {
+        console.error("Gullak account deletion failed:", error);
+        return json({ error: "Could not safely delete this account. No deletion was confirmed." }, 500);
+      }
+    }
+
     // LOGOUT
     if (path === "/api/logout" && request.method === "POST") {
       try {
