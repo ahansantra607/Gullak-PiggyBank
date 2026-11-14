@@ -425,12 +425,14 @@
   const accountRender0 = accountScreen.render;
   accountScreen.render = (...args) => {
     const html = accountRender0(...args);
+    const backupControls = mode === 'family'
+      ? `${G.cloudAccount.unlocked && G.FAM ? '<button class="btn soft block" data-act="export-family-backup">Export family backup</button>' : ''}
+          <button class="btn soft block" data-act="open-family-backups">Import family backup</button>`
+      : `${G.cloudAccount.unlocked && G.S && G.S.profile ? '<button class="btn soft block" data-act="cloud-individual-export">Export Individual backup</button>' : ''}
+          <label class="btn soft block file-btn mt">Import Individual backup<input id="cloud-individual-import-file" type="file" accept=".gullak,.json,application/json" hidden></label>`;
     const panel = `<section class="card"><h3>📦 Backups & restore</h3>
-          <p class="small muted">You can select and unlock an encrypted backup without logging in. To restore it to the cloud, log in to the destination account after unlocking.</p>
-          ${G.cloudAccount.unlocked ? '<button class="btn soft block" data-act="cloud-individual-export">Export Individual backup</button>' : ''}
-          <label class="btn ghost block file-btn">Import Individual backup<input id="cloud-individual-import-file" type="file" accept=".gullak,.json,application/json" hidden></label>
-          <button class="btn soft block mt" data-act="open-family-backups">Import family backup</button>
-          ${G.FAM && G.cloudAccount.unlocked ? '<button class="btn soft block" data-act="export-family-backup">Export active family</button>' : ''}
+          <p class="small muted">Backups are encrypted with a separate passphrase. Restoring to the cloud requires the destination account to be unlocked.</p>
+          ${backupControls}
         </section>`;
     return html.replace(
       '<p class="fine">🔐 Gullak syncs',
@@ -439,7 +441,7 @@
   };
   const accountHandlers0 = accountScreen.handlers;
   accountScreen.handlers = (...args) => Object.assign(accountHandlers0(...args), {
-    'open-family-backups': () => G.go('cloud-families'),
+    'open-family-backups': () => { if (mode !== 'family') return G.toast('Switch to Family mode to restore a family backup.'); G.go('cloud-families'); },
     'export-family-backup': async () => {
       const F = G.FAM;
       if (!F || !G.cloudAccount.unlocked) return G.toast('Open and unlock the family first.');
