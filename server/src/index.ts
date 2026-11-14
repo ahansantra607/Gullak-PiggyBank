@@ -363,7 +363,8 @@ export default {
           headers: {
             "Content-Type": "application/json",
             "Cache-Control": "no-store",
-            "Set-Cookie": sessionCookie(token, request)
+            "Set-Cookie": sessionCookie(token, request),
+            ...CORS_HEADERS
           }
         });
       } catch {
