@@ -602,7 +602,7 @@
       const note = cloudUser
         ? (cloudSecret ? 'Connected and unlocked in this tab.' : 'Account session may be active; log in with your account password to unlock.')
         : 'Create an account or log in to sync an encrypted copy.';
-      const card = `<section class="card"><h3>☁️ Cloud account</h3><p class="small muted">${esc(note)}</p><div class="col gap"><button class="btn soft block" data-act="cloud-open">${cloudUser ? 'Unlock / manage cloud account' : 'Log in / create cloud account'}</button>${cloudUser ? '<button class="btn ghost block" data-act="cloud-logout">Log out</button><button class="btn danger block" data-act="cloud-delete-account">Delete account</button>' : ''}</div></section>`;
+      const card = `<section class="card"><h3>☁️ Cloud account</h3><p class="small muted">${esc(note)}</p><div class="col gap">${cloudUser ? '<button class="btn soft block" data-act="cloud-logout">Log out</button><button class="btn danger block" data-act="cloud-delete-account">Delete account</button>' : '<button class="btn soft block" data-act="cloud-open">Log in / create cloud account</button>'}</div></section>`;
       const aboutAnchor = '<section class="card small muted"><h3>About Gullak</h3>';
       return html.includes(aboutAnchor) ? html.replace(aboutAnchor, card + aboutAnchor) : html + card;
     };
