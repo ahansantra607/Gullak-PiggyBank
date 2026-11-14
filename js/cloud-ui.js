@@ -79,7 +79,7 @@
         <button class="btn primary block big" data-act="cloud-connect">${authMode === 'register' ? 'Create account & secure my Gullak' : 'Log in & unlock my Gullak'}</button>
         <button class="btn ghost block" data-act="cloud-mode">${authMode === 'register' ? 'I already have an account · Log in' : 'New here? · Create an account'}</button>
       </div>
-      <p class="fine">🔐 Gullak syncs your diary to your cloud account. The server stores only encrypted vault data.</p>
+      <p class="fine">🔐 Gullak syncs your diary to your cloud account. The server stores encrypted vault data and a password-wrapped encryption key, never the passphrase itself.</p>
     </section>`,
     handlers: () => ({
       'cloud-mode': () => { authMode = authMode === 'login' ? 'register' : 'login'; G.render(); },
@@ -530,7 +530,7 @@
     settings.render = (...args) => {
       const html = renderSettings(...args);
       const note = cloudUser
-        ? (cloudSecret ? 'Connected and unlocked in this tab.' : 'Account session may be active; enter your passphrase to unlock.')
+        ? (cloudSecret ? 'Connected and unlocked in this tab.' : 'Account session may be active; log in with your account password to unlock.')
         : 'Create an account or log in to sync an encrypted copy.';
       const card = `<section class="card"><h3>☁️ Cloud account</h3><p class="small muted">${esc(note)}</p><div class="col gap"><button class="btn soft block" data-act="cloud-open">${cloudUser ? 'Unlock / manage cloud account' : 'Log in / create cloud account'}</button><button class="btn soft block" data-act="cloud-families-open">☁️ Find / manage cloud families</button>${cloudUser ? '<button class="btn ghost block" data-act="cloud-logout">Log out & clear this tab</button>' : ''}</div></section>`;
       return html.replace('<section class="card"><h3>My data</h3>', card + '<section class="card"><h3>My data</h3>');
