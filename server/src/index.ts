@@ -197,7 +197,7 @@ export default {
         const requiredTables = [
           "users", "sessions", "user_vaults",
           "cloud_families", "cloud_family_members",
-          "cloud_family_vaults", "cloud_family_member_vaults"
+          "cloud_family_vaults", "cloud_family_member_vaults", "user_key_wraps"
         ];
         const tableChecks = await Promise.all(requiredTables.map(name =>
           env.gullak_db.prepare(
@@ -260,10 +260,8 @@ export default {
           }, 400);
         }
 
-        if (password.length < 10 || password.length > 128) {
-          return json({
-            error: "Password must be between 10 and 128 characters."
-          }, 400);
+        if (password.length < 8 || password.length > 128 || !/[a-z]/.test(password) || !/[A-Z]/.test(password) || !/[0-9]/.test(password) || !/[^A-Za-z0-9]/.test(password)) {
+          return json({ error: "Password must be at least 8 characters and include uppercase, lowercase, a number and a special character." }, 400);
         }
 
         const salt = randomBytes(16);
@@ -441,6 +439,29 @@ export default {
       } catch {
         return json({ error: "Could not log out." }, 500);
       }
+    }
+
+    // Password-wrapped client encryption secret. The server stores only ciphertext.
+    if (path === "/api/key-wrap" && request.method === "GET") {
+      const user = await getCurrentUser(request, env);
+      if (!user) return json({ error: "Authentication required." }, 401);
+      const row = await env.gullak_db.prepare("SELECT wrapped_secret, salt, iterations FROM user_key_wraps WHERE user_id = ?").bind(user.user_id).first<{ wrapped_secret: string; salt: string; iterations: number }>();
+      return json({ exists: !!row, key_wrap: row || null });
+    }
+    if (path === "/api/key-wrap" && request.method === "PUT") {
+      try {
+        const user = await getCurrentUser(request, env);
+        if (!user) return json({ error: "Authentication required." }, 401);
+        const body = await request.json() as { wrapped_secret?: string; salt?: string; iterations?: number };
+        const parts = String(body.wrapped_secret || "").split(".");
+        const salt = String(body.salt || "");
+        const iterations = Number(body.iterations);
+        if (parts.length !== 2 || !validBase64(parts[0]) || !validBase64(parts[1]) || !validBase64(salt) ||
+            fromBase64(parts[0]).length !== 12 || fromBase64(salt).length !== 16 ||
+            fromBase64(parts[1]).length < 16 || !Number.isInteger(iterations) || iterations < 100000 || iterations > 500000) return json({ error: "Invalid encrypted key wrapper." }, 400);
+        await env.gullak_db.prepare("INSERT INTO user_key_wraps (user_id, wrapped_secret, salt, iterations, updated_at) VALUES (?, ?, ?, ?, ?) ON CONFLICT(user_id) DO UPDATE SET wrapped_secret = excluded.wrapped_secret, salt = excluded.salt, iterations = excluded.iterations, updated_at = excluded.updated_at").bind(user.user_id, body.wrapped_secret, salt, iterations, new Date().toISOString()).run();
+        return json({ success: true });
+      } catch { return json({ error: "Could not save the encrypted key wrapper." }, 400); }
     }
 
     // GET ENCRYPTED VAULT
