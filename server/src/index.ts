@@ -726,9 +726,10 @@ export default {
         }
 
         if (action === "member-vault" && (request.method === "GET" || request.method === "PUT")) {
+          const putBody = request.method === "PUT" ? await request.clone().json() as { user_id?: string } : null;
           const targetId = request.method === "GET"
             ? (url.searchParams.get("user_id") || user.user_id)
-            : user.user_id;
+            : (putBody?.user_id || user.user_id);
           if (targetId !== user.user_id && membership.role !== "supervisor") {
             return json({ error: "You may only access your own member data." }, 403);
           }
@@ -744,6 +745,9 @@ export default {
             return json({ exists: !!vault, vault: vault || null });
           }
           const body = await request.json() as any;
+          if (targetId !== user.user_id && membership.role !== "supervisor") {
+            return json({ error: "Supervisor permission required to update another member." }, 403);
+          }
           if (!validEncrypted(body)) return json({ error: "Invalid encrypted member vault." }, 400);
           const updatedAt = new Date().toISOString();
           await env.gullak_db.prepare(`
