@@ -423,62 +423,6 @@
   });
 
 
-  // Individual encrypted export/import. Import is always an explicit replacement
-  // of the currently authenticated account's cloud vault and is verified before use.
-  const settingsScreen = G.screens.settings;
-  if (settingsScreen) {
-    const settingsRender0 = settingsScreen.render;
-    settingsScreen.render = (...args) => settingsRender0(...args) +
-      '<section class="card"><h3>📦 Cloud backup</h3><p class="small muted">Export creates an encrypted file. Import replaces the currently signed-in account diary only after confirmation and cloud verification.</p><button class="btn soft block" data-act="cloud-individual-export">Export encrypted Individual backup</button><label class="btn ghost block file-btn">Import Individual backup<input id="cloud-individual-import-file" type="file" accept=".gullak,.json,application/json" hidden></label></section>';
-    const settingsHandlers0 = settingsScreen.handlers;
-    settingsScreen.handlers = (...args) => Object.assign(settingsHandlers0 ? settingsHandlers0(...args) : {}, {
-      'cloud-individual-export': () => {
-        if (mode !== 'individual' || !G.cloudAccount.unlocked || !G.S.profile) return G.toast('Unlock your Individual cloud account first.');
-        const modal = G.modal({ html: '<h2>🔐 Export encrypted backup</h2><p class="small muted">Choose a separate backup passphrase.</p><input class="input" id="ind-export-pass" type="password" placeholder="At least 10 characters"><input class="input" id="ind-export-confirm" type="password" placeholder="Confirm passphrase"><button class="btn primary block mt" data-act="make-ind-export">Create backup</button>', handlers: {
-          'make-ind-export': async button => {
-            const pass = G.$('#ind-export-pass', modal.el).value, confirm = G.$('#ind-export-confirm', modal.el).value;
-            if (pass.length < 10 || pass !== confirm) return G.toast('Use matching passphrases of at least 10 characters.');
-            button.disabled = true;
-            try { const text = await G.cloudBackup.encode({ gullakMode: 'individual', state: G.S }, pass); G.cloudBackup.download(text); modal.close(); }
-            catch (e) { button.disabled = false; G.toast(e.message || 'Export failed.'); }
-          }
-        }});
-      }
-    });
-    const after0 = settingsScreen.after;
-    settingsScreen.after = (root, q) => {
-      if (after0) after0(root, q);
-      const input = G.$('#cloud-individual-import-file', root);
-      if (!input) return;
-      input.addEventListener('change', () => {
-        const file = input.files && input.files[0]; if (!file) return;
-        const reader = new FileReader();
-        reader.onload = () => {
-          const modal = G.modal({ html: '<h2>🔐 Import encrypted backup</h2><p class="small muted">This will replace the diary in the signed-in Gullak account after verification.</p><input class="input" id="ind-import-pass" type="password" placeholder="Backup passphrase"><button class="btn primary block mt" data-act="unlock-ind-import">Unlock and review</button>', handlers: {
-            'unlock-ind-import': async button => {
-              const pass = G.$('#ind-import-pass', modal.el).value;
-              button.disabled = true;
-              try {
-                const payload = await G.cloudBackup.decode(String(reader.result), pass);
-                if (!payload || payload.gullakMode !== 'individual' || !payload.state || !payload.state.profile) throw new Error('This is not an Individual Gullak backup.');
-                if (!G.cloudAccount.unlocked || mode !== 'individual') throw new Error('Log in to the Individual cloud account first.');
-                if (!(await G.confirm('Replace this account diary?', 'The imported backup will replace the current cloud diary for @' + G.cloudAccount.user.username + '. Export the current diary first if you want to keep it.', 'Replace cloud diary', 'Cancel'))) { button.disabled = false; return; }
-                const value = G.normState(payload.state);
-                await G.cloud.saveVault(value, G.cloudAccount.encryptionPassphrase);
-                const verify = await G.cloud.loadVault(G.cloudAccount.encryptionPassphrase);
-                if (!verify || JSON.stringify(verify) !== JSON.stringify(value)) throw new Error('Cloud verification failed. The current diary has not been replaced in this browser.');
-                G.S = value;
-                try { localStorage.removeItem('gullak:v1'); } catch (_) {}
-                modal.close(); G.toast('☁️ Backup imported and verified in your cloud account.'); G.go('home');
-              } catch (e) { button.disabled = false; G.toast(e.message || 'Import failed.'); }
-            }
-          }});
-        };
-        reader.readAsText(file);
-      });
-    };
-  }
-
   // Keep account logout from leaving decrypted family records in memory.
   const logout0 = G.cloudAccount.logout;
   G.cloudAccount.logout = async () => {
