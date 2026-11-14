@@ -398,6 +398,27 @@
     const t = ' ' + raw.toLowerCase().replace(/₹/g, ' ').replace(/\brs\.?/g, ' ').replace(/\s+/g, ' ') + ' ';
     const n = G.parseNumber(t); const g = G.activeGoal(); const bal = G.balance();
     S().meta.talked = (S().meta.talked || 0) + 1;
+
+    // Pending spend context: only an explicit save/record reply creates a transaction.
+    const pendingSpend = S().meta.chatPendingSpend;
+    const pendingIsFresh = pendingSpend && Date.now() - pendingSpend.createdAt < 30 * 60 * 1000;
+    if (pendingIsFresh && /\\b(?:save it|record it|yes,? save|yes,? record|confirm)\\b/.test(t)) {
+      const explicitNeed = /\\bneed\\b/.test(t), explicitWant = /\\bwant\\b/.test(t);
+      const extraItem = t.match(/\\b(?:for|on)\\s+(?:a|an|the)\\s+([a-z][a-z -]{0,35})/i);
+      const item = extraItem ? extraItem[1].replace(/\\b(?:as a )?(?:need|want)\\b.*$/i, '').trim() : pendingSpend.note;
+      const cat = item && item !== pendingSpend.note ? findCat(item) : pendingSpend.category;
+      const nw = explicitNeed ? 'need' : explicitWant ? 'want' : pendingSpend.needOrWant;
+      const tx = G.act.addTxn({ type: 'out', amount: pendingSpend.amount, category: cat, needOrWant: nw, note: item ? item.replace(/^\\w/, x => x.toUpperCase()) : '' });
+      delete S().meta.chatPendingSpend; G.save();
+      if (!tx) return say(`You only have ${rs(Math.max(0, G.balance()))} available, so I haven't recorded that spend.`, `You only have ${Math.max(0, G.balance())} rupees available.`, voice);
+      G.sound('pop');
+      return say(`📝 Saved ${rs(tx.amount)} for ${esc(item || (G.CATS[cat] || G.CATS.other).n)} as a ${nw}. You have ${rs(G.balance())} left.`, `Saved ${tx.amount} rupees as a ${nw}. You have ${G.balance()} rupees left.`, voice);
+    }
+    if (pendingIsFresh && /\\b(?:cancel|forget) (?:that|it|spend)\\b/.test(t)) {
+      delete S().meta.chatPendingSpend; G.save();
+      return say('Okay, I have not recorded that spend.', 'Okay, I have not recorded that spend.', voice);
+    }
+
     // greetings
     if (/\b(hi|hello|hey|namaste|hii)\b/.test(t) && n == null && t.trim().split(' ').length <= 4) {
       const m = `Oink oink, ${S().profile.nickname}! 🐷 Tell me what you spent or got, or ask me "Can I buy…?"`;
@@ -448,17 +469,26 @@
         : `Your ${esc(g.name)} money is ready! 🎉`;
       return say(m, m, voice);
     }
-    // spent money
-    if (/\b(spent|spend|bought|buy|paid|pay|wasted)\b/.test(t) && n != null) {
+    // A spoken spend is a draft. The Save it? button opens the transaction editor.
+    if (/\\b(spent|spend|bought|buy|paid|pay|wasted)\\b/.test(t) && n != null) {
       const cat = findCat(t); const nw = NEED_CATS.includes(cat) ? 'need' : 'want'; const thing = findThing(t);
-      const c = G.CATS[cat];
-      const m = `Got it! Shall I write <b>${rs(n)}</b> on ${c.e} <b>${esc(thing || c.n)}</b> (${nw === 'need' ? '🧩 need' : '✨ want'})?${g ? `<br><small>⏪ It pushes your ${esc(g.name)} back ${G.plural(G.daysBack(n), 'day')}.</small>` : ''}
-        <div class="row gap mt">${actBtn('✅ Yes, save it', () => {
-          const tx = G.act.addTxn({ type: 'out', amount: n, category: cat, needOrWant: nw, note: thing ? thing.replace(/^\w/, x => x.toUpperCase()) : '' });
-          if (!tx) return say(`You only have ${rs(Math.max(0, G.balance()))} available, so I haven't recorded that spend.`, `You only have ${Math.max(0, G.balance())} rupees available.`, voice);
-          G.sound('pop'); say(`📝 Written! You have ${rs(G.balance())} left.`, `Written. You have ${G.balance()} rupees left.`, voice); G.after(); G.render();
-        }, 'primary')}${actBtn('✏️ Change', () => G.openTxn('out', { amount: n, cat, nw }))}</div>`;
-      return say(m, `Shall I write ${n} rupees on ${thing || c.n}?`, voice);
+      const c = G.CATS[cat] || G.CATS.other;
+      const note = thing ? thing.replace(/^\\w/, x => x.toUpperCase()) : '';
+      S().meta.chatPendingSpend = { amount: n, category: cat, needOrWant: nw, note, createdAt: Date.now() };
+      G.save();
+      const m = `I heard: <b>${rs(n)}</b> for ${esc(note || c.n)} — a ${nw}. Nothing has been recorded yet.${g ? `<br><small>⏪ This would push your ${esc(g.name)} back ${G.plural(G.daysBack(n), 'day')}.</small>` : ''}
+        <div class="row gap mt">${actBtn('💾 Save it?', () => {
+          const pending = S().meta.chatPendingSpend;
+          if (!pending) return say('That spend is no longer pending. Tell me again what you spent.', 'That spend is no longer pending.', voice);
+          delete S().meta.chatPendingSpend; G.save();
+          G.openTxn('out', { amount: pending.amount, cat: pending.category, nw: pending.needOrWant, note: pending.note });
+        }, 'primary')}${actBtn('✏️ Edit details', () => {
+          const pending = S().meta.chatPendingSpend;
+          if (!pending) return;
+          delete S().meta.chatPendingSpend; G.save();
+          G.openTxn('out', { amount: pending.amount, cat: pending.category, nw: pending.needOrWant, note: pending.note });
+        })}</div>`;
+      return say(m, `I heard ${n} rupees for ${note || c.n}. Say “Save it” to record it, or use the button to edit details.`, voice);
     }
     // got money
     if (/\b(got|get|received|earned|earn|gave me|given|pocket money|allowance|found)\b/.test(t) && n != null) {
