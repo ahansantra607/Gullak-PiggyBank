@@ -161,7 +161,7 @@
 
   Object.assign(G.cloud, {
     async listFamilies() {
-      return ((await request('/api/families')).families || []).map(f => ({ ...f, is_member: true }));
+      return (await request('/api/families')).families || [];
     },
     async searchFamilies(query) {
       return (await request('/api/families/search?q=' + encodeURIComponent(query))).families || [];
