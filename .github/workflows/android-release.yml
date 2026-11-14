@@ -60,14 +60,12 @@ jobs:
             echo "::error::Missing ANDROID_KEY_ENCRYPTION_PASSWORD. Complete the signing setup first."
             exit 1
           fi
-          if [ ! -f android/signing/gullak-signing.zip.enc ]; then
+          if [ ! -f android/signing/gullak-signing.zip.gpg ]; then
             echo "::error::Encrypted signing bundle not found. Run the signing setup workflow on main first."
             exit 1
           fi
-          openssl enc -d -aes-256-cbc -salt -pbkdf2 -iter 600000 \
-            -in android/signing/gullak-signing.zip.enc \
-            -out /tmp/gullak-signing.zip \
-            -pass env:KEY_ENCRYPTION_PASSWORD
+          gpg --batch --yes --pinentry-mode loopback --passphrase "$KEY_ENCRYPTION_PASSWORD" \
+            --decrypt android/signing/gullak-signing.zip.gpg > /tmp/gullak-signing.zip
           mkdir -p android/signing
           unzip -oq /tmp/gullak-signing.zip -d android/signing
           rm -f /tmp/gullak-signing.zip
