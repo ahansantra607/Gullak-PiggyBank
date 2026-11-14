@@ -40,6 +40,13 @@
       } finally {
         cloudSecret = ''; cloudUser = null; syncError = null;
       }
+    },
+    async deleteAccount(password) {
+      await syncChain.catch(() => {});
+      await familySyncChain.catch(() => {});
+      const result = await G.cloud.deleteAccount(password);
+      cloudSecret = ''; cloudUser = null; syncError = null;
+      return result;
     }
   };
 
@@ -556,8 +563,9 @@
       const note = cloudUser
         ? (cloudSecret ? 'Connected and unlocked in this tab.' : 'Account session may be active; log in with your account password to unlock.')
         : 'Create an account or log in to sync an encrypted copy.';
-      const card = `<section class="card"><h3>☁️ Cloud account</h3><p class="small muted">${esc(note)}</p><div class="col gap"><button class="btn soft block" data-act="cloud-open">${cloudUser ? 'Unlock / manage cloud account' : 'Log in / create cloud account'}</button>${cloudUser ? '<button class="btn ghost block" data-act="cloud-logout">Log out & clear this tab</button>' : ''}</div></section>`;
-      return html.replace('<section class="card"><h3>My data</h3>', card + '<section class="card"><h3>My data</h3>');
+      const card = `<section class="card"><h3>☁️ Cloud account</h3><p class="small muted">${esc(note)}</p><div class="col gap"><button class="btn soft block" data-act="cloud-open">${cloudUser ? 'Unlock / manage cloud account' : 'Log in / create cloud account'}</button>${cloudUser ? '<button class="btn ghost block" data-act="cloud-logout">Log out</button><button class="btn danger block" data-act="cloud-delete-account">Delete account</button>' : ''}</div></section>`;
+      const aboutAnchor = '<section class="card small muted"><h3>About Gullak</h3>';
+      return html.includes(aboutAnchor) ? html.replace(aboutAnchor, card + aboutAnchor) : html + card;
     };
     const handlersSettings = settings.handlers;
     settings.handlers = (...args) => Object.assign(handlersSettings ? handlersSettings(...args) : {}, {
@@ -567,7 +575,7 @@
         else G.go('cloud-families');
       },
       'cloud-logout': async () => {
-        if (!(await G.confirm('Log out of Gullak Cloud?', 'The decrypted diary will be cleared from this tab. Your existing local copy is retained during migration.', 'Log out', 'Stay'))) return;
+        if (!(await G.confirm('Log out of Gullak Cloud?', 'Your cloud account and saved diary remain intact. This device will be signed out.', 'Log out', 'Stay'))) return;
         let logoutError = null;
         try { await G.cloudAccount.logout(); } catch (error) { logoutError = error; }
         G.setMode('individual'); G.S = G.fresh(); G.parentUnlocked = false; G.FAM = null;
@@ -575,6 +583,29 @@
         if (G.coachCtx) { G.coachCtx.last = null; G.coachCtx.pending = null; }
         G.go('welcome');
         if (logoutError) G.toast('This tab was cleared, but server logout could not be confirmed. Close the tab and retry later.');
+      },
+      'cloud-delete-account': async () => {
+        if (!(await G.confirm('Permanently delete this Gullak account?', 'This permanently deletes the account, Individual diary, password-wrapped key and memberships. Families you created will be transferred to another supervisor where possible; otherwise an empty family is deleted. This cannot be undone.', 'Continue to delete', 'Cancel'))) return;
+        const modal = G.modal({ html: '<h2>Confirm account deletion</h2><p class="small muted">Enter your Gullak account password to permanently delete this account.</p><input class="input" id="delete-account-password" type="password" autocomplete="current-password" placeholder="Account password"><button class="btn danger block mt" data-act="confirm-delete-account">Permanently delete account</button>', handlers: {
+          'confirm-delete-account': async button => {
+            const password = G.$('#delete-account-password', modal.el)?.value || '';
+            if (!password) return G.toast('Enter your account password to continue.');
+            button.disabled = true;
+            try {
+              await G.cloudAccount.deleteAccount(password);
+              modal.close();
+              G.setMode('individual'); G.S = G.fresh(); G.parentUnlocked = false; G.FAM = null;
+              if (G.chat) G.chat.length = 0;
+              if (G.coachCtx) { G.coachCtx.last = null; G.coachCtx.pending = null; }
+              localStorage.removeItem('gullak:v1');
+              G.go('welcome');
+              G.toast('Your Gullak account and its personal data have been permanently deleted.');
+            } catch (error) {
+              button.disabled = false;
+              G.toast(error.message || 'Account deletion failed. Your account has not been deleted.');
+            }
+          }
+        }});
       }
     });
   }
