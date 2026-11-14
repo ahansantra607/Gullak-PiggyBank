@@ -67,8 +67,19 @@
   }
   const routeGuardCloudOnly0 = G.routeGuard;
   G.routeGuard = (name, q) => {
-    if (!G.cloudAccount.unlocked && !['welcome', 'modes', 'cloud-account', 'cloud-families', 'cloud-family-join', 'fam-pick'].includes(name)) return 'cloud-account';
-    return routeGuardCloudOnly0 ? routeGuardCloudOnly0(name, q) : null;
+    const prior = routeGuardCloudOnly0 ? routeGuardCloudOnly0(name, q) : null;
+    if (!G.cloudAccount.unlocked) {
+      if (!['welcome', 'modes', 'cloud-account', 'cloud-families', 'cloud-family-join', 'fam-pick'].includes(name)) return 'cloud-account';
+      return prior;
+    }
+    // Once signed in, the welcome/mode chooser is never a destination.
+    // Preserve Family's own role-aware redirect (supervisor -> sup, member -> home).
+    if (name === 'welcome' || name === 'modes') {
+      if (prior) return prior;
+      if (mode === 'family') return G.FAM ? 'sup' : 'fam-pick';
+      return G.S && G.S.profile ? 'home' : 'me-pin';
+    }
+    return prior;
   };
 
   // Never fall back to browser persistence. An unavailable cloud session is a visible error.
