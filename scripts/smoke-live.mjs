@@ -63,7 +63,7 @@ const supervisorName = "smokesup_" + suffix;
 const memberName = "smokekid_" + suffix;
 const password = "Smoke-test-account-" + randomUUID();
 const familyName = "Smoke Family " + suffix;
-const joinCode = "GULL" + randomUUID().replace(/-/g, "").slice(0, 20).toUpperCase();
+const joinCode = randomUUID().replace(/-/g, "").slice(0, 20).toUpperCase();
 
 const supervisor = expect(await request("/api/register", {
   method: "POST", body: { username: supervisorName, password }
@@ -99,6 +99,17 @@ const family = expect(await request("/api/families", {
 }), 201, "Family creation");
 const familyId = family.data.family.family_id;
 assert(familyId, "Family creation returned no family ID.");
+
+const codeSearch = expect(await request("/api/families/search?q=" + encodeURIComponent(joinCode), {
+  cookie: member.cookie
+}), 200, "Family invite-code search");
+assert(codeSearch.data.families.some(item => item.family_id === familyId),
+  "Family invite code did not find the family.");
+
+const joined = expect(await request("/api/families/" + encodeURIComponent(familyId) + "/join", {
+  method: "POST", cookie: member.cookie, body: { join_code: joinCode }
+}), 200, "Family join by invite code");
+assert(joined.data.family.role === "member", "Family join assigned an unexpected role.");
 
 const linked = expect(await request("/api/families/" + encodeURIComponent(familyId) + "/members", {
   method: "POST", cookie: supervisor.cookie,
