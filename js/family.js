@@ -495,7 +495,7 @@
         if (cr.q[0] === cr.q[1]) return G.toast('Pick two different questions');
         if (cr.a.some(a => C.norm(a).length < 2)) return G.toast('Answer both questions');
         const args = { famName: cr.famName.trim(), famEmoji: cr.famEmoji, name: cr.name.trim(), avatar: cr.avatar, pin: cr.pin, qIds: cr.q.slice(), answers: cr.a.slice(), familyPin: cr.pin };
-        if (!G.cloudAccount?.unlocked) {
+        if (!G.cloudAccount?.unlocked || G.cloudAccount.user?.account_type !== 'family') {
           // Finish the family setup first; create/link its first Supervisor account next.
           G.pendingCloudFamilyCreation = { args, rules: Object.assign({}, cr.rules) };
           G.cloudFamilyReturn = 'create-finalize';
