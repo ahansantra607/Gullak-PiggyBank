@@ -41,6 +41,11 @@ if (!serverSource.includes('Password must be at least 8 characters and include u
 if (!cloudOnlySource.includes('G.cloud.saveFamilyVault(q.f, cached.fkRaw, remote.value)')) throw new Error('Supervisor PIN recovery does not sync updated family metadata.');
 if (!cloudOnlySource.includes("'new-cloud-family': () => { mode = 'family'; G.setMode('family'); G.cloudFamilyReturn = false; G.go('fam-create'); }")) throw new Error('Create my family does not open the original creation wizard directly.');
 if (!cloudOnlySource.includes("!(mode === 'family' && name === 'fam-create')")) throw new Error('Cloud-only route guard blocks the Family creation wizard before login.');
+if (!familySource.includes("G.pendingCloudFamilyCreation = { args, rules: Object.assign({}, cr.rules) }")) throw new Error('Family setup is not retained while the first Supervisor account is created.');
+if (!familySource.includes("G.completePendingCloudFamilyCreation = async () =>")) throw new Error('Family setup cannot resume after Supervisor account creation.');
+if (!cloudOnlySource.includes("familyReturn === 'create-finalize' && G.pendingCloudFamilyCreation")) throw new Error('Supervisor account creation does not resume and finish Family creation.');
+if (cloudUiSource.includes('Cloud account required') || cloudUiSource.includes('cloud-create-login')) throw new Error('Family wizard still has a cloud-login gate before family setup.');
+if (cloudUiSource.includes('const createFamilyLocal = G.famCreate')) throw new Error('Family cloud creation is wrapped twice and could create duplicate families.');
 if (!cloudOnlySource.includes("const destination = familyReturn === 'create' ? 'fam-create' : familyReturn === 'open' ? 'cloud-families' : 'fam-pick';")) throw new Error('Family account login does not return to the original Family creation wizard.');
 if (!cloudOnlySource.includes('G.cloud.listFamilies().then(rows => { G.cloudFamilyResults = rows; })')) throw new Error('Cloud family directory does not load the signed-in user\'s families automatically.');
 if (!cloudOnlySource.includes('Choose your profile. Each person signs in with their own Gullak account.')) throw new Error('Family member selection no longer explains individual account sign-in.');
