@@ -12,6 +12,7 @@
   let returnAfterLogin = null;
 
   G.cloudAccount = {
+    setAuthMode(mode) { authMode = mode === 'register' ? 'register' : 'login'; G.render(); },
     get user() { return cloudUser; },
     get encryptionPassphrase() { return cloudSecret; },
     get unlocked() { return !!cloudSecret && !!cloudUser; },
