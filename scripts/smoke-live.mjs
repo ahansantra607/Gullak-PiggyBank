@@ -117,6 +117,24 @@ const linked = expect(await request("/api/families/" + encodeURIComponent(family
 }), 200, "Link family member");
 assert(linked.data.member.user_id === member.data.user.user_id, "Family linked the wrong account.");
 
+const createdKidName = "createdkid_" + suffix;
+const createdKidPassword = "Created-Member-" + randomUUID() + "!";
+const createdKid = expect(await request("/api/families/" + familyId + "/members", {
+  method: "POST", cookie: supervisor.cookie,
+  body: { username: createdKidName, password: createdKidPassword, role: "member" }
+}), 200, "Supervisor creates a new Gullak account");
+assert(createdKid.data.member.username === createdKidName && createdKid.data.member.user_id,
+  "Supervisor-created account was not linked to the family.");
+const createdKidLogin = expect(await request("/api/login", {
+  method: "POST", body: { username: createdKidName, password: createdKidPassword }
+}), 200, "Supervisor-created member login");
+assert(createdKidLogin.data.user.user_id === createdKid.data.member.user_id,
+  "Supervisor-created member could not authenticate with its own credentials.");
+const allFamilies = expect(await request("/api/families", { cookie: createdKidLogin.cookie }),
+  200, "Cloud-wide family directory");
+assert(allFamilies.data.families.some(item => item.family_id === familyId),
+  "Family directory did not list the created member's family.");
+
 const directory = expect(await request("/api/families/search?q=" + encodeURIComponent(familyName), {
   cookie: member.cookie
 }), 200, "Family directory search");
