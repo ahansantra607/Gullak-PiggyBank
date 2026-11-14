@@ -78,6 +78,12 @@
     login: (username, password) => request('/api/login', {
       method: 'POST', body: JSON.stringify({ username, password })
     }),
+    registerFamilyAccount: (username, password) => request('/api/family/register', {
+      method: 'POST', body: JSON.stringify({ username, password })
+    }),
+    loginFamilyAccount: (username, password) => request('/api/family/login', {
+      method: 'POST', body: JSON.stringify({ username, password })
+    }),
     me: () => request('/api/me'),
     rememberDevice,
     readRememberedDevice,
