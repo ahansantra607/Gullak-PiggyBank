@@ -42,6 +42,9 @@ if (!serverSource.includes('Family PIN must be 4–6 digits.')) throw new Error(
 if (!cloudSource.includes("registerFamilyAccount") || !cloudSource.includes("loginFamilyAccount")) throw new Error('Family accounts do not use dedicated authentication endpoints.');
 if (!cloudOnlySource.includes("G.screens['family-account']") || !cloudOnlySource.includes('Family-only login')) throw new Error('Family mode does not have a dedicated Family account creator/login screen.');
 if (!familySource.includes("G.go('family-account')")) throw new Error('First Supervisor setup does not use the dedicated Family account screen.');
+if (!familySource.includes('G.cancelPendingFamilyCreation = resetFamilyCreation') || !familySource.includes("cback: () => { resetFamilyCreation(); G.go('fam-pick'); }")) throw new Error('Family wizard Back does not discard all incomplete setup data.');
+if (!familySource.includes('G.handleFamilyCreationNavigation') || !appSource.includes('G.handleFamilyCreationNavigation(G._last ||', '')) throw new Error('Browser Back does not reset incomplete Family creation.');
+if (!cloudOnlySource.includes("'family-account-back': () =>") || !cloudOnlySource.includes("G.cancelPendingFamilyCreation?.()")) throw new Error('Backing out of Supervisor account creation does not cancel the pending Family setup.');
 if (!serverSource.includes('path === "/api/family/register"') || !serverSource.includes('path === "/api/family/login"')) throw new Error('Server does not separate Family account registration and login.');
 if (!serverSource.includes('getCurrentUserAccountType') || !serverSource.includes("Family accounts cannot access Individual diaries.")) throw new Error('Server does not enforce account-type separation and Individual vault isolation.');
 if (!serverSource.includes("That username belongs to an Individual account. Create a new Family account for this member.")) throw new Error('Family member creation can still link an Individual account.');
