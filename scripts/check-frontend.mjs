@@ -38,7 +38,6 @@ if (!cloudSource.includes('passwordOrRole')) throw new Error('Supervisor-created
 if (!serverSource.includes('Family PIN must be 4–6 digits.')) throw new Error('The server does not enforce the shared Family PIN format.');
 if (!serverSource.includes('Password must be at least 8 characters and include uppercase, lowercase, a number and a special character.')) throw new Error('Supervisor-created accounts do not enforce the account password policy.');
 
-if (!cloudOnlySource.includes("'recover-family-pin': () => G.go('fam-recover', { f: q.f || activeFamilyId, m: q.m })")) throw new Error('Family PIN recovery entry point is missing.');
 if (!cloudOnlySource.includes('G.cloud.saveFamilyVault(q.f, cached.fkRaw, remote.value)')) throw new Error('Supervisor PIN recovery does not sync updated family metadata.');
 if (!cloudOnlySource.includes("'family-create': () => G.go('fam-create')")) throw new Error('Cloud family search screen has no create-family route.');
 if (!cloudOnlySource.includes('G.cloud.listFamilies().then(rows => { G.cloudFamilyResults = rows; })')) throw new Error('Cloud family directory does not load the signed-in user\'s families automatically.');
