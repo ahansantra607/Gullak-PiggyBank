@@ -763,6 +763,15 @@
   const priorBootReady = G.bootReady;
   G.bootReady = Promise.resolve(priorBootReady).then(async () => {
     if (G.cloudAccount && !G.cloudAccount.unlocked) await G.cloudAccount.restoreSession();
+    // A refresh during the in-memory-only Family wizard abandons that draft.
+    // Keep the user in Family mode and return to the Family picker; never
+    // send this route through the Individual cloud-account login screen.
+    const initialRoute = (location.hash.replace(/^#\\/?/, '').split('?')[0] || '');
+    if (initialRoute === 'fam-create') {
+      G.setMode('family');
+      G.cancelPendingFamilyCreation?.();
+      history.replaceState(history.state, '', location.pathname + location.search + '#/fam-pick');
+    }
   });
 
 })(window.G);
