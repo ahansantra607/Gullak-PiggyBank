@@ -1,4 +1,4 @@
-/* Gullak modes + Family mode (no server, no internet, nothing in the repo).
+/* Gullak modes + Family mode with encrypted cloud sync and local migration support.
    Modes:   🧒 Individual (grown-up PIN set first, then the kid) · 👨‍👩‍👧 Family (choose family → choose user → PIN)
    Family:  any number of Supervisors (grown-ups) and Members (kids). Only Supervisors add people.
    Storage: on this device only. Family list = names/emojis + encrypted key wraps. All money data = AES-256-GCM ciphertext. */
@@ -62,7 +62,7 @@
       <button class="mode-card m-me" data-act="mode-me"><span>🧒</span><div><b>Individual</b><small>${hasMe() ? 'Continue my Gullak' : 'One kid on this device. A grown-up sets a PIN first.'}</small></div><i>›</i></button>
       <button class="mode-card m-fam" data-act="mode-fam"><span>👨‍👩‍👧</span><div><b>Family</b><small>Choose your family, pick who you are, enter your PIN. Supervisors approve asks.</small></div><i>›</i></button>
     </div>
-    <p class="fine">🔒 No real money, no email, no phone, no real names. Everything stays saved in this browser.</p>`;
+    <p class="fine">🔒 No real money, no email, no phone, no real names. Cloud data is encrypted before upload. Keep your recovery code safe.</p>`;
   const modeHandlers = () => ({
     'mode-me': () => { G.setMode('individual'); if (G.S.profile) G.go('home'); else G.go('me-pin'); },
     'mode-fam': () => {
@@ -257,7 +257,7 @@
           : `<section class="card center">${G.piggy('calm', 110)}<p>No families on this device yet.</p></section>`}
         <button class="btn primary block big" data-act="go" data-to="fam-create">➕ Create a new family</button>
         <label class="btn soft block file-btn">📂 Open a family backup file<input type="file" id="fam-import" accept=".gullak,application/json,.json" hidden></label>
-        <p class="fine">🔐 Families live only on this device, locked with end-to-end encryption. Nothing is sent to the internet, so there's nothing to leak.</p>`;
+        <p class="fine">🔐 Cloud family names are searchable; private family details and money diaries are encrypted in your browser before upload.</p>`;
     },
     after: (root) => {
       const inp = G.$('#fam-import', root);
