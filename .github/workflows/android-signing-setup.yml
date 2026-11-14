@@ -1,0 +1,72 @@
+name: Set up Gullak Android signing key
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: gullak-android-signing-setup
+  cancel-in-progress: false
+
+jobs:
+  create-signing-key:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Verify encryption secret and prevent key replacement
+        env:
+          KEY_ENCRYPTION_PASSWORD: ${{ secrets.ANDROID_KEY_ENCRYPTION_PASSWORD }}
+        run: |
+          if [ -z "$KEY_ENCRYPTION_PASSWORD" ]; then
+            echo "::error::Add the ANDROID_KEY_ENCRYPTION_PASSWORD Actions secret before running this workflow."
+            exit 1
+          fi
+          if [ -f android/signing/gullak-signing.zip.enc ]; then
+            echo "::error::A signing key already exists. Refusing to replace it because that would break updates for existing installations."
+            exit 1
+          fi
+      - name: Generate and encrypt the permanent signing key
+        env:
+          KEY_ENCRYPTION_PASSWORD: ${{ secrets.ANDROID_KEY_ENCRYPTION_PASSWORD }}
+        run: |
+          set -euo pipefail
+          mkdir -p android/signing
+          work="$(mktemp -d)"
+          trap 'rm -rf "$work"' EXIT
+          store_password="$(openssl rand -hex 32)"
+          keytool -genkeypair \
+            -keystore "$work/release.keystore" \
+            -storetype PKCS12 \
+            -storepass "$store_password" \
+            -keypass "$store_password" \
+            -alias gullak-release \
+            -keyalg RSA -keysize 3072 -validity 10000 \
+            -dname "CN=Gullak Android Release, O=Gullak, C=IN"
+          cat > "$work/signing.properties" <<EOF
+          storeFile=release.keystore
+          storeType=PKCS12
+          storePassword=$store_password
+          keyAlias=gullak-release
+          keyPassword=$store_password
+          EOF
+          (cd "$work" && zip -q signing-bundle.zip release.keystore signing.properties)
+          openssl enc -aes-256-cbc -salt -pbkdf2 -iter 600000 \
+            -in "$work/signing-bundle.zip" \
+            -out android/signing/gullak-signing.zip.enc \
+            -pass env:KEY_ENCRYPTION_PASSWORD
+          echo "Encrypted signing bundle generated. The unencrypted key and passwords were kept only in the temporary runner directory."
+      - name: Commit encrypted signing bundle
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add android/signing/gullak-signing.zip.enc
+          git commit -m "Add encrypted Android release signing bundle"
+          git push origin HEAD:main
