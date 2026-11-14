@@ -34,7 +34,7 @@
     let { name, q } = parse();
     if (!G.screens[name]) name = 'home';
     if (G.routeGuard) { const r = G.routeGuard(name, q); if (r && G.screens[r]) name = r; }
-    if (!G.S.profile && !FREE.includes(name)) name = 'welcome';
+    if (!G.S.profile && !((G.FREE_ROUTES || FREE).includes(name))) name = 'welcome';
     if (G.S.profile && name === 'welcome') name = 'home';
     // Canonicalize guarded routes in-place. Leaving the blocked route in the
     // address bar makes browser Back revisit it and can create a two-page loop.
