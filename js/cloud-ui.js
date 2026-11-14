@@ -17,7 +17,11 @@
     get unlocked() { return !!cloudSecret && !!cloudUser; },
     get status() { return syncError ? 'error' : (cloudSecret ? 'connected' : 'locked'); },
     async logout() {
-      try { await G.cloud.logout(); } finally {
+      try {
+        await syncChain.catch(() => {});
+        await familySyncChain.catch(() => {});
+        await G.cloud.logout();
+      } finally {
         cloudSecret = ''; cloudUser = null; syncError = null;
       }
     }
@@ -310,6 +314,20 @@
     await G.famSave();
   };
 
+  const familyCreateScreen = G.screens['fam-create'];
+  if (familyCreateScreen) {
+    const renderCreate = familyCreateScreen.render;
+    familyCreateScreen.render = (...args) => {
+      const html = renderCreate(...args);
+      if (G.cloudAccount.unlocked) return html;
+      return html.replace('<header', '<section class="card"><h3>☁️ Cloud account required</h3><p class="small muted">Sign in before creating a family so its encrypted data can sync across devices.</p><button class="btn primary block" data-act="cloud-create-login">Log in / create account</button></section><header');
+    };
+    const handlersCreate = familyCreateScreen.handlers;
+    familyCreateScreen.handlers = (...args) => Object.assign(handlersCreate ? handlersCreate(...args) : {}, {
+      'cloud-create-login': () => { returnAfterLogin = 'fam-create'; authMode = 'login'; G.go('cloud-account'); }
+    });
+  }
+
   const familyPicker = G.screens['fam-pick'];
   if (familyPicker) {
     const renderPicker = familyPicker.render;
@@ -338,17 +356,21 @@
       const note = cloudUser
         ? (cloudSecret ? 'Connected and unlocked in this tab.' : 'Account session may be active; enter your passphrase to unlock.')
         : 'Create an account or log in to sync an encrypted copy.';
-      const card = `<section class="card"><h3>☁️ Cloud account</h3><p class="small muted">${esc(note)}</p><div class="col gap"><button class="btn soft block" data-act="cloud-open">${cloudUser ? 'Unlock / manage cloud account' : 'Log in / create cloud account'}</button>${cloudUser ? '<button class="btn ghost block" data-act="cloud-logout">Log out & clear this tab</button>' : ''}</div></section>`;
+      const card = `<section class="card"><h3>☁️ Cloud account</h3><p class="small muted">${esc(note)}</p><div class="col gap"><button class="btn soft block" data-act="cloud-open">${cloudUser ? 'Unlock / manage cloud account' : 'Log in / create cloud account'}</button><button class="btn soft block" data-act="cloud-families-open">☁️ Find / manage cloud families</button>${cloudUser ? '<button class="btn ghost block" data-act="cloud-logout">Log out & clear this tab</button>' : ''}</div></section>`;
       return html.replace('<section class="card"><h3>My data</h3>', card + '<section class="card"><h3>My data</h3>');
     };
     const handlersSettings = settings.handlers;
     settings.handlers = (...args) => Object.assign(handlersSettings ? handlersSettings(...args) : {}, {
       'cloud-open': () => { authMode = 'login'; G.go('cloud-account'); },
+      'cloud-families-open': () => {
+        if (!G.cloudAccount.unlocked) { returnAfterLogin = 'cloud-families'; authMode = 'login'; G.go('cloud-account'); }
+        else G.go('cloud-families');
+      },
       'cloud-logout': async () => {
         if (!(await G.confirm('Log out of Gullak Cloud?', 'The decrypted diary will be cleared from this tab. Your existing local copy is retained during migration.', 'Log out', 'Stay'))) return;
         let logoutError = null;
         try { await G.cloudAccount.logout(); } catch (error) { logoutError = error; }
-        G.S = G.fresh(); G.parentUnlocked = false; G.FAM = null;
+        G.setMode('individual'); G.S = G.fresh(); G.parentUnlocked = false; G.FAM = null;
         if (G.chat) G.chat.length = 0;
         if (G.coachCtx) { G.coachCtx.last = null; G.coachCtx.pending = null; }
         G.go('welcome');
