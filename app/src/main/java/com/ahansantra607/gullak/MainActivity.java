@@ -387,6 +387,11 @@ public class MainActivity extends Activity {
     @Override
     protected void onDestroy() {
         executor.shutdownNow();
+        if (filePathCallback != null) {
+            filePathCallback.onReceiveValue(null);
+            filePathCallback = null;
+        }
+        pendingBackupBytes = null;
         if (webView != null) {
             webView.destroy();
             webView = null;
