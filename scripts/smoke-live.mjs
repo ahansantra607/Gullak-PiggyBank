@@ -121,9 +121,14 @@ assert(linked.data.member.user_id === member.data.user.user_id, "Family linked t
 
 const createdKidName = "createdkid_" + suffix;
 const createdKidPassword = "Created-Member-" + randomUUID() + "!";
+const createdKidKeySalt = b64(randomBytes(16));
+const createdKidKeyWrap = b64(randomBytes(12)) + "." + b64(randomBytes(48));
 const createdKid = expect(await request("/api/families/" + familyId + "/members", {
   method: "POST", cookie: supervisor.cookie,
-  body: { username: createdKidName, password: createdKidPassword, role: "member" }
+  body: {
+    username: createdKidName, password: createdKidPassword, role: "member",
+    wrapped_secret: createdKidKeyWrap, salt: createdKidKeySalt, iterations: 310000
+  }
 }), 200, "Supervisor creates a new Gullak account");
 assert(createdKid.data.member.username === createdKidName && createdKid.data.member.user_id,
   "Supervisor-created account was not linked to the family.");
