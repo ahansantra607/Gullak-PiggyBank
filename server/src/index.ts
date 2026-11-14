@@ -639,7 +639,7 @@ export default {
           return json({ success: true, family: { family_id: familyId, name, role: "supervisor" } }, 201);
         }
 
-        const match = path.match(/^\/api\/families\/([^/]+)(?:\/(join|members|vault|member-vault))?$/);
+        const match = path.match(/^\/api\/families\/([^/]+)(?:\/(join|members|vault|member-vault|code))?$/);
         if (!match) return json({ error: "Not found." }, 404);
         const familyId = decodeURIComponent(match[1]);
         const action = match[2] || "";
@@ -653,6 +653,42 @@ export default {
         const membership = await env.gullak_db.prepare(`
           SELECT role FROM cloud_family_members WHERE family_id = ? AND user_id = ?
         `).bind(familyId, user.user_id).first<{ role: string }>();
+
+        if (!action && request.method === "PUT") {
+          if (!membership || membership.role !== "supervisor") return json({ error: "Supervisor permission required." }, 403);
+          const body = await request.json() as { name?: string };
+          const name = String(body.name || "").trim();
+          if (name.length < 2 || name.length > 40) return json({ error: "Family name must be 2–40 characters." }, 400);
+          await env.gullak_db.prepare("UPDATE cloud_families SET name = ? WHERE family_id = ?").bind(name, familyId).run();
+          return json({ success: true, name });
+        }
+
+        if (!action && request.method === "DELETE") {
+          if (!membership || membership.role !== "supervisor") return json({ error: "Supervisor permission required." }, 403);
+          await env.gullak_db.prepare("DELETE FROM cloud_families WHERE family_id = ?").bind(familyId).run();
+          return json({ success: true });
+        }
+
+        if (action === "code" && request.method === "PUT") {
+          if (!membership || membership.role !== "supervisor") return json({ error: "Supervisor permission required." }, 403);
+          const body = await request.json() as { join_code?: string; family_key_wrap?: string; key_wrap_salt?: string; key_wrap_iterations?: number };
+          const code = String(body.join_code || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+          const parts = String(body.family_key_wrap || "").split(".");
+          const salt = String(body.key_wrap_salt || "");
+          const iterations = Number(body.key_wrap_iterations);
+          if (code.length < 8 || code.length > 64 || parts.length !== 2 ||
+              !validBase64(parts[0]) || !validBase64(parts[1]) ||
+              fromBase64(parts[0]).length !== 12 || fromBase64(parts[1]).length < 16 ||
+              !validBase64(salt) || fromBase64(salt).length !== 16 ||
+              !Number.isInteger(iterations) || iterations < 100000 || iterations > 1000000) {
+            return json({ error: "Invalid new family recovery code." }, 400);
+          }
+          await env.gullak_db.prepare(`
+            UPDATE cloud_families SET join_code_hash = ?, family_key_wrap = ?,
+              key_wrap_salt = ?, key_wrap_iterations = ? WHERE family_id = ?
+          `).bind(await sha256(code), String(body.family_key_wrap), salt, iterations, familyId).run();
+          return json({ success: true });
+        }
 
         if (action === "join" && request.method === "POST") {
           const body = await request.json() as { join_code?: string };
@@ -693,6 +729,27 @@ export default {
             VALUES (?, ?, ?, ?)
           `).bind(familyId, target.user_id, role, new Date().toISOString()).run();
           return json({ success: true, member: { user_id: target.user_id, username: target.username, role } });
+        }
+
+        if (action === "members" && request.method === "DELETE") {
+          if (membership.role !== "supervisor") return json({ error: "Supervisor permission required." }, 403);
+          const body = await request.json() as { user_id?: string };
+          const targetId = String(body.user_id || "");
+          if (!targetId || targetId === user.user_id) return json({ error: "You cannot remove your own account here." }, 400);
+          const target = await env.gullak_db.prepare(
+            "SELECT role FROM cloud_family_members WHERE family_id = ? AND user_id = ?"
+          ).bind(familyId, targetId).first<{ role: string }>();
+          if (!target) return json({ error: "Family member not found." }, 404);
+          if (target.role === "supervisor") {
+            const count = await env.gullak_db.prepare(
+              "SELECT COUNT(*) AS total FROM cloud_family_members WHERE family_id = ? AND role = 'supervisor'"
+            ).bind(familyId).first<{ total: number }>();
+            if ((count?.total || 0) <= 1) return json({ error: "A family needs at least one supervisor." }, 400);
+          }
+          await env.gullak_db.prepare(
+            "DELETE FROM cloud_family_members WHERE family_id = ? AND user_id = ?"
+          ).bind(familyId, targetId).run();
+          return json({ success: true });
         }
 
         if (action === "vault" && request.method === "GET") {
