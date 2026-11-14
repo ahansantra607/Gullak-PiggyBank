@@ -27,6 +27,9 @@
   }
 
   G.mode = () => mode;
+  // Do not expose an old browser-cached diary before cloud authentication.
+  G.S = G.fresh();
+  G.parentUnlocked = false;
   const setMode0 = G.setMode;
   G.setMode = next => {
     mode = next === 'family' ? 'family' : 'individual';
