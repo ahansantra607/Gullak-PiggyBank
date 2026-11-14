@@ -416,8 +416,8 @@
         </section>`
       : `<section class="card"><h3>📦 Backups & restore</h3><p class="small muted">Log in to manage encrypted backups.</p></section>`;
     return html.replace(
-      '</div>\\n      <p class="fine">🔐 Gullak syncs',
-      `</div>\\n      ${panel}\\n      <p class="fine">🔐 Gullak syncs`
+      '</div>\n      <p class="fine">🔐 Gullak syncs',
+      `</div>\n      ${panel}\n      <p class="fine">🔐 Gullak syncs`
     );
   };
   const accountHandlers0 = accountScreen.handlers;
