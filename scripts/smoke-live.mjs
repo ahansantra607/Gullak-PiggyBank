@@ -109,6 +109,10 @@ const family = expect(await request("/api/families", {
 }), 201, "Family creation");
 const familyId = family.data.family.family_id;
 assert(familyId, "Family creation returned no family ID.");
+expect(await request("/api/families/" + encodeURIComponent(familyId) + "/members", {
+  method: "POST", cookie: supervisor.cookie,
+  body: { username: individualName, role: "member" }
+}), 409, "Individual account cannot be linked into Family mode");
 
 const directoryBeforeLogin = expect(await request("/api/families"), 200, "Family directory before login");
 assert(directoryBeforeLogin.data.families.some(item => item.family_id === familyId), "Family missing from cloud directory.");
