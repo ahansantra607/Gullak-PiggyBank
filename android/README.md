@@ -12,7 +12,7 @@ The native startup screen checks the latest published GitHub Release. If a newer
 2. Name it `ANDROID_KEY_ENCRYPTION_PASSWORD`.
 3. Generate a long, unique password with a password manager. Do not reuse your GitHub password. Save it securely; losing it means future releases cannot decrypt the signing key.
 4. Open **Actions → Set up Gullak Android signing key → Run workflow** on `main`.
-5. The workflow creates a permanent Android signing key in a temporary GitHub runner, encrypts it with the secret above, and commits only the encrypted bundle at `android/signing/gullak-signing.zip.enc`. It refuses to replace an existing key.
+5. The workflow creates a permanent Android signing key in a temporary GitHub runner, encrypts it with GPG/AES-256 using the secret above, and commits only the encrypted bundle at `android/signing/gullak-signing.zip.gpg`. It refuses to replace an existing key.
 6. Keep the encryption password in a password manager and keep the encrypted repository file. Never publish or share the password or a decrypted keystore.
 
 The private signing key is never uploaded as a workflow artifact and is never committed in plaintext. GitHub Actions decrypts it only in the temporary release runner.
