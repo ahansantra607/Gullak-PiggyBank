@@ -251,6 +251,14 @@
           }
         } catch (error) {
           cloudSecret = ''; cloudUser = null;
+          if (G.pendingIndividualBackup && authMode === 'login' && error.status === 401) {
+            const create = await G.confirm(
+              'Could not sign in',
+              'The username may not have an account yet, or the password may be incorrect. If you do not have this account, would you like to create it now?',
+              'Create account', 'Try login again'
+            );
+            if (create) { authMode = 'register'; G.render(); }
+          }
           G.toast(error.message || 'Could not connect to Gullak Cloud.');
         } finally {
           button.disabled = false;
