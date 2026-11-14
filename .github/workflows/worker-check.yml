@@ -50,7 +50,7 @@ jobs:
           from pathlib import Path
           db = sqlite3.connect(":memory:")
           db.execute("PRAGMA foreign_keys = ON")
-          db.execute("CREATE TABLE users (user_id TEXT PRIMARY KEY)")
+          db.executescript(Path("server/schema.sql").read_text())
           db.executescript(Path("server/family-schema.sql").read_text())
           expected = {
               "cloud_families",
