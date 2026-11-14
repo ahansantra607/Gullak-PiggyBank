@@ -268,11 +268,6 @@
           <label class="toggle"><input type="checkbox" id="s-read" ${s.settings.readAloud ? 'checked' : ''}> 🗣️ Read things aloud for me</label>
           <div class="label">Money Lens unit</div>
           <div class="chips">${G.allUnits().map(u => `<button class="chip ${u.id === s.settings.unit ? 'on' : ''}" data-act="unit" data-v="${u.id}">${u.e} ${u.id === 'goal' ? 'my dream' : u.many}</button>`).join('')}</div></section>
-        <section class="card"><h3>My data</h3><p class="small muted">Cloud diaries are encrypted before upload. Export makes a separate passphrase-protected backup.</p>
-          <div class="col gap"><button class="btn soft block" data-act="export">🔐 Export encrypted backup</button>
-          <label class="btn soft block file-btn">🔐 Import encrypted backup<input type="file" id="s-import" accept=".gullak,application/json,.json" hidden></label>
-          <button class="btn soft block" data-act="sample">👀 Load sample data</button>
-          <button class="btn danger block" data-act="reset">🗑️ Start over (delete everything)</button></div></section>
         <section class="card small muted"><h3>About Gullak</h3>
           <p>Gullak is a practice money app for kids. It uses <b>pretend amounts only</b>: no bank, UPI, card or wallet. Cloud accounts sync encrypted diary data. No ads, no real names, no photos.</p>
           <p>Made for the Dezerv Children's Day Hackathon 2026. 🐷</p></section>`;
