@@ -64,7 +64,10 @@ public class MainActivity extends Activity {
     private boolean pinScreenVisible;
     private boolean needsUnlock;
     private EditText pinInput;
-    private String pendingSetupPin = "";\n    private String pendingUpdateApkUrl = "";\n    private String pendingUpdateVersion = "";\n    private String pendingUpdateNotes = "";
+    private String pendingSetupPin = "";
+    private String pendingUpdateApkUrl = "";
+    private String pendingUpdateVersion = "";
+    private String pendingUpdateNotes = "";
     private static final long INACTIVITY_LOCK_MS = 7 * 60 * 1000L;
     private final Handler inactivityHandler = new Handler(Looper.getMainLooper());
     private final Runnable inactivityLock = () -> {
