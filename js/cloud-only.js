@@ -114,7 +114,6 @@
         ? 'individual-supervision' : 'welcome';
     }
     if (mode !== 'family' && name === 'grownup') return G.cloudAccount?.user?.account_type === 'individual' ? 'individual-supervision' : 'home';
-    if (mode !== 'family' && name === 'ask' && G.cloudAccount?.user?.account_type === 'individual') return 'individual-supervision';
     if (mode !== 'family' && G.cloudAccount?.user?.account_type === 'individual') {
       if (G.cloudAccount.user.role === 'supervisor') {
         if (G.supervisedKidMode && name !== 'supervised-kid' && name !== 'report') G.restoreSupervisorState?.(false);
