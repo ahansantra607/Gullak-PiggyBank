@@ -34,6 +34,14 @@ if (!cloudOnlySource.includes("G.go('fam-users', { f: meta.cloudId })")) throw n
 const familySource = readFileSync('js/family.js', 'utf8');
 const cloudSource = readFileSync('js/cloud.js', 'utf8');
 const serverSource = readFileSync('server/src/index.ts', 'utf8');
+const individualSchemaSource = readFileSync('server/individual-supervision-schema.sql', 'utf8');
+if (!cloudUiSource.includes("data-act=\"individual-role\"") || !cloudUiSource.includes("registerRole === 'kid'") || !cloudUiSource.includes("G.cloud.registerIndividual")) throw new Error('Individual registration does not offer Supervisor and Kid account types.');
+if (!cloudUiSource.includes("G.screens['individual-supervision']") || !cloudUiSource.includes("individual-decision") || !cloudUiSource.includes("individual-add-supervisor")) throw new Error('Individual Supervisor dashboard or Kid multiple-Supervisor management is missing.');
+if (!cloudUiSource.includes("G.cloud.createSupervisorCode") || !cloudUiSource.includes("G.cloud.decideSupervisorRequest")) throw new Error('Supervisor code generation or approval actions are not wired to the cloud API.');
+if (!cloudOnlySource.includes("name === 'me-pin' || name === 'grownup'") || !cloudOnlySource.includes("ls.removeItem('gullak:v1')")) throw new Error('Legacy Individual PIN/Grown-up routes or local diary cleanup remain active.');
+if (!serverSource.includes('role !== "supervisor" && role !== "kid"') || !serverSource.includes('role.status !== "active"') || !serverSource.includes('supervisionDecision')) throw new Error('Server does not enforce Individual roles and Supervisor acceptance.');
+if (!individualSchemaSource.includes('individual_supervisor_links') || !individualSchemaSource.includes("status = 'active'") || !individualSchemaSource.includes('NOT EXISTS (SELECT 1 FROM cloud_family_members')) throw new Error('Individual supervision schema or Family-protected legacy cleanup is missing.');
+
 if (!familySource.includes('Shared Family PIN') || familySource.includes('Your supervisor PIN')) throw new Error('Family creation still asks for a personal supervisor PIN instead of the shared Family PIN.');
 if (!cloudOnlySource.includes('G.cloud.createFamily({')) throw new Error('Family creation is not being committed to the cloud.');
 if (!cloudOnlySource.includes('familyKey: C.b64(F.fkRaw)')) throw new Error('New Family exports do not include the encrypted-file-wrapped family key.');
