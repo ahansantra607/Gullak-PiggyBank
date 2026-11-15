@@ -484,6 +484,23 @@
     })
   };
 
+  G.supervisedKidMode = false;
+  G.restoreSupervisorState = (navigate = true) => {
+    if (!G.supervisedKidMode) return;
+    G.supervisedKidMode = false;
+    G.supervisedKidId = null;
+    G.supervisedKidName = null;
+    G.supervisedKidSecret = null;
+    G.S = supervisorOwnState || G.fresh();
+    supervisorOwnState = null;
+    G.parentUnlocked = false;
+    if (navigate) G.go('individual-supervision');
+  };
+  G.screens['supervised-kid'] = {
+    render: () => G.supervisedKidMode && G.screens.grownup ? G.screens.grownup.render() : '<section class="card">Select a Kid from your Supervisor dashboard.</section>',
+    handlers: () => G.supervisedKidMode && G.screens.grownup ? G.screens.grownup.handlers() : ({})
+  };
+
   const settingsRenderBeforeSupervision = G.screens.settings?.render;
   const settingsHandlersBeforeSupervision = G.screens.settings?.handlers;
   if (G.screens.settings && settingsRenderBeforeSupervision) {
