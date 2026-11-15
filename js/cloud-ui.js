@@ -353,6 +353,7 @@
     bare: true,
     render: () => {
       const role = cloudUser?.role || 'kid';
+      const accountPending = cloudUser?.role === 'kid' && (cloudUser?.status === 'pending' || supervisionData?.status === 'pending');
       const links = supervisionData?.links || [];
       const pending = links.filter(x => x.status === 'pending');
       const accepted = links.filter(x => x.status === 'accepted');
@@ -371,6 +372,7 @@
         </section>
         <button class="btn soft block" data-act="individual-continue">Continue to my Gullak</button>`;
       return head + `
+        ${accountPending ? '<div class="banner info">⏳ Your Kid account is pending. Your diary stays locked until at least one Supervisor accepts.</div>' : ''}
         <section class="card"><h2>My Supervisors</h2>
           <p class="small muted">A Kid account becomes active only after at least one Supervisor accepts. You can add more Supervisors here at any time.</p>
           <label class="label" for="individual-add-supervisor">Add another Supervisor</label>
@@ -381,13 +383,15 @@
           <h3>Waiting for acceptance</h3>
           ${pending.map(x => `<div class="kid-row"><span>⏳</span><b class="grow">${esc(x.other_username)}</b><span class="small muted">Pending</span></div>`).join('') || '<p class="small muted">No pending requests.</p>'}
           ${rejected.length ? '<h3>Declined</h3>' + rejected.map(x => `<div class="kid-row"><span>↩️</span><b class="grow">${esc(x.other_username)}</b><span class="small muted">Declined</span></div>`).join('') : ''}
-        </section>`;
+        </section>
+        ${accountPending ? '<button class="btn soft block" data-act="individual-refresh">Check approval status</button>' : '<button class="btn soft block" data-act="individual-continue">Continue to my Gullak</button>'}`;
     },
     after: root => {
       if (supervisionLoading || !cloudUser) return;
       supervisionLoading = true;
       G.cloud.individualSupervision().then(data => {
         supervisionData = data;
+        if (cloudUser && data.status) cloudUser.status = data.status;
         if (location.hash.includes('individual-supervision')) G.render({ keepScroll: true });
       }).catch(error => G.toast(error.message || 'Could not load Supervisor details.'))
         .finally(() => { supervisionLoading = false; });
@@ -409,6 +413,7 @@
         try { await G.cloud.requestSupervisor(code); supervisionData = null; G.toast('Request sent. The Supervisor must accept it.'); G.render({ keepScroll: true }); }
         catch (error) { G.toast(error.message || 'Could not send the request.'); button.disabled = false; }
       },
+      'individual-refresh': () => { supervisionData = null; G.render({ keepScroll: true }); },
       'individual-continue': () => G.go(G.S?.profile ? 'home' : 'welcome')
     })
   };
