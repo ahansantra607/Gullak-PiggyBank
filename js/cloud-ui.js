@@ -52,6 +52,10 @@
           return false;
         }
         cloudUser = remembered.user; cloudSecret = remembered.secret || ''; syncError = null;
+        if (remembered.user?.role === 'kid' && remembered.user?.status === 'pending') {
+          if (G.setMode) G.setMode('individual');
+          return true;
+        }
         if (remembered.user?.account_type === 'family') {
           if (G.setMode) G.setMode('family');
           if (window.GullakNative && typeof window.GullakNative.onCloudReady === 'function') window.GullakNative.onCloudReady();
@@ -212,8 +216,11 @@
             ? await G.cloud.registerIndividual(username, password, role, supervisorCodes, secret)
             : await G.cloud.login(username, password);
           if (authMode === 'register' && role === 'kid') {
-            authMode = 'login'; registerRole = 'supervisor'; G.render();
-            G.toast('Kid account created. It will become active after at least one Supervisor accepts your request. Then log in with your username and password.', 6500);
+            cloudUser = auth.user; cloudSecret = secret; authMode = 'login'; registerRole = 'supervisor';
+            if (G.setMode) G.setMode('individual');
+            if (stayLoggedIn) { try { await G.cloud.rememberDevice(cloudSecret); } catch (_) {} }
+            G.go('individual-supervision');
+            G.toast('Kid account created. It is locked until at least one Supervisor accepts. You can add more Supervisor codes here while you wait.', 6500);
             return;
           }
           cloudUser = auth.user;
@@ -238,6 +245,13 @@
               await G.cloud.loadVault(cloudSecret);
               await G.cloud.saveKeyWrap(cloudSecret, password);
             }
+          }
+          if (authMode === 'login' && auth.user?.role === 'kid' && auth.user?.status === 'pending') {
+            if (stayLoggedIn) { try { await G.cloud.rememberDevice(cloudSecret); } catch (_) {} }
+            if (G.setMode) G.setMode('individual');
+            G.go('individual-supervision');
+            G.toast('This Kid account is still waiting for a Supervisor to accept.', 6000);
+            return;
           }
           syncError = null;
           if (stayLoggedIn) {
