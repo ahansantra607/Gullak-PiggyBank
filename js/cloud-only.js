@@ -11,12 +11,11 @@
   const safeCopy = value => JSON.parse(JSON.stringify(value));
   const familyKey = key => /^gullak:(families|famdata:|lastfam|mode|famsession)/.test(String(key));
   const cloudOnlyKey = key => familyKey(key) || String(key) === 'gullak:v1';
-  // Retire legacy Individual browser data as part of the new account system.
-  try { ls.removeItem('gullak:v1'); } catch (_) {}
-
   // Family indexes, family ciphertext and mode selection are memory-only.
   const ls = window.localStorage;
   const ss = window.sessionStorage;
+  // Retire legacy Individual browser data as part of the new account system.
+  try { ls.removeItem('gullak:v1'); } catch (_) {}
   if (ls && !ls.__gullakCloudOnly) {
     const get = ls.getItem.bind(ls), set = ls.setItem.bind(ls), remove = ls.removeItem.bind(ls);
     Object.defineProperty(ls, '__gullakCloudOnly', { value: true });
