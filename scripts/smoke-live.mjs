@@ -143,8 +143,8 @@ assert(twoSupervisors.data.links.filter(row => row.status === "accepted").length
 expect(await request("/api/individual/supervision", { cookie: supervisor.cookie }), 403, "Family account blocked from Individual supervision APIs");
 
 const privateVault = encrypted();
-expect(await request("/api/vault", { method: "PUT", cookie: individualLogin.cookie, body: privateVault }), 200, "Encrypted Individual vault save");
-const ownVault = expect(await request("/api/vault", { cookie: individualLogin.cookie }), 200, "Encrypted Individual vault read");
+expect(await request("/api/vault", { method: "PUT", cookie: kidLogin.cookie, body: privateVault }), 200, "Encrypted Individual vault save");
+const ownVault = expect(await request("/api/vault", { cookie: kidLogin.cookie }), 200, "Encrypted Individual vault read");
 assert(ownVault.data.exists && ownVault.data.vault.ciphertext === privateVault.ciphertext,
   "Encrypted Individual vault read did not return the saved ciphertext.");
 expect(await request("/api/family/login", { method: "POST", body: { username: individualName, password: "Individual-" + password } }), 403, "Individual credentials rejected by Family login");
