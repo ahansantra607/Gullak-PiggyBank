@@ -38,3 +38,25 @@ WHERE COALESCE((SELECT account_type FROM user_account_types t WHERE t.user_id = 
   AND NOT EXISTS (SELECT 1 FROM individual_account_roles r WHERE r.user_id = users.user_id)
   AND NOT EXISTS (SELECT 1 FROM cloud_family_members fm WHERE fm.user_id = users.user_id)
   AND NOT EXISTS (SELECT 1 FROM cloud_families f WHERE f.created_by = users.user_id);
+
+
+-- Supervisor public keys and client-side encrypted private keys.
+CREATE TABLE IF NOT EXISTS individual_supervisor_keys (
+  supervisor_user_id TEXT PRIMARY KEY REFERENCES users(user_id) ON DELETE CASCADE,
+  public_key TEXT NOT NULL,
+  encrypted_private_key TEXT NOT NULL,
+  salt TEXT NOT NULL,
+  iterations INTEGER NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+-- Each Kid encrypts their diary key separately for each accepted Supervisor.
+CREATE TABLE IF NOT EXISTS individual_kid_key_shares (
+  kid_user_id TEXT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+  supervisor_user_id TEXT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+  ephemeral_public_key TEXT NOT NULL,
+  salt TEXT NOT NULL,
+  wrapped_diary_key TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  PRIMARY KEY (kid_user_id, supervisor_user_id)
+);
