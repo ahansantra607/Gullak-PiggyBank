@@ -549,6 +549,7 @@ public class MainActivity extends Activity {
     }
 
     private void checkPinAfterCloudLogin() {
+        if (pinConfigured && !pinScreenVisible) return;
         executor.execute(() -> {
             try {
                 JSONObject status = apiRequest("GET", "/api/mobile-pin/status", null);
@@ -568,6 +569,13 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public void onCloudReady() {
             checkPinAfterCloudLogin();
+        }
+
+        @JavascriptInterface
+        public void onCloudLogout() {
+            pinConfigured = false;
+            pinCheckDone = false;
+            pendingSetupPin = "";
         }
 
         @JavascriptInterface
