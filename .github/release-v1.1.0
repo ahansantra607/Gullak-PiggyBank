@@ -1,0 +1,7 @@
+## Major update: phone security and a refreshed Gullak experience
+
+- Set up a six-digit phone PIN the first time you sign in on Android. The PIN is linked to your Gullak account, so it works across phones using the same account.
+- Gullak locks when you leave the app and after seven minutes without activity. Enter your PIN to unlock it again.
+- Added a clear Log out option on the phone lock screen.
+- Refreshed the startup animation and redesigned the in-app update screen to match Gullak's pink branding.
+- Added release descriptions to the automated release workflow. If the description is left blank, the release notes automatically say **Bug fixes**.
