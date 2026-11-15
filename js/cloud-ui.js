@@ -108,6 +108,39 @@
     }
   };
 
+  async function ensureSupervisorPrivateKey() {
+    if (supervisorPrivateKey) return true;
+    return new Promise(resolve => {
+      let modal;
+      modal = G.modal({
+        html: '<h2>🔐 Unlock Supervisor access</h2><p class="small muted">Enter your Supervisor account password to open a Kid diary. Your password is used only on this device to unlock your encrypted private key.</p><label class="label" for="supervisor-key-password">Account password</label><input class="input" id="supervisor-key-password" type="password" autocomplete="current-password"><button class="btn primary block mt" data-act="unlock-supervisor-key">Unlock securely</button><button class="btn ghost block" data-act="cancel-supervisor-key">Cancel</button>',
+        handlers: {
+          'unlock-supervisor-key': async button => {
+            const password = G.$('#supervisor-key-password', modal.el)?.value || '';
+            if (!password) return G.toast('Enter your Supervisor account password.');
+            button.disabled = true;
+            try {
+              let result = await G.cloud.loadSupervisorKey();
+              if (!result.exists || !result.key_bundle) {
+                await G.cloud.login(cloudUser.username, password);
+                const bundle = await G.cr.makeSupervisorKeyBundle(password);
+                await G.cloud.saveSupervisorKey(bundle);
+                result = { exists: true, key_bundle: bundle };
+              }
+              supervisorPrivateKey = await G.cr.unlockSupervisorPrivateKey(password, result.key_bundle);
+              modal.close();
+              resolve(true);
+            } catch (error) {
+              button.disabled = false;
+              G.toast(error.message || 'That password could not unlock your Supervisor key.');
+            }
+          },
+          'cancel-supervisor-key': () => { modal.close(); resolve(false); }
+        }
+      });
+    });
+  }
+
   async function shareKeyWithAcceptedSupervisors() {
     if (cloudUser?.role !== 'kid' || cloudUser?.status !== 'active' || !cloudSecret) return;
     const data = await G.cloud.individualSupervision();
@@ -467,13 +500,7 @@
     handlers: () => ({
       'open-supervised-kid': async el => {
         try {
-          if (!supervisorPrivateKey) {
-            const password = window.prompt('Enter your Supervisor account password to unlock a Kid diary securely:');
-            if (!password) return;
-            const result = await G.cloud.loadSupervisorKey();
-            if (!result.exists || !result.key_bundle) throw new Error('This Supervisor account has no secure key yet. Log out and sign in again to repair it.');
-            supervisorPrivateKey = await G.cr.unlockSupervisorPrivateKey(password, result.key_bundle);
-          }
+          if (!(await ensureSupervisorPrivateKey())) return;
           const loaded = await G.cloud.loadSupervisedKid(el.dataset.id, supervisorPrivateKey);
           if (!loaded.state || !loaded.secret) throw new Error('This Kid has not created their diary yet.');
           supervisorOwnState = G.S ? JSON.parse(JSON.stringify(G.S)) : G.fresh();
