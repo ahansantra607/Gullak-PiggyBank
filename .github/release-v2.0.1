@@ -1,0 +1,6 @@
+Gullak 2.0.1 — Kid account creation fix
+
+- Fixed the Individual Kid registration failure that reported the diary encryption key could not be secured. The browser was converting an already-base64 salt string as if it were a byte array, producing an invalid empty salt. It now sends the original valid 16-byte salt.
+- Added a required account-password confirmation field for both Supervisor and Kid account creation. Registration is blocked unless the re-entered password matches.
+- Added regression coverage that rejects the malformed empty salt and verifies successful Kid registration with a valid encryption salt.
+- Preserves the v2.0.0 Supervisor/Kid architecture, encrypted diary-key sharing, Family mode separation, and existing Android PIN/update experience.
