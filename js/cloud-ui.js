@@ -246,6 +246,7 @@
             cloudUser = auth.user; cloudSecret = secret; authMode = 'login'; registerRole = 'supervisor';
             if (G.setMode) G.setMode('individual');
             if (stayLoggedIn) { try { await G.cloud.rememberDevice(cloudSecret); } catch (_) {} }
+            if (window.GullakNative && typeof window.GullakNative.onCloudReady === 'function') window.GullakNative.onCloudReady();
             G.go('individual-supervision');
             G.toast('Kid account created. It is locked until at least one Supervisor accepts. You can add more Supervisor codes here while you wait.', 6500);
             return;
@@ -293,6 +294,7 @@
           }
           if (authMode === 'login' && auth.user?.role === 'kid' && auth.user?.status === 'pending') {
             if (stayLoggedIn) { try { await G.cloud.rememberDevice(cloudSecret); } catch (_) {} }
+            if (window.GullakNative && typeof window.GullakNative.onCloudReady === 'function') window.GullakNative.onCloudReady();
             if (G.setMode) G.setMode('individual');
             G.go('individual-supervision');
             G.toast('This Kid account is still waiting for a Supervisor to accept.', 6000);
