@@ -533,9 +533,9 @@ export default {
         const link = await env.gullak_db.prepare("SELECT 1 AS ok FROM individual_supervisor_links WHERE supervisor_user_id = ? AND kid_user_id = ? AND status = 'accepted'").bind(user.user_id, kidId).first();
         const share = await env.gullak_db.prepare("SELECT ephemeral_public_key, salt, wrapped_diary_key FROM individual_kid_key_shares WHERE supervisor_user_id = ? AND kid_user_id = ?").bind(user.user_id, kidId).first();
         if (!link || !share) return json({ error: "You do not have accepted access to this Kid's diary." }, 403);
+        const kidRole = await individualRole(env, kidId);
+        if (!kidRole || kidRole.role !== "kid" || kidRole.status !== "active") return json({ error: "This Kid account is not active." }, 403);
         if (request.method === "GET") {
-          const kidRole = await individualRole(env, kidId);
-          if (!kidRole || kidRole.role !== "kid" || kidRole.status !== "active") return json({ error: "This Kid account is not active." }, 403);
           const vault = await env.gullak_db.prepare("SELECT ciphertext, iv, salt, schema_version, updated_at FROM user_vaults WHERE user_id = ?").bind(kidId).first<VaultRow>();
           return json({ exists: !!vault, vault: vault || null, key_share: share });
         }
