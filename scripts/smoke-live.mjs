@@ -54,7 +54,7 @@ assert(clientText.includes("/api/families/") && clientText.includes("/api/vault"
   "Deployed frontend is missing cloud API integration.");
 const healthData = await health.json();
 assert(healthData.status === "healthy" && healthData.database === "connected" &&
-  healthData.authSchema === "ready" && healthData.familySchema === "ready", "Cloud Worker health/schema check failed: " + JSON.stringify(healthData));
+  healthData.authSchema === "ready" && healthData.familySchema === "ready" && healthData.individualSchema === "ready", "Cloud Worker health/schema check failed: " + JSON.stringify(healthData));
 
 // Exercise real account registration, cookie sessions, encrypted vault isolation,
 // family creation/linking, role enforcement, member vaults, and logout.
@@ -83,12 +83,61 @@ expect(await request("/api/family/login", { method: "POST", body: { username: "i
 
 const individualName = "indivtest_" + suffix;
 const individual = expect(await request("/api/register", {
-  method: "POST", body: { username: individualName, password: "Individual-" + password }
-}), 201, "Individual registration");
-assert(individual.cookie, "Individual registration did not issue a session cookie.");
+  method: "POST", body: { username: individualName, password: "Individual-" + password, role: "supervisor" }
+}), 201, "Individual Supervisor registration");
+assert(individual.cookie && individual.data.supervisor_code?.length === 10 && individual.data.user.role === "supervisor",
+  "Supervisor registration did not issue its account session and one-time linking code.");
 const individualLogin = expect(await request("/api/login", {
   method: "POST", body: { username: individualName, password: "Individual-" + password }
-}), 200, "Individual login");
+}), 200, "Individual Supervisor login");
+assert(individualLogin.data.user.role === "supervisor" && individualLogin.data.user.status === "active",
+  "Supervisor role/status was not returned after login.");
+const kidName = "kidtest_" + suffix;
+const kidPassword = "Kid-test-" + randomUUID() + "!";
+const kidKeyWrap = { wrapped_secret: b64(randomBytes(12)) + "." + b64(randomBytes(48)), salt: b64(randomBytes(16)), iterations: 150000 };
+const kidRegistration = expect(await request("/api/register", {
+  method: "POST", body: { username: kidName, password: kidPassword, role: "kid", supervisor_codes: [individual.data.supervisor_code], key_wrap: kidKeyWrap }
+}), 201, "Pending Kid registration");
+assert(kidRegistration.data.pending_approval && !kidRegistration.cookie && kidRegistration.data.user.status === "pending",
+  "A Kid account became active before Supervisor approval.");
+expect(await request("/api/login", { method: "POST", body: { username: kidName, password: kidPassword } }), 403, "Kid login blocked before approval");
+const firstSupervisorRequests = expect(await request("/api/individual/supervision", { cookie: individualLogin.cookie }), 200, "Supervisor request list");
+const firstRequest = firstSupervisorRequests.data.links.find(row => row.other_username === kidName && row.status === "pending");
+assert(firstRequest, "Supervisor did not receive the Kid's pending request.");
+expect(await request("/api/individual/supervision/requests/" + firstRequest.link_id, {
+  method: "POST", cookie: individualLogin.cookie, body: { decision: "accept" }
+}), 200, "Supervisor accepts Kid");
+const kidLogin = expect(await request("/api/login", {
+  method: "POST", body: { username: kidName, password: kidPassword }
+}), 200, "Kid login after approval");
+assert(kidLogin.data.user.role === "kid" && kidLogin.data.user.status === "active",
+  "Kid account did not activate after Supervisor approval.");
+const kidLinks = expect(await request("/api/individual/supervision", { cookie: kidLogin.cookie }), 200, "Kid's Supervisor list");
+assert(kidLinks.data.links.some(row => row.other_username === individualName && row.status === "accepted"),
+  "Kid does not see the accepted Supervisor relationship.");
+
+const secondSupervisorName = "indivsup2_" + suffix;
+const secondSupervisorPassword = "Second-Supervisor-" + randomUUID() + "!";
+const secondSupervisor = expect(await request("/api/register", {
+  method: "POST", body: { username: secondSupervisorName, password: secondSupervisorPassword, role: "supervisor" }
+}), 201, "Second Individual Supervisor registration");
+const secondSupervisorLogin = expect(await request("/api/login", {
+  method: "POST", body: { username: secondSupervisorName, password: secondSupervisorPassword }
+}), 200, "Second Supervisor login");
+expect(await request("/api/individual/supervision/requests", {
+  method: "POST", cookie: kidLogin.cookie, body: { code: secondSupervisor.data.supervisor_code }
+}), 201, "Kid requests an additional Supervisor");
+const secondRequests = expect(await request("/api/individual/supervision", { cookie: secondSupervisorLogin.cookie }), 200, "Second Supervisor request list");
+const secondRequest = secondRequests.data.links.find(row => row.other_username === kidName && row.status === "pending");
+assert(secondRequest, "Second Supervisor did not receive the additional request.");
+expect(await request("/api/individual/supervision/requests/" + secondRequest.link_id, {
+  method: "POST", cookie: secondSupervisorLogin.cookie, body: { decision: "accept" }
+}), 200, "Second Supervisor accepts Kid");
+const twoSupervisors = expect(await request("/api/individual/supervision", { cookie: kidLogin.cookie }), 200, "Kid's multiple Supervisor list");
+assert(twoSupervisors.data.links.filter(row => row.status === "accepted").length === 2,
+  "Kid cannot have multiple accepted Supervisors.");
+expect(await request("/api/individual/supervision", { cookie: supervisor.cookie }), 403, "Family account blocked from Individual supervision APIs");
+
 const privateVault = encrypted();
 expect(await request("/api/vault", { method: "PUT", cookie: individualLogin.cookie, body: privateVault }), 200, "Encrypted Individual vault save");
 const ownVault = expect(await request("/api/vault", { cookie: individualLogin.cookie }), 200, "Encrypted Individual vault read");
@@ -205,7 +254,9 @@ assert(transferred.data.members.some(item => item.username === memberName && ite
   "Family ownership/supervisor role was not transferred to the remaining member.");
 // Clean up every account and the family created by this live test.
 expect(await request("/api/account", { method: "DELETE", cookie: createdKidLogin.cookie, body: { password: createdKidPassword } }), 200, "Delete test-created kid account");
-expect(await request("/api/account", { method: "DELETE", cookie: individualLogin.cookie, body: { password: "Individual-" + password } }), 200, "Delete test Individual account");
+expect(await request("/api/account", { method: "DELETE", cookie: kidLogin.cookie, body: { password: kidPassword } }), 200, "Delete test Kid account and Supervisor links");
+expect(await request("/api/account", { method: "DELETE", cookie: secondSupervisorLogin.cookie, body: { password: secondSupervisorPassword } }), 200, "Delete second test Supervisor account");
+expect(await request("/api/account", { method: "DELETE", cookie: individualLogin.cookie, body: { password: "Individual-" + password } }), 200, "Delete test Individual Supervisor account");
 expect(await request("/api/account", { method: "DELETE", cookie: member.cookie, body: { password: "Member-" + password } }), 200, "Delete test member and empty test family");
 expect(await request("/api/me", { cookie: member.cookie }), 401, "Deleted test member session denial");
 
@@ -219,4 +270,4 @@ console.log("Live deployment integration tests passed.");
 console.log("Frontend:", appUrl);
 console.log("Cloud API:", apiUrl);
 console.log("Family schema:", healthData.familySchema);
-console.log("Verified: separate Individual/Family registration and login, cross-mode rejection, encrypted vault isolation, family directory/linking, role permissions, member vaults, logout, and Origin enforcement.");
+console.log("Verified: Individual Supervisor/Kid registration, pending approval, multiple Supervisors, encrypted vault isolation, separate Family registration/login, family directory/linking, Family role permissions, member vaults, logout, and Origin enforcement.");
