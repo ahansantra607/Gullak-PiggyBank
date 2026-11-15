@@ -92,7 +92,7 @@
         <input type="range" id="a-pct" min="0" max="100" step="10" value="${st.pct}" class="range" aria-label="How much you will pay">
         <div id="a-impact"></div>
         <div id="a-cool"></div>
-        <button class="btn primary block big" data-act="send" disabled>Ask a grown-up</button>`,
+        <button class="btn primary block big" data-act="send" disabled>Ask a Supervisor</button>`,
       handlers: {
         emo: (el) => { st.e = el.dataset.v; G.$$('.emo', m.el).forEach(b => b.classList.toggle('on', b === el)); },
         nw: (el) => { st.nw = el.dataset.v; G.$$('.seg-b', m.el).forEach(b => b.classList.toggle('on', b === el)); upd(); },
@@ -109,7 +109,12 @@
       if (status === 'cooling') r.coolUntil = G.now() + S().settings.coolHours * 3600e3;
       S().requests.unshift(r); G.save(); m.close(); G.after(); G.render();
       if (status === 'cooling') { G.sound('pop'); G.toast(`🧊 ${esc(item)} is chilling in the Cool-down Jar. Smart move!`, 3500); }
-      else { G.sound('coin'); G.openShare(r); }
+      else {
+        G.sound('coin');
+        if (G.cloudAccount?.user?.account_type === 'individual' && (!G.mode || G.mode() !== 'family')) {
+          G.toast('🙋 Request sent! Your Supervisors can review it in their Gullak dashboard.', 4500);
+        } else G.openShare(r);
+      }
     };
     const itemEl = G.$('#a-item', m.el), pctEl = G.$('#a-pct', m.el), btn = G.$('[data-act=send]', m.el);
     upd = () => {
@@ -124,7 +129,7 @@
         Put it in the <b>Cool-down Jar</b> for ${S().settings.coolHours >= 1 ? G.plural(S().settings.coolHours, 'hour') : G.plural(Math.round(S().settings.coolHours * 60), 'minute')} first?
         <button class="btn soft block mt" data-act="cool">🧊 Cool it first</button></div>` : '';
       const ok = itemEl.value.trim() && st.price > 0 && st.nw;
-      btn.disabled = !ok; btn.textContent = ok ? '🙋 Ask a grown-up' : !itemEl.value.trim() ? 'What do you want?' : !st.price ? 'How much is it?' : 'Need or want?';
+      btn.disabled = !ok; btn.textContent = ok ? '🙋 Ask a Supervisor' : !itemEl.value.trim() ? 'What do you want?' : !st.price ? 'How much is it?' : 'Need or want?';
     };
     itemEl.addEventListener('input', upd);
     pctEl.addEventListener('input', () => { st.pct = +pctEl.value; upd(); });
@@ -148,21 +153,23 @@
           <b>${esc(r.item)}</b> <span class="muted">${rs(r.price)}</span>
           <small>${r.needOrWant === 'need' ? '🧩 need' : '✨ want'} · I pay ${rs(r.kidPays)}${r.deal === 'half' ? ' (half deal 🤝)' : ''}</small>
           ${r.parentNote ? `<small class="note">💬 "${esc(r.parentNote)}"</small>` : ''}${extra || ''}</div></div>`;
+      const individualCloud = G.cloudAccount?.user?.account_type === 'individual' && (!G.mode || G.mode() !== 'family');
       return `<header class="page-h"><button class="back" data-act="go" data-to="home">←</button><h1>🙋 Can I buy this?</h1></header>
         <section class="card center ask-hero">
-          <p>Want something? Ask a grown-up. Gullak shows them how it changes your money and your dream.</p>
+          <p>Want something? Send a request to your Supervisors. They can review it from their Gullak account.</p>
           <button class="btn primary big block" data-act="new">➕ New ask</button>
-          <div class="row gap mt"><input class="input grow" id="code" maxlength="20" placeholder="Got a reply code? e.g. YES-R7K2Q-4F9A" aria-label="Reply code" autocomplete="off">
-          <button class="btn soft" data-act="code">Use</button></div>
+          ${individualCloud ? '' : `<div class="row gap mt"><input class="input grow" id="code" maxlength="20" placeholder="Got a reply code? e.g. YES-R7K2Q-4F9A" aria-label="Reply code" autocomplete="off">
+          <button class="btn soft" data-act="code">Use</button></div>`}
         </section>
         ${cooling.length ? `<section class="card"><h3>🧊 Cool-down Jar</h3><p class="small muted">Wants wait here. If you still want it after the timer, ask!</p>
           ${cooling.map(r => card(r, r.coolUntil > G.now()
             ? `<div class="timer" data-until="${r.coolUntil}">⏳ ${countdown(r.coolUntil)} left</div>`
             : `<div class="row gap mt"><button class="btn small primary" data-act="still" data-id="${r.id}">Yes, I still want it</button>
                <button class="btn small soft" data-act="drop" data-id="${r.id}">Nah, skip it 💪</button></div>`)).join('')}</section>` : ''}
-        ${pending.length ? `<section class="card"><h3>⏳ Waiting for a grown-up</h3>${pending.map(r => card(r,
-          `<div class="row gap mt"><button class="btn small soft" data-act="share" data-id="${r.id}">📨 Show / send</button>
-           <button class="link danger" data-act="cancel" data-id="${r.id}">Cancel</button></div>`)).join('')}</section>` : ''}
+        ${pending.length ? `<section class="card"><h3>⏳ Waiting for a Supervisor</h3>${pending.map(r => card(r,
+          individualCloud
+            ? `<div class="row gap mt"><button class="link danger" data-act="cancel" data-id="${r.id}">Cancel</button></div>`
+            : `<div class="row gap mt"><button class="btn small soft" data-act="share" data-id="${r.id}">📨 Show / send</button><button class="link danger" data-act="cancel" data-id="${r.id}">Cancel</button></div>`)).join('')}</section>` : ''}
         ${waiting.length ? `<section class="card"><h3>📅 Wait a week</h3>${waiting.map(r => card(r, (r.waitUntil || 0) > G.now()
           ? `<small>Ask again on ${G.dateStr(r.waitUntil)}</small>` : `<button class="btn small primary mt" data-act="again" data-id="${r.id}">Ask again</button>`)).join('')}</section>` : ''}
         ${past.length ? `<section class="card"><h3>📜 Past asks</h3>${past.map(r => card(r,
@@ -217,7 +224,7 @@
       const s = S();
       const head = G.supervisedKidMode
         ? `<header class="page-h"><button class="back" data-act="supervisor-return">←</button><h1>🛡️ ${esc(G.supervisedKidName || s.profile?.nickname || 'Kid')}'s Gullak</h1></header>`
-        : `<header class="page-h"><button class="back" data-act="go" data-to="home">←</button><h1>🔒 Grown-up mode</h1></header>`;
+        : `<header class="page-h"><button class="back" data-act="go" data-to="home">←</button><h1>${G.supervisedKidMode ? '🛡️ Supervisor tools' : '🔒 Grown-up mode'}</h1></header>`;
       if (!G.supervisedKidMode && !s.pinHash) return head + pinPad(pinFirst ? 'Type it again' : 'Grown-ups: make a 4-digit PIN', 'This keeps kids from approving their own asks. It stays on this device only.');
       if (!G.supervisedKidMode && !G.parentUnlocked) return head + pinPad('Grown-ups only', 'Type your 4-digit PIN') + `<p class="center"><button class="link" data-act="forgot">Forgot PIN?</button></p>`;
       const pending = s.requests.filter(r => r.status === 'pending');
@@ -245,7 +252,7 @@
             <button class="x" data-act="del-chore" data-id="${c.id}" aria-label="Delete chore">✕</button></div>`).join('') || '<p class="muted small">No chores yet.</p>'}
           <div class="row gap mt"><input class="input grow" id="ch-name" maxlength="30" placeholder="New chore, e.g. Water plants">
           <input class="input w80" id="ch-rew" type="number" inputmode="numeric" min="1" placeholder="₹"><button class="btn soft" data-act="add-chore">Add</button></div></section>
-        <section class="card"><h3>⚙️ Grown-up settings</h3>
+        <section class="card"><h3>⚙️ Supervisor settings</h3>
           <div class="label">🤝 Savings match: add a bonus when your child saves</div>
           <div class="chips">${[0, 5, 10, 25, 50].map(v => `<button class="chip ${Number(s.settings.matchPct) === v ? 'on' : ''}" data-act="match" data-v="${v}">${v ? v + '%' : 'Off'}</button>`).join('')}</div>
           <small class="muted">Like a bank paying interest: they save ₹100, you add ₹${s.settings.matchPct || 0}. Teaches that saving grows money.</small>
