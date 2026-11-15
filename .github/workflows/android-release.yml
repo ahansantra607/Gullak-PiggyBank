@@ -3,12 +3,16 @@ name: Build and publish Gullak Android APK
 on:
   push:
     paths:
-      - '.github/release-v1.0.4'
+      - '.github/release-v1.1.0'
   workflow_dispatch:
     inputs:
       version:
-        description: "Release version without the v prefix (for example 1.0.2)"
+        description: "Release version without the v prefix (major feature update: 1.1.0)"
         required: true
+        type: string
+      release_notes:
+        description: "What is new in this update (leave blank to use Bug fixes)"
+        required: false
         type: string
   release:
     types: [published]
@@ -31,7 +35,7 @@ jobs:
       - name: Validate release version
         id: version
         env:
-          RELEASE_TAG: ${{ github.event_name == 'release' && github.event.release.tag_name || (github.event_name == 'workflow_dispatch' && format('v{0}', github.event.inputs.version)) || 'v1.0.4' }}
+          RELEASE_TAG: ${{ github.event_name == 'release' && github.event.release.tag_name || (github.event_name == 'workflow_dispatch' && format('v{0}', github.event.inputs.version)) || 'v1.1.0' }}
         run: |
           version="${RELEASE_TAG#v}"
           if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
@@ -40,6 +44,20 @@ jobs:
           fi
           echo "value=$version" >> "$GITHUB_OUTPUT"
           echo "tag=v$version" >> "$GITHUB_OUTPUT"
+      - name: Prepare release description
+        id: notes
+        env:
+          RELEASE_NOTES: ${{ github.event.inputs.release_notes }}
+        run: |
+          notes="${RELEASE_NOTES:-}"
+          if [ -z "$(printf '%s' "$notes" | tr -d '[:space:]')" ]; then
+            notes="Bug fixes"
+          fi
+          {
+            echo 'body<<GULLAK_RELEASE_NOTES'
+            printf '%s\\n' "$notes"
+            echo 'GULLAK_RELEASE_NOTES'
+          } >> "$GITHUB_OUTPUT"
       - name: Set up Java
         uses: actions/setup-java@v4
         with:
@@ -94,5 +112,7 @@ jobs:
           tag_name: ${{ steps.version.outputs.tag }}
           target_commitish: main
           files: Gullak.apk
+          body: ${{ steps.notes.outputs.body }}
+          name: Gullak v${{ steps.version.outputs.value }}
           fail_on_unmatched_files: true
           make_latest: true
