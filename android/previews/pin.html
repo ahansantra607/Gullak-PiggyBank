@@ -1,68 +1,83 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#fff7f9">
-<title>Gullak · Phone PIN preview</title>
-<style>
-:root{color-scheme:light;--ink:#49343d;--muted:#927d85;--pink:#d86f91;--deep:#a83e68;--pale:#fff0f4;--line:#f0dfe5;--paper:#fffaf9}
-*{box-sizing:border-box}body{margin:0;min-height:100svh;background:radial-gradient(circle at 50% 0,#ffe9ef 0,transparent 42%),#fff8f9;color:var(--ink);font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;display:grid;place-items:center;padding:22px}
-.device{width:min(100%,390px);min-height:min(780px,calc(100svh - 44px));background:var(--paper);border:8px solid #332b30;border-radius:38px;padding:18px;box-shadow:0 18px 55px #5c34401c;display:flex;flex-direction:column;overflow:hidden}
-.status{height:13px;display:flex;justify-content:space-between;font-size:10px;color:#8b747c;padding:0 7px}
-.brand{display:flex;align-items:center;justify-content:center;gap:10px;margin:18px 0 15px}.pig{width:48px;height:48px;border-radius:16px;background:#ffe5ec;display:grid;place-items:center;font-size:28px}.wordmark{font-weight:900;letter-spacing:5px;color:var(--deep);font-size:20px}
-main{display:flex;flex:1;flex-direction:column;align-items:center;text-align:center}
-.switch{display:flex;gap:5px;padding:4px;background:#f9e9ee;border-radius:13px;width:100%;margin:4px 0 15px}.switch button{flex:1;border:0;border-radius:10px;background:transparent;color:#9b7885;padding:9px 5px;font-weight:800;font-size:11px;cursor:pointer}.switch button.active{background:white;color:var(--deep);box-shadow:0 2px 7px #6b3b4b12}
-.kicker{font-size:10px;font-weight:850;letter-spacing:2px;color:var(--deep);margin-top:15px}
-h1{font-size:28px;line-height:1.16;letter-spacing:-.7px;margin:10px 0;color:#503640}
-.lead{font-size:12px;line-height:1.65;color:var(--muted);max-width:280px;margin:0 auto}
-.dots{display:flex;gap:13px;justify-content:center;margin:25px 0 19px}.dot{width:13px;height:13px;border:1.6px solid #d6a5b4;border-radius:50%;background:white}.dot.filled{background:var(--pink);border-color:var(--pink);box-shadow:0 0 0 3px #fce8ee}
-.keypad{width:min(100%,265px);display:grid;grid-template-columns:repeat(3,1fr);gap:9px}.key{height:48px;border:1px solid var(--line);border-radius:15px;background:white;color:#5a4149;font-size:19px;font-weight:750;cursor:pointer;box-shadow:0 2px 5px #5c344008}.key:active{background:#fff0f4;transform:scale(.97)}.key.empty{visibility:hidden}.key.action{font-size:13px;color:#9b5b72}
-.hint{min-height:30px;margin:13px 0 7px;font-size:11px;color:var(--muted)}
-.actions{width:100%;margin-top:auto;padding-top:8px}.btn{width:100%;border:0;border-radius:15px;padding:14px 16px;font-weight:800;font-size:14px;cursor:pointer}.primary{background:linear-gradient(100deg,#d66e90,#bc527c);color:white;box-shadow:0 7px 16px #c75f852e}.secondary{margin-top:9px;background:#fff0f4;color:#9d4e6a;border:1px solid #f1dce3}
-.foot{font-size:10px;color:#a48f96;margin:14px 0 3px}.toast{font-size:10px;color:#a34e6b;min-height:15px;margin-top:8px}
-@media(max-height:690px){.device{min-height:0}.brand{margin:9px 0}.dots{margin:16px 0}.key{height:42px}.keypad{gap:6px}h1{font-size:24px}}
-</style>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#7B3FE4">
+  <title>Gullak · Phone PIN</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../../css/style.css">
 </head>
 <body>
-<section class="device" aria-label="Gullak phone PIN screen preview">
-<div class="status"><span>9:41</span><span>● ● ● ▰</span></div>
-<header class="brand"><div class="pig" aria-hidden="true">🐷</div><div class="wordmark">GULLAK</div></header>
-<main>
-<div class="switch" role="tablist" aria-label="PIN screen preview">
-<button id="setupTab" class="active" role="tab" aria-selected="true">Create PIN</button>
-<button id="unlockTab" role="tab" aria-selected="false">Enter PIN</button>
-</div>
-<div class="kicker" id="kicker">ONE-TIME SETUP</div>
-<h1 id="heading">Create your<br>phone PIN</h1>
-<p class="lead" id="lead">Choose a six-digit PIN to unlock Gullak whenever you open the app.</p>
-<div class="dots" id="dots" aria-label="Six PIN digits"><i class="dot"></i><i class="dot"></i><i class="dot"></i><i class="dot"></i><i class="dot"></i><i class="dot"></i></div>
-<div class="keypad" id="keypad" aria-label="Numeric keypad">
-<button class="key" data-digit="1">1</button><button class="key" data-digit="2">2</button><button class="key" data-digit="3">3</button>
-<button class="key" data-digit="4">4</button><button class="key" data-digit="5">5</button><button class="key" data-digit="6">6</button>
-<button class="key" data-digit="7">7</button><button class="key" data-digit="8">8</button><button class="key" data-digit="9">9</button>
-<button class="key empty" tabindex="-1" aria-hidden="true"></button><button class="key" data-digit="0">0</button><button class="key action" data-action="delete" aria-label="Delete last digit">⌫</button>
-</div>
-<p class="hint" id="hint" aria-live="polite">Your PIN is shared across phones using this Gullak account.</p>
-<div class="actions">
-<button class="btn primary" id="continue">Continue</button>
-<button class="btn secondary" id="logout" hidden>Log out of Gullak</button>
-<div class="toast" id="toast" aria-live="polite"></div>
-</div>
-</main>
-<p class="foot">A quick little lock for your Gullak.</p>
-</section>
-<script>
-(function(){
-const $=id=>document.getElementById(id);let mode='setup',digits='',firstPin='',confirming=false;
-function paint(){const dots=$('dots').children;for(let i=0;i<6;i++)dots[i].classList.toggle('filled',i<digits.length);$('setupTab').classList.toggle('active',mode==='setup');$('unlockTab').classList.toggle('active',mode==='unlock');$('setupTab').setAttribute('aria-selected',String(mode==='setup'));$('unlockTab').setAttribute('aria-selected',String(mode==='unlock'));}
-function setMode(next){mode=next;digits='';firstPin='';confirming=false;$('toast').textContent='';$('logout').hidden=mode!=='unlock';$('continue').hidden=mode==='unlock';$('kicker').textContent=mode==='setup'?'ONE-TIME SETUP':'WELCOME BACK';$('heading').innerHTML=mode==='setup'?'Create your<br>phone PIN':'Enter your<br>phone PIN';$('lead').textContent=mode==='setup'?'Choose a six-digit PIN to unlock Gullak whenever you open the app.':'Enter your six-digit PIN to open your Gullak.';$('hint').textContent=mode==='setup'?'Your PIN is shared across phones using this Gullak account.':'Your account stays signed in until you choose to log out.';paint();}
-$('setupTab').addEventListener('click',()=>setMode('setup'));$('unlockTab').addEventListener('click',()=>setMode('unlock'));
-$('keypad').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;if(b.dataset.action==='delete')digits=digits.slice(0,-1);else if(b.dataset.digit&&digits.length<6)digits+=b.dataset.digit;paint();});
-$('continue').addEventListener('click',()=>{if(digits.length!==6){$('hint').textContent='Please enter all six digits before continuing.';return;}if(!confirming){firstPin=digits;digits='';confirming=true;$('kicker').textContent='CONFIRM YOUR PIN';$('heading').innerHTML='Enter it<br>one more time';$('lead').textContent='Type the same six digits again to make sure it is correct.';$('hint').textContent='This is a visual preview; no PIN is saved.';paint();return;}if(digits!==firstPin){digits='';firstPin='';confirming=false;$('hint').textContent='Those digits did not match. Please start again.';$('kicker').textContent='ONE-TIME SETUP';$('heading').innerHTML='Create your<br>phone PIN';$('lead').textContent='Choose a six-digit PIN to unlock Gullak whenever you open the app.';paint();return;}$('toast').textContent='Preview only — PIN confirmation looks good.';});
-$('logout').addEventListener('click',()=>{$('toast').textContent='Preview only — this would securely sign out your account.';});
-setMode('setup');
-})();
-</script>
+  <div id="app">
+    <main class="view ob">
+      <div class="welcome">
+        <div class="hero"><div class="piggy huge" aria-hidden="true">🐷</div></div>
+        <div class="brand">Gullak</div>
+        <p class="tag">Your money buddy</p>
+      </div>
+      <section class="card center">
+        <div class="small muted" id="eyebrow">ONE-TIME SETUP</div>
+        <h1 id="heading">Create your phone PIN</h1>
+        <p class="muted small" id="description">Choose a six-digit PIN. You can use the same PIN on every phone signed in to this Gullak account.</p>
+        <label class="label" for="pin" id="pin-label">Your six-digit PIN</label>
+        <input class="input big" id="pin" type="password" inputmode="numeric" autocomplete="off" maxlength="6" pattern="[0-9]{6}" placeholder="••••••">
+        <p class="hint" id="hint" aria-live="polite">You’ll enter it again to confirm.</p>
+        <button class="btn primary block big" id="continue">Continue</button>
+        <button class="btn ghost block" id="logout" hidden>Log out of Gullak</button>
+      </section>
+    </main>
+  </div>
+  <script>
+    (function () {
+      const $ = id => document.getElementById(id);
+      let mode = 'setup';
+      let firstPin = '';
+      let confirming = false;
+      function showSetup() {
+        mode = 'setup'; firstPin = ''; confirming = false;
+        $('eyebrow').textContent = 'ONE-TIME SETUP';
+        $('heading').textContent = 'Create your phone PIN';
+        $('description').textContent = 'Choose a six-digit PIN. You can use the same PIN on every phone signed in to this Gullak account.';
+        $('pin-label').textContent = 'Your six-digit PIN';
+        $('hint').textContent = 'You’ll enter it again to confirm.';
+        $('continue').hidden = false; $('continue').textContent = 'Continue';
+        $('logout').hidden = true; $('pin').value = ''; $('pin').focus();
+      }
+      function showUnlock() {
+        mode = 'unlock'; firstPin = ''; confirming = false;
+        $('eyebrow').textContent = 'WELCOME BACK';
+        $('heading').textContent = 'Unlock your Gullak';
+        $('description').textContent = 'Enter your six-digit phone PIN to continue.';
+        $('pin-label').textContent = 'Your phone PIN';
+        $('hint').textContent = 'Your account stays signed in until you log out.';
+        $('continue').hidden = false; $('continue').textContent = 'Unlock Gullak';
+        $('logout').hidden = false; $('pin').value = ''; $('pin').focus();
+      }
+      $('continue').addEventListener('click', () => {
+        const value = $('pin').value;
+        if (!/^\d{6}$/.test(value)) { $('hint').textContent = 'Please enter all six digits.'; return; }
+        if (mode === 'unlock') { $('hint').textContent = 'PIN entry is connected to the Android app, not this standalone page.'; return; }
+        if (!confirming) {
+          firstPin = value; confirming = true; $('pin').value = '';
+          $('eyebrow').textContent = 'CONFIRM YOUR PIN';
+          $('heading').textContent = 'Enter it one more time';
+          $('description').textContent = 'Type the same six digits again to make sure they are correct.';
+          $('hint').textContent = 'Your PIN will be shared across phones on this account.';
+          $('continue').textContent = 'Set my PIN'; return;
+        }
+        if (value !== firstPin) { $('hint').textContent = 'Those PINs did not match. Please start again.'; showSetup(); return; }
+        $('hint').textContent = 'PIN confirmation successful. Actual setup is performed securely inside the Android app.';
+        $('continue').hidden = true;
+      });
+      $('logout').addEventListener('click', () => {
+        $('hint').textContent = 'Log out is available in the Android app.';
+      });
+      window.showGullakPinUnlock = showUnlock;
+      showSetup();
+    })();
+  </script>
 </body>
 </html>
