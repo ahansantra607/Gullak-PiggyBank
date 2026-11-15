@@ -357,10 +357,11 @@ expect(await request("/api/account", { method: "DELETE", cookie: secondSuperviso
 const kidAfterOneSupervisor = expect(await request("/api/me", { cookie: kidLogin.cookie }), 200, "Kid remains active with one accepted Supervisor");
 assert(kidAfterOneSupervisor.data.user.status === "active", "Kid was locked while another accepted Supervisor remained.");
 expect(await request("/api/account", { method: "DELETE", cookie: individualLogin.cookie, body: { password: "Individual-" + password } }), 200, "Delete last test Individual Supervisor account");
-const kidAfterLastSupervisor = expect(await request("/api/me", { cookie: kidLogin.cookie }), 200, "Kid returns to pending after last Supervisor deletion");
-assert(kidAfterLastSupervisor.data.user.status === "pending", "Kid stayed active after losing every accepted Supervisor.");
-expect(await request("/api/vault", { cookie: kidLogin.cookie }), 403, "Kid diary relocked after last Supervisor deletion");
-expect(await request("/api/account", { method: "DELETE", cookie: kidLogin.cookie, body: { password: kidPassword } }), 200, "Delete test Kid account and Supervisor links");
+expect(await request("/api/me", { cookie: kidLogin.cookie }), 401, "Last Supervisor deletion revokes the Kid's active session");
+const kidPendingAgain = expect(await request("/api/login", { method: "POST", body: { username: kidName, password: kidPassword } }), 200, "Kid can sign in to see pending Supervisor status");
+assert(kidPendingAgain.data.user.status === "pending", "Kid stayed active after losing every accepted Supervisor.");
+expect(await request("/api/vault", { cookie: kidPendingAgain.cookie }), 403, "Kid diary relocked after last Supervisor deletion");
+expect(await request("/api/account", { method: "DELETE", cookie: kidPendingAgain.cookie, body: { password: kidPassword } }), 200, "Delete test Kid account and Supervisor links");
 expect(await request("/api/account", { method: "DELETE", cookie: member.cookie, body: { password: "Member-" + password } }), 200, "Delete test member and empty test family");
 expect(await request("/api/me", { cookie: member.cookie }), 401, "Deleted test member session denial");
 
