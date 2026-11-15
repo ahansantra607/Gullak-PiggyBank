@@ -51,11 +51,8 @@
       const html = individualHomeRender(q);
       if (mode === 'family') return html;
       return html
-        .replace('<button class="icon-btn" data-act="go" data-to="grownup" aria-label="Grown-up mode">🔒</button>', '')
-        .replace('data-to="ask"', 'data-to="individual-supervision"')
-        .replace('<b>Can I buy this, Mum?</b>', '<b>My Supervisors</b>')
-        .replace('Ask a grown-up with one tap', 'Manage Supervisor links')
-        .replace('waiting for a grown-up', 'waiting for a Supervisor');
+        .replace('<button class="icon-btn" data-act="go" data-to="grownup" aria-label="Grown-up mode">🔒</button>',
+          '<button class="icon-btn" data-act="go" data-to="individual-supervision" aria-label="My Supervisors">🛡️</button>');
     };
   }
 
@@ -119,7 +116,12 @@
     if (mode !== 'family' && name === 'grownup') return G.cloudAccount?.user?.account_type === 'individual' ? 'individual-supervision' : 'home';
     if (mode !== 'family' && name === 'ask' && G.cloudAccount?.user?.account_type === 'individual') return 'individual-supervision';
     if (mode !== 'family' && G.cloudAccount?.user?.account_type === 'individual') {
-      if (G.cloudAccount.user.role === 'supervisor') return name === 'individual-supervision' ? null : 'individual-supervision';
+      if (G.cloudAccount.user.role === 'supervisor') {
+        if (G.supervisedKidMode && !['individual-supervision', 'supervised-kid', 'report'].includes(name)) {
+          G.restoreSupervisorState?.();
+        }
+        return ['individual-supervision', 'supervised-kid'].includes(name) || (name === 'report' && G.supervisedKidMode) ? null : 'individual-supervision';
+      }
       if (G.cloudAccount.user.role === 'kid' && G.cloudAccount.user.status === 'pending') {
         return name === 'individual-supervision' ? null : 'individual-supervision';
       }
@@ -142,6 +144,17 @@
   let individualChain = Promise.resolve();
   G.save = function () {
     if (G.backupTemporary) return Promise.resolve();
+    if (G.supervisedKidMode && G.supervisedKidId && G.supervisedKidSecret && G.S?.profile) {
+      const snapshot = safeCopy(G.S);
+      individualChain = individualChain.catch(() => {}).then(() =>
+        G.cloud.saveSupervisedKid(G.supervisedKidId, snapshot, G.supervisedKidSecret)
+      ).catch(error => {
+        G.cloudSaveError = error;
+        console.error('Gullak supervised diary save failed:', error);
+        G.toast('☁️ Could not sync this Kid diary change. Check your connection and try again.');
+      });
+      return individualChain;
+    }
     if (!G.cloudAccount || !G.cloudAccount.unlocked) {
       G.cloudSavePending = true;
       return;
