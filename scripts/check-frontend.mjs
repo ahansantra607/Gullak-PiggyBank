@@ -40,6 +40,10 @@ if (!cloudUiSource.includes("G.screens['individual-supervision']") || !cloudUiSo
 if (!cloudUiSource.includes("G.cloud.createSupervisorCode") || !cloudUiSource.includes("G.cloud.decideSupervisorRequest")) throw new Error('Supervisor code generation or approval actions are not wired to the cloud API.');
 if (!cloudOnlySource.includes("name === 'me-pin'") || !cloudOnlySource.includes("name === 'grownup'") || !cloudOnlySource.includes("ls.removeItem('gullak:v1')")) throw new Error('Legacy Individual PIN/Grown-up routes or local diary cleanup remain active.');
 if (!serverSource.includes('role !== "supervisor" && role !== "kid"') || !serverSource.includes('role.status !== "active"') || !serverSource.includes('supervisionDecision')) throw new Error('Server does not enforce Individual roles and Supervisor acceptance.');
+if (!serverSource.includes('A Supervisor must accept this Kid account before its diary can be opened') || !serverSource.includes('A Supervisor must accept this Kid account before its diary can be edited')) throw new Error('Pending Kid accounts are not blocked from Individual vault access.');
+if (!cloudUiSource.includes('accountPending') || !cloudUiSource.includes('individual-refresh') || !cloudUiSource.includes('individual-logout')) throw new Error('Pending Kid accounts cannot check approval or log out.');
+if (!readFileSync('scripts/smoke-live.mjs', 'utf8').includes('Pending Kid can sign in to manage Supervisor requests')) throw new Error('Live smoke tests do not cover the restricted pending Kid state.');
+
 if (!individualSchemaSource.includes('individual_supervisor_links') || !individualSchemaSource.includes("status IN ('active', 'pending')") || !individualSchemaSource.includes('NOT EXISTS (SELECT 1 FROM cloud_family_members')) throw new Error('Individual supervision schema or Family-protected legacy cleanup is missing.');
 
 if (!familySource.includes('Shared Family PIN') || familySource.includes('Your supervisor PIN')) throw new Error('Family creation still asks for a personal supervisor PIN instead of the shared Family PIN.');
