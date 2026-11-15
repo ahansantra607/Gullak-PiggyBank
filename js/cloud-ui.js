@@ -48,7 +48,11 @@
           return false;
         }
         cloudUser = remembered.user; cloudSecret = remembered.secret || ''; syncError = null;
-        if (remembered.user?.account_type === 'family' && G.setMode) G.setMode('family');
+        if (remembered.user?.account_type === 'family') {
+          if (G.setMode) G.setMode('family');
+          if (window.GullakNative && typeof window.GullakNative.onCloudReady === 'function') window.GullakNative.onCloudReady();
+          return true;
+        }
         if (window.GullakNative && typeof window.GullakNative.onCloudReady === 'function') window.GullakNative.onCloudReady();
         if (!cloudSecret) return true;
         if (G.setMode) G.setMode('individual');
@@ -69,6 +73,7 @@
         await G.cloud.logout();
       } finally {
         cloudSecret = ''; cloudUser = null; syncError = null;
+        if (window.GullakNative && typeof window.GullakNative.onCloudLogout === 'function') window.GullakNative.onCloudLogout();
       }
     },
     async deleteAccount(password) {
@@ -76,6 +81,7 @@
       await familySyncChain.catch(() => {});
       const result = await G.cloud.deleteAccount(password);
       cloudSecret = ''; cloudUser = null; syncError = null;
+      if (window.GullakNative && typeof window.GullakNative.onCloudLogout === 'function') window.GullakNative.onCloudLogout();
       return result;
     }
   };
