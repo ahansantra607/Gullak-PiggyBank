@@ -281,7 +281,7 @@ export default {
     if ((path === "/api/register" || path === "/api/family/register") && request.method === "POST") {
       const accountType = path === "/api/family/register" ? "family" : "individual";
       try {
-        const body = await request.json() as { username?: string; password?: string; role?: string; supervisor_codes?: string[]; key_wrap?: { wrapped_secret?: string; salt?: string; iterations?: number } };
+        const body = await request.json() as { username?: string; password?: string; role?: string; supervisor_codes?: string[]; key_wrap?: { wrapped_secret?: string; salt?: string; iterations?: number }; supervisor_key?: { public_key?: string; encrypted_private_key?: string; salt?: string; iterations?: number } };
         const username = body.username?.trim().toLowerCase() || "";
         const password = body.password || "";
         const role = accountType === "individual" ? body.role : undefined;
@@ -313,6 +313,20 @@ export default {
           keyWrap = { wrapped_secret: candidate.wrapped_secret!, salt: wrapSalt, iterations };
         }
 
+        let supervisorKey: { public_key: string; encrypted_private_key: string; salt: string; iterations: number } | null = null;
+        if (role === "supervisor" && body.supervisor_key) {
+          const candidate = body.supervisor_key;
+          const pub = String(candidate.public_key || ""), wrapped = String(candidate.encrypted_private_key || ""), keySalt = String(candidate.salt || "");
+          const parts = wrapped.split(".");
+          const keyIterations = Number(candidate.iterations);
+          if (!validBase64(pub) || fromBase64(pub).length < 80 || fromBase64(pub).length > 256 ||
+              parts.length !== 2 || !validBase64(parts[0]) || !validBase64(parts[1]) ||
+              fromBase64(parts[0]).length !== 12 || fromBase64(parts[1]).length < 48 ||
+              !validBase64(keySalt) || fromBase64(keySalt).length !== 16 ||
+              !Number.isInteger(keyIterations) || keyIterations < 100000 || keyIterations > 500000) return json({ error: "Could not securely prepare the Supervisor account key." }, 400);
+          supervisorKey = { public_key: pub, encrypted_private_key: wrapped, salt: keySalt, iterations: keyIterations };
+        }
+
         const salt = randomBytes(16);
         const passwordHash = await derivePasswordHash(password, salt, ITERATIONS);
         const userId = crypto.randomUUID();
@@ -333,6 +347,8 @@ export default {
             const code = makeSupervisorCode();
             statements.push(env.gullak_db.prepare("INSERT INTO individual_supervisor_codes (code_hash, supervisor_user_id, created_at, revoked_at) VALUES (?, ?, ?, NULL)")
               .bind(await supervisorCodeHash(code), userId, now));
+            if (supervisorKey) statements.push(env.gullak_db.prepare("INSERT INTO individual_supervisor_keys (supervisor_user_id, public_key, encrypted_private_key, salt, iterations, updated_at) VALUES (?, ?, ?, ?, ?, ?)")
+              .bind(userId, supervisorKey.public_key, supervisorKey.encrypted_private_key, supervisorKey.salt, supervisorKey.iterations, now));
             statements.push(env.gullak_db.prepare("INSERT INTO sessions (session_id_hash, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)")
               .bind(tokenHash, userId, now, expires));
             await env.gullak_db.batch(statements);
