@@ -50,7 +50,7 @@ jobs:
         run: |
           notes="${RELEASE_NOTES:-}"
           if [ "$EVENT_NAME" = "push" ] && [ -f .github/release-v2.0.0 ]; then
-            notes="$(cat .github/release-v1.1.2)"
+            notes="$(cat .github/release-v2.0.0)"
           fi
           if [ -z "$(printf '%s' "$notes" | tr -d '[:space:]')" ]; then
             notes="Bug fixes"
