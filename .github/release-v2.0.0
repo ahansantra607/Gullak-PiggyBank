@@ -1,0 +1,13 @@
+Gullak 2.0.0 — Major Individual account redesign
+
+- Individual registration now offers separate Supervisor and Kid accounts. Individual login remains username and password.
+- Supervisors receive a one-time 10-character linking code. Kids can request multiple Supervisors during setup and later in Settings.
+- A Kid account stays pending until a Supervisor explicitly accepts. Pending accounts can check request status but cannot open or edit their diary.
+- Supervisors can review and accept or decline requests, manage their linked Kids, and open a Kid diary after acceptance and key sharing.
+- Kid diary keys are shared end-to-end using ECDH P-256 and AES-GCM. Supervisor private keys are encrypted with the Supervisor account password; the server stores only encrypted key material and encrypted diary vaults.
+- The Supervisor view reuses purchase-request approvals, chore management and payments, money entries, savings match, cool-down settings and reports. Supervisor changes sync to the Kid's encrypted cloud diary.
+- Adding a new Supervisor triggers encrypted key sharing after acceptance. If a Kid loses their last accepted Supervisor, their active sessions are revoked and the diary is locked until another Supervisor accepts.
+- Retired the old Individual grown-up PIN/rules setup and Grown-up mode. Legacy Individual accounts and their cloud data were removed during the migration. Family mode remains separate and unchanged.
+- Android remains the same signed app, with the existing in-app update screen and six-digit phone PIN protection.
+
+This release includes backend, frontend, database migration, end-to-end encryption checks and live integration tests.
