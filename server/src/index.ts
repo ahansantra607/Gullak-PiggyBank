@@ -317,7 +317,7 @@ export default {
         const passwordHash = await derivePasswordHash(password, salt, ITERATIONS);
         const userId = crypto.randomUUID();
         const now = new Date().toISOString();
-        const token = accountType === "family" || role === "supervisor" ? toBase64(randomBytes(32)) : "";
+        const token = toBase64(randomBytes(32));
         const tokenHash = token ? await sha256(token) : "";
         const expires = new Date(Date.now() + SESSION_DAYS * 86400000).toISOString();
         const statements: D1PreparedStatement[] = [
@@ -344,8 +344,12 @@ export default {
             .bind(crypto.randomUUID(), userId, supervisorId, now));
           statements.push(env.gullak_db.prepare("INSERT INTO user_key_wraps (user_id, wrapped_secret, salt, iterations, updated_at) VALUES (?, ?, ?, ?, ?)")
             .bind(userId, keyWrap!.wrapped_secret, keyWrap!.salt, keyWrap!.iterations, now));
+          statements.push(env.gullak_db.prepare("INSERT INTO sessions (session_id_hash, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)")
+            .bind(tokenHash, userId, now, expires));
           await env.gullak_db.batch(statements);
-          return json({ success: true, pending_approval: true, user: { user_id: userId, username, account_type: "individual", role: "kid", status: "pending" }, message: "Your account is waiting for at least one Supervisor to accept." }, 201);
+          return new Response(JSON.stringify({ success: true, pending_approval: true, user: { user_id: userId, username, account_type: "individual", role: "kid", status: "pending" }, message: "Your account is waiting for at least one Supervisor to accept." }), {
+            status: 201, headers: { "Content-Type": "application/json", "Cache-Control": "no-store", "Set-Cookie": sessionCookie(token, request), ...CORS_HEADERS }
+          });
         }
         if (token) statements.push(env.gullak_db.prepare("INSERT INTO sessions (session_id_hash, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)")
           .bind(tokenHash, userId, now, expires));
@@ -406,7 +410,6 @@ export default {
         if (expectedAccountType === "individual") {
           const role = await individualRole(env, user.user_id);
           if (!role) return json({ error: "This old Individual account has been retired. Create a new Supervisor or Kid account." }, 403);
-          if (role.status !== "active") return json({ error: "Your Kid account is waiting for a Supervisor to accept your request. You can log in after at least one Supervisor approves." }, 403);
         }
 
         const now = new Date();
@@ -487,7 +490,7 @@ export default {
         if (!user) return json({ error: "Authentication required." }, 401);
         if (user.account_type !== "individual") return json({ error: "This feature is only for Individual accounts." }, 403);
         const role = await individualRole(env, user.user_id);
-        if (!role || role.role !== "kid" || role.status !== "active") return json({ error: "Only an active Kid account can request another Supervisor." }, 403);
+        if (!role || role.role !== "kid") return json({ error: "Only a Kid account can request another Supervisor." }, 403);
         const body = await request.json() as { code?: string };
         const code = String(body.code || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
         if (code.length !== 10) return json({ error: "Enter a valid 10-character Supervisor code." }, 400);
@@ -730,6 +733,8 @@ export default {
           return json({ error: "Authentication required." }, 401);
         }
         if (user.account_type !== "individual") return json({ error: "Family accounts cannot access Individual diaries." }, 403);
+        const individual = await individualRole(env, user.user_id);
+        if (!individual || individual.status !== "active") return json({ error: "A Supervisor must accept this Kid account before its diary can be opened." }, 403);
 
         const vault = await env.gullak_db.prepare(`
           SELECT ciphertext, iv, salt, schema_version, updated_at
@@ -762,6 +767,8 @@ export default {
           return json({ error: "Authentication required." }, 401);
         }
         if (user.account_type !== "individual") return json({ error: "Family accounts cannot access Individual diaries." }, 403);
+        const individual = await individualRole(env, user.user_id);
+        if (!individual || individual.status !== "active") return json({ error: "A Supervisor must accept this Kid account before its diary can be edited." }, 403);
 
         const contentLength = Number(
           request.headers.get("Content-Length") || 0
