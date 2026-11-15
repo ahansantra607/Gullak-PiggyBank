@@ -200,7 +200,6 @@
             ? await G.cloud.register(username, password)
             : await G.cloud.login(username, password);
           cloudUser = auth.user;
-          if (window.GullakNative && typeof window.GullakNative.onCloudReady === 'function') window.GullakNative.onCloudReady();
           if (authMode === 'register') {
             cloudSecret = secret;
             await G.cloud.saveKeyWrap(cloudSecret, password);
@@ -220,6 +219,11 @@
             catch (rememberError) { G.toast('Signed in, but this browser could not save the stay-logged-in setting.'); }
           } else if (authMode === 'login' && G.cloud.clearRememberedDevice) {
             await G.cloud.clearRememberedDevice().catch(() => {});
+          }
+          // Only show the native PIN setup/unlock screen after the account session
+          // and encrypted diary key have both been saved for restoration.
+          if (window.GullakNative && typeof window.GullakNative.onCloudReady === 'function') {
+            window.GullakNative.onCloudReady();
           }
           const familyReturn = G.mode && G.mode() === 'family' &&
             (!!G.cloudFamilyReturn || ['sup', 'fam-create', 'fam-pick', 'cloud-families', 'cloud-family-join'].includes(returnAfterLogin));
