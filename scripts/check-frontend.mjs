@@ -39,6 +39,9 @@ if (!cloudOnlySource.includes('G.cloud.createFamily({')) throw new Error('Family
 if (!cloudOnlySource.includes('familyKey: C.b64(F.fkRaw)')) throw new Error('New Family exports do not include the encrypted-file-wrapped family key.');
 if (!cloudSource.includes('passwordOrRole')) throw new Error('Supervisor-created member accounts are not supported by the cloud client.');
 if (!serverSource.includes('Family PIN must be 4–6 digits.')) throw new Error('The server does not enforce the shared Family PIN format.');
+
+if (!cloudUiSource.includes("authMode === 'register' ? 'placeholder=\"3–24 letters, numbers or _\"' : ''")) throw new Error('Individual username hint should appear only during registration.');
+if (!cloudUiSource.includes("authMode === 'register' ? 'placeholder=\"8+ chars: upper, lower, number & symbol\"' : ''")) throw new Error('Individual password hint should appear only during registration.');
 if (!cloudSource.includes("registerFamilyAccount") || !cloudSource.includes("loginFamilyAccount")) throw new Error('Family accounts do not use dedicated authentication endpoints.');
 if (!cloudOnlySource.includes("G.screens['family-account']") || !cloudOnlySource.includes('Family-only login')) throw new Error('Family mode does not have a dedicated Family account creator/login screen.');
 if (cloudOnlySource.includes('>Family username</label>') || !cloudOnlySource.includes('First Supervisor’s personal Gullak username') || !cloudOnlySource.includes('It is not a family username; every member has their own Gullak account.')) throw new Error('First Supervisor username is still presented as a family-level username.');
