@@ -64,7 +64,7 @@ public class MainActivity extends Activity {
     private boolean pinScreenVisible;
     private boolean needsUnlock;
     private EditText pinInput;
-    private String pendingSetupPin = "";
+    private String pendingSetupPin = "";\n    private String pendingUpdateApkUrl = "";\n    private String pendingUpdateVersion = "";\n    private String pendingUpdateNotes = "";
     private static final long INACTIVITY_LOCK_MS = 7 * 60 * 1000L;
     private final Handler inactivityHandler = new Handler(Looper.getMainLooper());
     private final Runnable inactivityLock = () -> {
@@ -204,135 +204,12 @@ public class MainActivity extends Activity {
 
     private void showUpdate(String version, String notes, String apkUrl) {
         showingUpdate = true;
-        String updateNotes = notes == null || notes.trim().isEmpty() ? "Bug fixes" : notes.trim();
-
-        ScrollView scroll = new ScrollView(this);
-        scroll.setFillViewport(true);
-        scroll.setBackgroundColor(Color.rgb(255, 247, 251));
-
-        LinearLayout page = new LinearLayout(this);
-        page.setOrientation(LinearLayout.VERTICAL);
-        page.setGravity(Gravity.CENTER_HORIZONTAL);
-        page.setPadding(dp(22), dp(30), dp(22), dp(24));
-
-        LinearLayout brandRow = new LinearLayout(this);
-        brandRow.setOrientation(LinearLayout.HORIZONTAL);
-        brandRow.setGravity(Gravity.CENTER_VERTICAL);
-        ImageView pig = new ImageView(this);
-        pig.setImageResource(R.drawable.gullak_piggy);
-        pig.setScaleType(ImageView.ScaleType.FIT_CENTER);
-        brandRow.addView(pig, new LinearLayout.LayoutParams(dp(54), dp(48)));
-        TextView brand = new TextView(this);
-        brand.setText("GULLAK");
-        brand.setTextColor(Color.rgb(163, 36, 91));
-        brand.setTextSize(19);
-        brand.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-        brand.setLetterSpacing(0.12f);
-        LinearLayout.LayoutParams brandParams = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-        brandParams.leftMargin = dp(10);
-        brandRow.addView(brand, brandParams);
-        page.addView(brandRow);
-
-        LinearLayout hero = new LinearLayout(this);
-        hero.setOrientation(LinearLayout.VERTICAL);
-        hero.setGravity(Gravity.CENTER_HORIZONTAL);
-        hero.setPadding(dp(22), dp(26), dp(22), dp(24));
-        hero.setBackground(tintedBackground(Color.WHITE));
-        LinearLayout.LayoutParams heroParams = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-        heroParams.topMargin = dp(24);
-        page.addView(hero, heroParams);
-
-        TextView eyebrow = new TextView(this);
-        eyebrow.setText("A NEW GULLAK IS HERE");
-        eyebrow.setTextColor(Color.rgb(163, 36, 91));
-        eyebrow.setTextSize(11);
-        eyebrow.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-        eyebrow.setLetterSpacing(0.12f);
-        eyebrow.setGravity(Gravity.CENTER);
-        hero.addView(eyebrow, matchWrap());
-
-        TextView title = new TextView(this);
-        title.setText("A little upgrade,\na better Gullak.");
-        title.setTextColor(Color.rgb(73, 45, 65));
-        title.setTextSize(28);
-        title.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-        title.setGravity(Gravity.CENTER);
-        title.setLineSpacing(dp(2), 1f);
-        LinearLayout.LayoutParams titleParams = matchWrap();
-        titleParams.topMargin = dp(12);
-        hero.addView(title, titleParams);
-
-        TextView versionPill = new TextView(this);
-        versionPill.setText("VERSION  " + version);
-        versionPill.setTextColor(Color.rgb(163, 36, 91));
-        versionPill.setTextSize(12);
-        versionPill.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-        versionPill.setGravity(Gravity.CENTER);
-        versionPill.setPadding(dp(15), dp(9), dp(15), dp(9));
-        versionPill.setBackground(tintedBackground(Color.rgb(255, 235, 244)));
-        LinearLayout.LayoutParams pillParams = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-        pillParams.topMargin = dp(18);
-        hero.addView(versionPill, pillParams);
-
-        LinearLayout notesCard = new LinearLayout(this);
-        notesCard.setOrientation(LinearLayout.VERTICAL);
-        notesCard.setPadding(dp(20), dp(19), dp(20), dp(20));
-        notesCard.setBackground(tintedBackground(Color.rgb(255, 255, 255)));
-        LinearLayout.LayoutParams notesCardParams = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-        notesCardParams.topMargin = dp(16);
-        page.addView(notesCard, notesCardParams);
-
-        TextView notesTitle = new TextView(this);
-        notesTitle.setText("WHAT'S NEW");
-        notesTitle.setTextColor(Color.rgb(163, 36, 91));
-        notesTitle.setTextSize(12);
-        notesTitle.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-        notesTitle.setLetterSpacing(0.1f);
-        notesCard.addView(notesTitle, matchWrap());
-
-        TextView notesText = new TextView(this);
-        notesText.setText(updateNotes.length() > 5000 ? updateNotes.substring(0, 5000) : updateNotes);
-        notesText.setTextColor(Color.rgb(91, 75, 88));
-        notesText.setTextSize(15);
-        notesText.setLineSpacing(dp(5), 1f);
-        LinearLayout.LayoutParams notesTextParams = matchWrap();
-        notesTextParams.topMargin = dp(12);
-        notesCard.addView(notesText, notesTextParams);
-
-        TextView footer = new TextView(this);
-        footer.setText("Keep Gullak up to date to enjoy the latest improvements.");
-        footer.setTextColor(Color.rgb(130, 107, 126));
-        footer.setTextSize(13);
-        footer.setGravity(Gravity.CENTER);
-        footer.setLineSpacing(dp(3), 1f);
-        LinearLayout.LayoutParams footerParams = matchWrap();
-        footerParams.topMargin = dp(20);
-        page.addView(footer, footerParams);
-
-        Button update = makeButton("Update Gullak");
-        update.setTextColor(Color.WHITE);
-        update.setBackground(tintedBackground(Color.rgb(163, 36, 91)));
-        LinearLayout.LayoutParams updateParams = matchWidth();
-        updateParams.topMargin = dp(24);
-        page.addView(update, updateParams);
-        update.setOnClickListener(v -> {
-            try {
-                startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(apkUrl)));
-            } catch (Exception ignored) {
-                openApp();
-            }
-        });
-
-        Button later = makeButton("Maybe later");
-        later.setTextColor(Color.rgb(117, 77, 101));
-        later.setBackground(tintedBackground(Color.rgb(255, 232, 242)));
-        LinearLayout.LayoutParams laterParams = matchWidth();
-        laterParams.topMargin = dp(10);
-        page.addView(later, laterParams);
-        later.setOnClickListener(v -> openApp());
-
-        scroll.addView(page);
-        setContentView(scroll);
+        pendingUpdateVersion = version == null ? "" : version;
+        pendingUpdateNotes = notes == null ? "" : notes;
+        pendingUpdateApkUrl = apkUrl == null ? "" : apkUrl;
+        showHtmlScreen("update.html", "");
+        webView.evaluateJavascript("window.initGullakUpdate && window.initGullakUpdate(" +
+            JSONObject.quote(pendingUpdateVersion) + "," + JSONObject.quote(pendingUpdateNotes) + ")", null);
     }
 
     private void openApp() {
@@ -369,10 +246,13 @@ public class MainActivity extends Activity {
             filePathCallback.onReceiveValue(null);
             filePathCallback = null;
         }
-        if (webView != null) {
-            setContentView(webView);
-            return;
-        }
+        ensureWebView();
+        setContentView(webView);
+        webView.loadUrl(APP_URL);
+    }
+
+    private void ensureWebView() {
+        if (webView != null) return;
         webView = new WebView(this);
         webView.setBackgroundColor(Color.WHITE);
         webView.getSettings().setJavaScriptEnabled(true);
@@ -402,24 +282,57 @@ public class MainActivity extends Activity {
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
                 Uri uri = request.getUrl();
-                if ("https".equalsIgnoreCase(uri.getScheme()) && APP_HOST.equalsIgnoreCase(uri.getHost())) {
-                    return false;
-                }
-                try {
-                    startActivity(new Intent(Intent.ACTION_VIEW, uri));
-                } catch (Exception ignored) { }
+                if ("https".equalsIgnoreCase(uri.getScheme()) && APP_HOST.equalsIgnoreCase(uri.getHost())) return false;
+                try { startActivity(new Intent(Intent.ACTION_VIEW, uri)); } catch (Exception ignored) { }
                 return true;
             }
 
             @Override
             public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
                 if (request.isForMainFrame()) {
-                    view.loadData("<meta name='viewport' content='width=device-width, initial-scale=1'><div style='font-family:sans-serif;padding:28px;text-align:center'><h2>Can't connect to Gullak</h2><p>Check your internet connection and try again.</p><button onclick=\"location.href='https://gullak-piggybank.ahansantra607.workers.dev/#/'\">Try again</button></div>", "text/html", "UTF-8");
+                    view.loadData("<meta name='viewport' content='width=device-width, initial-scale=1'><div style='font-family:sans-serif;padding:28px;text-align:center'><h2>Can't connect to Gullak</h2><p>Check your internet connection and try again.</p><button onclick=\\"location.href='https://gullak-piggybank.ahansantra607.workers.dev/#/'\\">Try again</button></div>", "text/html", "UTF-8");
                 }
             }
         });
-        setContentView(webView);
-        webView.loadUrl(APP_URL);
+    }
+
+    private void showHtmlScreen(String assetName, String mode) {
+        try {
+            ensureWebView();
+            StringBuilder html = new StringBuilder();
+            try (InputStream input = getAssets().open(assetName);
+                 BufferedReader reader = new BufferedReader(new InputStreamReader(input, "UTF-8"))) {
+                String line;
+                while ((line = reader.readLine()) != null) html.append(line).append("\\n");
+            }
+            setContentView(webView);
+            webView.loadDataWithBaseURL(APP_ORIGIN + "/", html.toString(), "text/html", "UTF-8", null);
+            if (mode != null && !mode.isEmpty()) {
+                webView.setWebViewClient(new WebViewClient() {
+                    @Override public void onPageFinished(WebView view, String url) {
+                        view.evaluateJavascript("window.initGullakPin && window.initGullakPin(" + JSONObject.quote(mode) + ")", null);
+                    }
+                    @Override public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
+                        Uri uri = request.getUrl();
+                        if ("https".equalsIgnoreCase(uri.getScheme()) && APP_HOST.equalsIgnoreCase(uri.getHost())) return false;
+                        try { startActivity(new Intent(Intent.ACTION_VIEW, uri)); } catch (Exception ignored) { }
+                        return true;
+                    }
+                });
+            } else {
+                webView.setWebViewClient(new WebViewClient() {
+                    @Override public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
+                        Uri uri = request.getUrl();
+                        if ("https".equalsIgnoreCase(uri.getScheme()) && APP_HOST.equalsIgnoreCase(uri.getHost())) return false;
+                        try { startActivity(new Intent(Intent.ACTION_VIEW, uri)); } catch (Exception ignored) { }
+                        return true;
+                    }
+                });
+            }
+        } catch (Exception error) {
+            Toast.makeText(this, "Could not open the secure Gullak screen.", Toast.LENGTH_LONG).show();
+            if (!showingUpdate) openAppWebView();
+        }
     }
 
 
@@ -458,128 +371,7 @@ public class MainActivity extends Activity {
     private void showPhonePinScreen(boolean setup) {
         inactivityHandler.removeCallbacks(inactivityLock);
         pinScreenVisible = true;
-        LinearLayout page = new LinearLayout(this);
-        page.setOrientation(LinearLayout.VERTICAL);
-        page.setGravity(Gravity.CENTER);
-        page.setPadding(dp(28), dp(28), dp(28), dp(28));
-        page.setBackgroundColor(Color.rgb(255, 247, 251));
-
-        TextView pig = new TextView(this);
-        pig.setText("🐷");
-        pig.setTextSize(48);
-        pig.setGravity(Gravity.CENTER);
-        page.addView(pig, matchWrap());
-
-        TextView title = new TextView(this);
-        title.setText(setup ? "Set up your phone PIN" : "Welcome back to Gullak");
-        title.setTextSize(24);
-        title.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-        title.setTextColor(Color.rgb(163, 36, 91));
-        title.setGravity(Gravity.CENTER);
-        LinearLayout.LayoutParams titleParams = matchWrap();
-        titleParams.topMargin = dp(12);
-        page.addView(title, titleParams);
-
-        TextView hint = new TextView(this);
-        hint.setText(setup ? "Create a six-digit PIN. It will work on all phones using this Gullak account." : "Enter your six-digit PIN to unlock your Gullak.");
-        hint.setTextSize(14);
-        hint.setTextColor(Color.rgb(100, 82, 100));
-        hint.setGravity(Gravity.CENTER);
-        LinearLayout.LayoutParams hintParams = matchWrap();
-        hintParams.topMargin = dp(8);
-        page.addView(hint, hintParams);
-
-        pinInput = new EditText(this);
-        pinInput.setSingleLine(true);
-        pinInput.setInputType(android.text.InputType.TYPE_CLASS_NUMBER | android.text.InputType.TYPE_NUMBER_VARIATION_PASSWORD);
-        pinInput.setEms(6);
-        pinInput.setGravity(Gravity.CENTER);
-        pinInput.setTextSize(25);
-        pinInput.setLetterSpacing(0.25f);
-        pinInput.setFilters(new InputFilter[]{new InputFilter.LengthFilter(6)});
-        pinInput.setHint("••••••");
-        LinearLayout.LayoutParams inputParams = new LinearLayout.LayoutParams(dp(220), dp(58));
-        inputParams.topMargin = dp(22);
-        page.addView(pinInput, inputParams);
-
-        Button action = makeButton(setup ? "Continue" : "Unlock Gullak");
-        LinearLayout.LayoutParams actionParams = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(54));
-        actionParams.topMargin = dp(18);
-        page.addView(action, actionParams);
-        action.setOnClickListener(v -> {
-            String entered = pinInput.getText().toString();
-            if (!entered.matches("\\d{6}")) {
-                Toast.makeText(this, "Enter all six digits.", Toast.LENGTH_SHORT).show();
-                return;
-            }
-            action.setEnabled(false);
-            if (setup) {
-                if (pendingSetupPin.isEmpty()) {
-                    pendingSetupPin = entered;
-                    pinInput.setText("");
-                    hint.setText("Enter the same six-digit PIN again to confirm.");
-                    title.setText("Confirm your phone PIN");
-                    action.setText("Set my PIN");
-                    action.setEnabled(true);
-                    return;
-                }
-                if (!pendingSetupPin.equals(entered)) {
-                    pendingSetupPin = "";
-                    pinInput.setText("");
-                    hint.setText("The PINs did not match. Please create your PIN again.");
-                    title.setText("Set up your phone PIN");
-                    action.setText("Continue");
-                    action.setEnabled(true);
-                    return;
-                }
-                executor.execute(() -> {
-                    try {
-                        apiRequest("POST", "/api/mobile-pin/setup", entered);
-                        runOnUiThread(() -> {
-                            pendingSetupPin = "";
-                            pinConfigured = true;
-                            pinCheckDone = true;
-                            Toast.makeText(this, "Phone PIN set up. It will work on your other phones too.", Toast.LENGTH_LONG).show();
-                            openAppWebView();
-                        });
-                    } catch (Exception error) {
-                        runOnUiThread(() -> {
-                            pendingSetupPin = "";
-                            pinInput.setText("");
-                            action.setEnabled(true);
-                            Toast.makeText(this, error.getMessage(), Toast.LENGTH_LONG).show();
-                        });
-                    }
-                });
-            } else {
-                executor.execute(() -> {
-                    try {
-                        apiRequest("POST", "/api/mobile-pin/verify", entered);
-                        runOnUiThread(() -> {
-                            pinConfigured = true;
-                            pinCheckDone = true;
-                            openAppWebView();
-                        });
-                    } catch (Exception error) {
-                        runOnUiThread(() -> {
-                            pinInput.setText("");
-                            action.setEnabled(true);
-                            Toast.makeText(this, error.getMessage(), Toast.LENGTH_LONG).show();
-                        });
-                    }
-                });
-            }
-        });
-
-        Button logout = makeButton("Log out");
-        logout.setBackground(tintedBackground(Color.rgb(232, 237, 229)));
-        logout.setTextColor(Color.rgb(42, 69, 49));
-        LinearLayout.LayoutParams logoutParams = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(50));
-        logoutParams.topMargin = dp(10);
-        page.addView(logout, logoutParams);
-        logout.setOnClickListener(v -> logoutFromPhone());
-
-        setContentView(page);
+        showHtmlScreen("pin.html", setup ? "setup" : "unlock");
     }
 
     private void logoutFromPhone() {
@@ -636,16 +428,50 @@ public class MainActivity extends Activity {
 
     private final class GullakNativeBridge {
         @JavascriptInterface
-        public void onCloudReady() {
-            checkPinAfterCloudLogin();
-        }
+        public void onCloudReady() { checkPinAfterCloudLogin(); }
 
         @JavascriptInterface
         public void onCloudLogout() {
-            pinConfigured = false;
-            pinCheckDone = false;
-            pendingSetupPin = "";
+            pinConfigured = false; pinCheckDone = false; pendingSetupPin = "";
         }
+
+        @JavascriptInterface
+        public void setupPhonePin(String pin) {
+            executor.execute(() -> {
+                try {
+                    apiRequest("POST", "/api/mobile-pin/setup", pin);
+                    runOnUiThread(() -> { pinConfigured = true; pinCheckDone = true; openAppWebView(); });
+                } catch (Exception error) { showPinError(error.getMessage()); }
+            });
+        }
+
+        @JavascriptInterface
+        public void verifyPhonePin(String pin) {
+            executor.execute(() -> {
+                try {
+                    apiRequest("POST", "/api/mobile-pin/verify", pin);
+                    runOnUiThread(() -> { pinConfigured = true; pinCheckDone = true; openAppWebView(); });
+                } catch (Exception error) { showPinError(error.getMessage()); }
+            });
+        }
+
+        @JavascriptInterface
+        public void logoutFromPin() { logoutFromPhone(); }
+
+        @JavascriptInterface
+        public void installUpdate() {
+            runOnUiThread(() -> {
+                try {
+                    if (pendingUpdateApkUrl == null || !pendingUpdateApkUrl.startsWith("https://")) throw new IllegalStateException("The update download is unavailable.");
+                    startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(pendingUpdateApkUrl)));
+                } catch (Exception error) {
+                    Toast.makeText(MainActivity.this, "Could not open the Gullak update.", Toast.LENGTH_LONG).show();
+                }
+            });
+        }
+
+        @JavascriptInterface
+        public void dismissUpdate() { runOnUiThread(MainActivity.this::openApp); }
 
         @JavascriptInterface
         public void saveEncryptedBackup(String filename, String mimeType, String base64) {
@@ -664,9 +490,8 @@ public class MainActivity extends Activity {
                     create.addCategory(Intent.CATEGORY_OPENABLE);
                     create.setType("application/json");
                     create.putExtra(Intent.EXTRA_TITLE, finalSafeName);
-                    try {
-                        startActivityForResult(create, REQUEST_SAVE_BACKUP);
-                    } catch (Exception error) {
+                    try { startActivityForResult(create, REQUEST_SAVE_BACKUP); }
+                    catch (Exception error) {
                         pendingBackupBytes = null;
                         Toast.makeText(MainActivity.this, "Unable to open the save dialog.", Toast.LENGTH_LONG).show();
                     }
@@ -675,6 +500,14 @@ public class MainActivity extends Activity {
                 runOnUiThread(() -> Toast.makeText(MainActivity.this, "Could not prepare the encrypted backup.", Toast.LENGTH_LONG).show());
             }
         }
+    }
+
+    private void showPinError(String message) {
+        runOnUiThread(() -> {
+            if (webView == null) return;
+            webView.evaluateJavascript("window.showGullakPinError && window.showGullakPinError(" +
+                JSONObject.quote(message == null ? "Please try again." : message) + ")", null);
+        });
     }
 
     @Override
