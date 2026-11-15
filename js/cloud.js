@@ -81,7 +81,7 @@
       if (role === 'kid') {
         const salt = C.salt();
         const wrapped = await C.wrapWithSecret(password, salt, encoder.encode(secret), ITERATIONS);
-        body.key_wrap = { wrapped_secret: wrapped, salt, iterations: ITERATIONS };
+        body.key_wrap = { wrapped_secret: wrapped, salt: C.b64(salt), iterations: ITERATIONS };
       }
       return request('/api/register', { method: 'POST', body: JSON.stringify(body) });
     },
