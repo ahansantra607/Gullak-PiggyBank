@@ -43,7 +43,7 @@ jobs:
         run: npx tsc -p tsconfig.json
       - name: Check frontend syntax and encryption
         run: node scripts/check-frontend.mjs
-      - name: Validate family D1 schema
+      - name: Validate D1 schemas
         run: |
           python - <<'PY'
           import sqlite3
@@ -52,11 +52,15 @@ jobs:
           db.execute("PRAGMA foreign_keys = ON")
           db.executescript(Path("server/schema.sql").read_text())
           db.executescript(Path("server/family-schema.sql").read_text())
+          db.executescript(Path("server/individual-supervision-schema.sql").read_text())
           expected = {
               "cloud_families",
               "cloud_family_members",
               "cloud_family_vaults",
               "cloud_family_member_vaults",
+              "individual_account_roles",
+              "individual_supervisor_codes",
+              "individual_supervisor_links",
           }
           actual = {row[0] for row in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
           missing = expected - actual
