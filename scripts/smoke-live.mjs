@@ -157,7 +157,7 @@ const doubleEncodedSaltAttempt = await request("/api/register", {
   method: "POST", body: { username: "kidbad_" + suffix, password: kidPassword, role: "kid",
     supervisor_codes: [individual.data.supervisor_code], key_wrap: { ...kidKeyWrap, salt: b64(Buffer.from(validKidSalt, "utf8")) } }
 });
-assert(doubleEncodedSaltAttempt.status === 400 && /encryption key/i.test(doubleEncodedSaltAttempt.data.error || ""),
+assert(doubleEncodedSaltAttempt.response.status === 400 && /encryption key/i.test(doubleEncodedSaltAttempt.data.error || ""),
   "Kid registration unexpectedly accepted a double-encoded encryption salt.");
 const kidRegistration = expect(await request("/api/register", {
   method: "POST", body: { username: kidName, password: kidPassword, role: "kid", supervisor_codes: [individual.data.supervisor_code], key_wrap: kidKeyWrap }
