@@ -156,6 +156,12 @@ const accountWrap = await C.wrapWithSecret('AccountPassword123!', salt, new Text
 const accountKey = await C.deriveKey('AccountPassword123!', salt, 310000);
 const recoveredSecret = new TextDecoder().decode(await C.dec(accountKey, accountWrap));
 if (recoveredSecret !== 'SeparateEncryptionPassphrase123!') throw new Error('Password-only encryption-key recovery failed.');
+const supervisorBundle = await C.makeSupervisorKeyBundle('SupervisorPassword123!');
+const supervisorPrivate = await C.unlockSupervisorPrivateKey('SupervisorPassword123!', supervisorBundle);
+const diaryShare = await C.wrapDiaryKeyForSupervisor('KidDiarySecret123!', supervisorBundle.public_key);
+const recoveredDiarySecret = await C.unwrapDiaryKeyFromSupervisor(diaryShare, supervisorPrivate);
+if (recoveredDiarySecret !== 'KidDiarySecret123!') throw new Error('Supervisor ECDH diary-key sharing round-trip failed.');
+
 const validAccountPassword = value => value.length >= 8 && /[a-z]/.test(value) && /[A-Z]/.test(value) && /[0-9]/.test(value) && /[^A-Za-z0-9\s]/.test(value);
 if (!validAccountPassword('AccountPassword123!') || validAccountPassword('weakpassword') || validAccountPassword('NoSpecial123') || validAccountPassword('Abcdef1 ')) throw new Error('Account password policy validation failed.');
 
