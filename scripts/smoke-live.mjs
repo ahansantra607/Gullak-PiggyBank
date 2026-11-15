@@ -27,6 +27,15 @@ async function makeSupervisorKeyBundle(password) {
     privateKey: pair.privateKey
   };
 }
+async function unlockSupervisorKeyBundle(password, bundle) {
+  const [ivText, cipherText] = bundle.encrypted_private_key.split(".");
+  const salt = Buffer.from(bundle.salt, "base64");
+  const base = await webcrypto.subtle.importKey("raw", encoder.encode(password), "PBKDF2", false, ["deriveKey"]);
+  const key = await webcrypto.subtle.deriveKey({ name: "PBKDF2", hash: "SHA-256", salt, iterations: bundle.iterations }, base,
+    { name: "AES-GCM", length: 256 }, false, ["decrypt"]);
+  const privateBytes = await webcrypto.subtle.decrypt({ name: "AES-GCM", iv: Buffer.from(ivText, "base64") }, key, Buffer.from(cipherText, "base64"));
+  return webcrypto.subtle.importKey("pkcs8", privateBytes, { name: "ECDH", namedCurve: "P-256" }, false, ["deriveBits"]);
+}
 async function makeDiaryKeyShare(supervisorPublicKey, diarySecret) {
   const publicKey = await webcrypto.subtle.importKey("spki", Buffer.from(supervisorPublicKey, "base64"),
     { name: "ECDH", namedCurve: "P-256" }, false, []);
@@ -136,6 +145,10 @@ const individualLogin = expect(await request("/api/login", {
 }), 200, "Individual Supervisor login");
 assert(individualLogin.data.user.role === "supervisor" && individualLogin.data.user.status === "active",
   "Supervisor role/status was not returned after login.");
+const storedSupervisorKey = expect(await request("/api/individual/supervision/keys", { cookie: individualLogin.cookie }), 200, "Supervisor encrypted key retrieval");
+assert(storedSupervisorKey.data.exists && storedSupervisorKey.data.key_bundle.public_key === individualKey.body.public_key,
+  "Supervisor public key bundle was not stored.");
+const unlockedSupervisorPrivateKey = await unlockSupervisorKeyBundle(individualPassword, storedSupervisorKey.data.key_bundle);
 const kidName = "kidtest_" + suffix;
 const kidPassword = "Kid-test-" + randomUUID() + "!";
 const kidKeyWrap = { wrapped_secret: b64(randomBytes(12)) + "." + b64(randomBytes(48)), salt: b64(randomBytes(16)), iterations: 150000 };
@@ -171,7 +184,7 @@ expect(await request("/api/individual/supervision/key-shares", { method: "PUT", 
   body: { supervisor_user_id: acceptedFirstLink.other_user_id, ...firstKeyShare } }), 200, "Kid shares diary key end-to-end");
 const firstSupervisorVaultBeforeDiary = expect(await request("/api/individual/supervision/kids/" + kidLogin.data.user.user_id + "/vault", { cookie: individualLogin.cookie }), 200, "Supervisor can access linked Kid vault");
 assert(!firstSupervisorVaultBeforeDiary.data.exists && firstSupervisorVaultBeforeDiary.data.key_share, "Supervisor key share was not returned for an empty Kid diary.");
-assert(await openDiaryKeyShare(individualKey.privateKey, firstSupervisorVaultBeforeDiary.data.key_share) === testDiarySecret,
+assert(await openDiaryKeyShare(unlockedSupervisorPrivateKey, firstSupervisorVaultBeforeDiary.data.key_share) === testDiarySecret,
   "Supervisor could not decrypt the Kid's end-to-end encrypted diary key.");
 
 const secondSupervisorName = "indivsup2_" + suffix;
@@ -183,9 +196,18 @@ const secondSupervisor = expect(await request("/api/register", {
 const secondSupervisorLogin = expect(await request("/api/login", {
   method: "POST", body: { username: secondSupervisorName, password: secondSupervisorPassword }
 }), 200, "Second Supervisor login");
+const secondStoredKey = expect(await request("/api/individual/supervision/keys", { cookie: secondSupervisorLogin.cookie }), 200, "Second Supervisor encrypted key retrieval");
+const unlockedSecondSupervisorKey = await unlockSupervisorKeyBundle(secondSupervisorPassword, secondStoredKey.data.key_bundle);
 expect(await request("/api/individual/supervision/requests", {
   method: "POST", cookie: kidLogin.cookie, body: { code: secondSupervisor.data.supervisor_code }
 }), 201, "Kid requests an additional Supervisor");
+const pendingSecondLinkData = expect(await request("/api/individual/supervision", { cookie: kidLogin.cookie }), 200, "Kid pending second Supervisor link");
+const pendingSecondLink = pendingSecondLinkData.data.links.find(row => row.other_username === secondSupervisorName);
+assert(pendingSecondLink?.supervisor_public_key, "Kid cannot retrieve the second Supervisor public key.");
+const unacceptedShare = await makeDiaryKeyShare(pendingSecondLink.supervisor_public_key, testDiarySecret);
+expect(await request("/api/individual/supervision/key-shares", { method: "PUT", cookie: kidLogin.cookie,
+  body: { supervisor_user_id: pendingSecondLink.other_user_id, ...unacceptedShare } }), 403, "Kid cannot share diary key before Supervisor acceptance");
+expect(await request("/api/individual/supervision/kids/" + kidLogin.data.user.user_id + "/vault", { cookie: secondSupervisorLogin.cookie }), 403, "Unaccepted Supervisor cannot read Kid diary");
 const secondRequests = expect(await request("/api/individual/supervision", { cookie: secondSupervisorLogin.cookie }), 200, "Second Supervisor request list");
 const secondRequest = secondRequests.data.links.find(row => row.other_username === kidName && row.status === "pending");
 assert(secondRequest, "Second Supervisor did not receive the additional request.");
@@ -201,7 +223,7 @@ const secondKeyShare = await makeDiaryKeyShare(secondAcceptedLink.supervisor_pub
 expect(await request("/api/individual/supervision/key-shares", { method: "PUT", cookie: kidLogin.cookie,
   body: { supervisor_user_id: secondAcceptedLink.other_user_id, ...secondKeyShare } }), 200, "Kid shares diary key with second Supervisor");
 const secondVaultAccess = expect(await request("/api/individual/supervision/kids/" + kidLogin.data.user.user_id + "/vault", { cookie: secondSupervisorLogin.cookie }), 200, "Second Supervisor can access linked Kid vault");
-assert(await openDiaryKeyShare(secondSupervisorKey.privateKey, secondVaultAccess.data.key_share) === testDiarySecret,
+assert(await openDiaryKeyShare(unlockedSecondSupervisorKey, secondVaultAccess.data.key_share) === testDiarySecret,
   "Second Supervisor could not decrypt the shared diary key.");
 expect(await request("/api/individual/supervision", { cookie: supervisor.cookie }), 403, "Family account blocked from Individual supervision APIs");
 
