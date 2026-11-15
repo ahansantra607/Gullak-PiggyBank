@@ -76,6 +76,19 @@
     register: (username, password) => request('/api/register', {
       method: 'POST', body: JSON.stringify({ username, password })
     }),
+    async registerIndividual(username, password, role, supervisorCodes, secret) {
+      const body = { username, password, role, supervisor_codes: supervisorCodes || [] };
+      if (role === 'kid') {
+        const salt = C.salt();
+        const wrapped = await C.wrapWithSecret(password, salt, encoder.encode(secret), ITERATIONS);
+        body.key_wrap = { wrapped_secret: wrapped, salt, iterations: ITERATIONS };
+      }
+      return request('/api/register', { method: 'POST', body: JSON.stringify(body) });
+    },
+    individualSupervision: () => request('/api/individual/supervision'),
+    createSupervisorCode: () => request('/api/individual/supervision/code', { method: 'POST', body: '{}' }),
+    requestSupervisor: code => request('/api/individual/supervision/requests', { method: 'POST', body: JSON.stringify({ code }) }),
+    decideSupervisorRequest: (linkId, decision) => request('/api/individual/supervision/requests/' + encodeURIComponent(linkId), { method: 'POST', body: JSON.stringify({ decision }) }),
     login: (username, password) => request('/api/login', {
       method: 'POST', body: JSON.stringify({ username, password })
     }),
