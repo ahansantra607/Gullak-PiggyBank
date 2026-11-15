@@ -222,7 +222,8 @@
             await G.cloud.saveKeyWrap(cloudSecret, password);
             lastSupervisorCode = auth.supervisor_code || '';
             if (lastSupervisorCode) {
-              try { await G.cloud.rememberDevice(cloudSecret); } catch (_) {}
+              if (stayLoggedIn) { try { await G.cloud.rememberDevice(cloudSecret); } catch (_) {} }
+              if (window.GullakNative && typeof window.GullakNative.onCloudReady === 'function') window.GullakNative.onCloudReady();
               G.go('individual-supervision');
               return;
             }
@@ -331,6 +332,86 @@
     })
   };
 
+
+  G.screens['individual-supervision'] = {
+    bare: true,
+    render: () => {
+      const role = cloudUser?.role || 'kid';
+      const links = supervisionData?.links || [];
+      const pending = links.filter(x => x.status === 'pending');
+      const accepted = links.filter(x => x.status === 'accepted');
+      const rejected = links.filter(x => x.status === 'rejected');
+      const head = '<header class="page-h"><button class="back" data-act="go" data-to="settings">←</button><h1>🛡️ Supervisors</h1></header>';
+      if (role === 'supervisor') return head + `
+        <section class="card"><h2>Your Supervisor code</h2>
+          ${lastSupervisorCode ? `<div class="banner good"><b>Share this code with a Kid:</b><h2 style="letter-spacing:.12em">${esc(lastSupervisorCode)}</h2><p class="small">This code is shown only now. Keep it private and share it only with the Kid you agree to supervise.</p></div>` : '<p class="muted small">Generate a code and share it with a Kid. They can use it to request you as their Supervisor.</p>'}
+          <button class="btn primary block" data-act="individual-new-code">${lastSupervisorCode ? 'Generate a new code' : 'Generate Supervisor code'}</button>
+        </section>
+        <section class="card"><h3>Requests waiting for you (${pending.length})</h3>
+          ${pending.length ? pending.map(x => `<div class="req-p"><b>🧒 ${esc(x.other_username)}</b><p class="small muted">Wants you to become their Supervisor.</p><div class="row gap"><button class="btn good grow" data-act="individual-decision" data-id="${esc(x.link_id)}" data-v="accept">Accept</button><button class="btn ghost grow" data-act="individual-decision" data-id="${esc(x.link_id)}" data-v="reject">Decline</button></div></div>`).join('') : '<p class="muted small">No pending requests.</p>'}
+        </section>
+        <section class="card"><h3>Kids you supervise (${accepted.length})</h3>
+          ${accepted.length ? accepted.map(x => `<div class="kid-row"><span>🧒</span><b class="grow">${esc(x.other_username)}</b><span class="small good">Accepted</span></div>`).join('') : '<p class="muted small">When a Kid requests you and you accept, they will appear here.</p>'}
+        </section>
+        <button class="btn soft block" data-act="individual-continue">Continue to my Gullak</button>`;
+      return head + `
+        <section class="card"><h2>My Supervisors</h2>
+          <p class="small muted">A Kid account becomes active only after at least one Supervisor accepts. You can add more Supervisors here at any time.</p>
+          <label class="label" for="individual-add-supervisor">Add another Supervisor</label>
+          <input class="input" id="individual-add-supervisor" maxlength="20" placeholder="10-character Supervisor code">
+          <button class="btn primary block mt" data-act="individual-add-supervisor">Send request</button>
+          <div class="divider"></div>
+          <h3>Accepted</h3>
+          ${accepted.map(x => `<div class="kid-row"><span>🛡️</span><b class="grow">${esc(x.other_username)}</b><span class="small good">Supervisor</span></div>`).join('') || '<p class="small muted">No Supervisor has accepted yet.</p>'}
+          <h3>Waiting for acceptance</h3>
+          ${pending.map(x => `<div class="kid-row"><span>⏳</span><b class="grow">${esc(x.other_username)}</b><span class="small muted">Pending</span></div>`).join('') || '<p class="small muted">No pending requests.</p>'}
+          ${rejected.length ? '<h3>Declined</h3>' + rejected.map(x => `<div class="kid-row"><span>↩️</span><b class="grow">${esc(x.other_username)}</b><span class="small muted">Declined</span></div>`).join('') : ''}
+        </section>`;
+    },
+    after: root => {
+      if (supervisionLoading || !cloudUser) return;
+      supervisionLoading = true;
+      G.cloud.individualSupervision().then(data => {
+        supervisionData = data;
+        if (location.hash.includes('individual-supervision')) G.render({ keepScroll: true });
+      }).catch(error => G.toast(error.message || 'Could not load Supervisor details.'))
+        .finally(() => { supervisionLoading = false; });
+    },
+    handlers: () => ({
+      'individual-new-code': async button => {
+        button.disabled = true;
+        try { const result = await G.cloud.createSupervisorCode(); lastSupervisorCode = result.code; supervisionData = null; G.render({ keepScroll: true }); }
+        catch (error) { G.toast(error.message || 'Could not generate a code.'); button.disabled = false; }
+      },
+      'individual-decision': async el => {
+        try { await G.cloud.decideSupervisorRequest(el.dataset.id, el.dataset.v); supervisionData = null; G.toast(el.dataset.v === 'accept' ? 'You are now a Supervisor for this Kid.' : 'Request declined.'); G.render({ keepScroll: true }); }
+        catch (error) { G.toast(error.message || 'Could not update the request.'); }
+      },
+      'individual-add-supervisor': async button => {
+        const code = (G.$('#individual-add-supervisor')?.value || '').trim();
+        if (!code) return G.toast('Enter a Supervisor code.');
+        button.disabled = true;
+        try { await G.cloud.requestSupervisor(code); supervisionData = null; G.toast('Request sent. The Supervisor must accept it.'); G.render({ keepScroll: true }); }
+        catch (error) { G.toast(error.message || 'Could not send the request.'); button.disabled = false; }
+      },
+      'individual-continue': () => G.go(G.S?.profile ? 'home' : 'welcome')
+    })
+  };
+
+  const settingsRenderBeforeSupervision = G.screens.settings?.render;
+  const settingsHandlersBeforeSupervision = G.screens.settings?.handlers;
+  if (G.screens.settings && settingsRenderBeforeSupervision) {
+    G.screens.settings.render = q => {
+      let html = settingsRenderBeforeSupervision(q);
+      if (G.mode?.() !== 'family' && cloudUser?.account_type === 'individual') {
+        html = html.replace('<section class="card small muted"><h3>About Gullak</h3>', '<section class="card"><h3>🛡️ Supervisors</h3><p class="small muted">Manage Supervisor requests, share your code, or add another Supervisor.</p><button class="btn soft block" data-act="individual-supervision">Manage Supervisors</button></section><section class="card small muted"><h3>About Gullak</h3>');
+      }
+      return html;
+    };
+    G.screens.settings.handlers = q => Object.assign(settingsHandlersBeforeSupervision(q), {
+      'individual-supervision': () => G.go('individual-supervision')
+    });
+  }
 
   G.screens['cloud-account'].after = root => {
     const input = G.$('#cloud-password', root), panel = G.$('#cloud-password-rules', root);
