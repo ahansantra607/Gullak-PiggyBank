@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#fff7f9">
+<title>Gullak · Update preview</title>
+<style>
+:root{color-scheme:light;--ink:#49343d;--muted:#927d85;--pink:#d86f91;--deep:#a83e68;--pale:#fff0f4;--line:#f0dfe5;--paper:#fffaf9}
+*{box-sizing:border-box}body{margin:0;min-height:100svh;background:radial-gradient(circle at 50% 0,#ffe9ef 0,transparent 42%),#fff8f9;color:var(--ink);font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;display:grid;place-items:center;padding:22px}
+.device{width:min(100%,390px);min-height:min(780px,calc(100svh - 44px));background:var(--paper);border:8px solid #332b30;border-radius:38px;padding:18px;box-shadow:0 18px 55px #5c34401c;display:flex;flex-direction:column;overflow:hidden}
+.status{height:13px;display:flex;justify-content:space-between;font-size:10px;color:#8b747c;padding:0 7px}
+.brand{display:flex;align-items:center;justify-content:center;gap:10px;margin:20px 0 24px}.pig{width:50px;height:50px;border-radius:17px;background:#ffe5ec;display:grid;place-items:center;font-size:29px}.wordmark{font-weight:900;letter-spacing:5px;color:var(--deep);font-size:20px}
+main{display:flex;flex:1;flex-direction:column;align-items:center;text-align:center}
+.kicker{font-size:10px;font-weight:850;letter-spacing:2px;color:var(--deep);margin-top:14px}
+h1{font-size:29px;line-height:1.14;letter-spacing:-.8px;margin:12px 0;color:#503640}
+.lead{font-size:13px;line-height:1.65;color:var(--muted);max-width:280px;margin:0 auto}
+.art{width:142px;height:142px;margin:24px auto 10px;border-radius:42px;background:linear-gradient(145deg,#ffeaf0,#fff5f7);display:grid;place-items:center;position:relative}
+.art span{font-size:78px;filter:drop-shadow(0 8px 5px #a83e6820);animation:bob 2.1s ease-in-out infinite}
+.spark{position:absolute;color:#e69bb0;font-size:22px}.s1{top:17px;right:20px}.s2{bottom:19px;left:18px}
+@keyframes bob{0%,100%{transform:translateY(0) rotate(-2deg)}50%{transform:translateY(-6px) rotate(2deg)}}
+.card{width:100%;text-align:left;background:#fff;border:1px solid var(--line);border-radius:20px;padding:18px;margin:18px 0 0;box-shadow:0 5px 18px #6d3e4c08}
+.cardhead{font-size:10px;letter-spacing:1.5px;font-weight:900;color:var(--deep);margin-bottom:12px}
+.note{display:flex;gap:11px;align-items:flex-start;margin:12px 0}.check{width:25px;height:25px;border-radius:9px;background:var(--pale);color:var(--deep);display:grid;place-items:center;flex:none;font-weight:900}
+.note b{font-size:13px;display:block}.note small{font-size:11px;color:var(--muted);display:block;margin-top:2px}
+.version{display:inline-block;background:#fff0f4;color:var(--deep);font-size:10px;font-weight:850;letter-spacing:1px;padding:7px 12px;border-radius:30px;margin-top:15px}
+.actions{width:100%;margin-top:auto;padding-top:22px}.btn{width:100%;border:0;border-radius:15px;padding:14px 16px;font-weight:800;font-size:14px;cursor:pointer}.primary{background:linear-gradient(100deg,#d66e90,#bc527c);color:white;box-shadow:0 7px 16px #c75f852e}.secondary{margin-top:9px;background:#fff0f4;color:#9d4e6a;border:1px solid #f1dce3}.foot{font-size:10px;color:#a48f96;margin:16px 0 3px}
+.toast{min-height:18px;color:#a34e6b;font-size:11px;margin-top:8px}
+@media(max-height:690px){.device{min-height:0}.brand{margin:12px 0}.art{width:105px;height:105px;margin:14px auto 4px}.art span{font-size:58px}.card{margin-top:12px;padding:13px}h1{font-size:25px}}
+</style>
+</head>
+<body>
+<section class="device" aria-label="Gullak update screen preview">
+<div class="status"><span>9:41</span><span>● ● ● ▰</span></div>
+<header class="brand"><div class="pig" aria-hidden="true">🐷</div><div class="wordmark">GULLAK</div></header>
+<main>
+<div class="kicker">A LITTLE SOMETHING NEW</div>
+<h1>A better Gullak<br>is ready for you.</h1>
+<p class="lead">A fresh update with improvements to make your money buddy feel even smoother.</p>
+<div class="art" aria-hidden="true"><span>🐷</span><i class="spark s1">✦</i><i class="spark s2">✧</i></div>
+<section class="card">
+<div class="cardhead">WHAT'S NEW</div>
+<div class="note"><div class="check">✓</div><div><b>Quick phone unlock</b><small>Open Gullak with your six-digit phone PIN.</small></div></div>
+<div class="note"><div class="check">✓</div><div><b>Stay signed in</b><small>Your account remains signed in until you log out.</small></div></div>
+<div class="note"><div class="check">✓</div><div><b>Small fixes and polish</b><small>A smoother, more reliable Gullak experience.</small></div></div>
+<div class="version">VERSION 1.1.0 · PREVIEW</div>
+</section>
+<div class="actions">
+<button class="btn primary" id="update">Update Gullak</button>
+<button class="btn secondary" id="later">Maybe later</button>
+<div class="toast" id="message" aria-live="polite"></div>
+</div>
+</main>
+<p class="foot">Your savings, your little steps, your Gullak.</p>
+</section>
+<script>
+document.getElementById('update').addEventListener('click',()=>document.getElementById('message').textContent='Preview only — the real app will download the signed update.');
+document.getElementById('later').addEventListener('click',()=>document.getElementById('message').textContent='Preview only — this would open Gullak.');
+</script>
+</body>
+</html>
