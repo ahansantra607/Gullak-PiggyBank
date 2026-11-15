@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="../../css/style.css">
+  <link rel="stylesheet" href="https://gullak-piggybank.ahansantra607.workers.dev/css/style.css">
 </head>
 <body>
   <div id="app">
@@ -24,7 +24,7 @@
         <p class="muted">A better, smoother Gullak is waiting for you.</p>
         <div class="banner info left">
           <b>What's new</b>
-          <p>Six-digit phone PIN protection, a simpler way to unlock Gullak, and small improvements.</p>
+          <p id="release-notes">The latest improvements and fixes are ready.</p>
           <p class="small"><b>Version <span id="version">1.1.0</span></b></p>
         </div>
         <button class="btn primary block big" id="update">Update Gullak</button>
@@ -34,12 +34,21 @@
     </main>
   </div>
   <script>
-    document.getElementById('update').addEventListener('click', () => {
-      document.getElementById('message').textContent = 'The Android app will download and install the update.';
-    });
-    document.getElementById('later').addEventListener('click', () => {
-      document.getElementById('message').textContent = 'You can update Gullak later.';
-    });
+    (function () {
+      const $ = id => document.getElementById(id);
+      window.initGullakUpdate = function (version, notes) {
+        $('version').textContent = version;
+        $('release-notes').textContent = notes || 'Bug fixes and improvements.';
+      };
+      $('update').addEventListener('click', () => {
+        if (window.GullakNative && window.GullakNative.installUpdate) window.GullakNative.installUpdate();
+        else $('message').textContent = 'Updates can only be installed from the Gullak Android app.';
+      });
+      $('later').addEventListener('click', () => {
+        if (window.GullakNative && window.GullakNative.dismissUpdate) window.GullakNative.dismissUpdate();
+        else $('message').textContent = 'You can update Gullak later from the Android app.';
+      });
+    })();
   </script>
 </body>
 </html>
