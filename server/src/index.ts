@@ -452,7 +452,7 @@ export default {
         if (!user) return json({ error: "Authentication required." }, 401);
         const body = await request.json() as { pin?: string };
         const pin = String(body.pin || "");
-        if (!/^\\d{6}$/.test(pin)) return json({ error: "PIN must contain exactly six digits." }, 400);
+        if (!/^\d{6}$/.test(pin)) return json({ error: "PIN must contain exactly six digits." }, 400);
         const salt = randomBytes(16);
         const hash = await derivePasswordHash(pin, salt, ITERATIONS);
         const now = new Date().toISOString();
@@ -470,7 +470,7 @@ export default {
         if (!user) return json({ error: "Authentication required." }, 401);
         const body = await request.json() as { pin?: string };
         const pin = String(body.pin || "");
-        if (!/^\\d{6}$/.test(pin)) return json({ error: "Enter your six-digit PIN." }, 400);
+        if (!/^\d{6}$/.test(pin)) return json({ error: "Enter your six-digit PIN." }, 400);
         const row = await env.gullak_db.prepare("SELECT pin_salt, pin_hash, failed_attempts, locked_until FROM user_mobile_pins WHERE user_id = ?").bind(user.user_id).first<{ pin_salt: string; pin_hash: string; failed_attempts: number; locked_until: string | null }>();
         if (!row) return json({ error: "No phone PIN is configured for this account." }, 404);
         const now = new Date();
