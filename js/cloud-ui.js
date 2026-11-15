@@ -56,6 +56,11 @@
           if (G.setMode) G.setMode('individual');
           return true;
         }
+        if (remembered.user?.role === 'supervisor') {
+          if (G.setMode) G.setMode('individual');
+          if (window.GullakNative && typeof window.GullakNative.onCloudReady === 'function') window.GullakNative.onCloudReady();
+          return true;
+        }
         if (remembered.user?.account_type === 'family') {
           if (G.setMode) G.setMode('family');
           if (window.GullakNative && typeof window.GullakNative.onCloudReady === 'function') window.GullakNative.onCloudReady();
@@ -248,6 +253,13 @@
               await G.cloud.loadVault(cloudSecret);
               await G.cloud.saveKeyWrap(cloudSecret, password);
             }
+          }
+          if (authMode === 'login' && auth.user?.role === 'supervisor') {
+            if (stayLoggedIn) { try { await G.cloud.rememberDevice(''); } catch (_) {} }
+            if (G.setMode) G.setMode('individual');
+            if (window.GullakNative && typeof window.GullakNative.onCloudReady === 'function') window.GullakNative.onCloudReady();
+            G.go('individual-supervision');
+            return;
           }
           if (authMode === 'login' && auth.user?.role === 'kid' && auth.user?.status === 'pending') {
             if (stayLoggedIn) { try { await G.cloud.rememberDevice(cloudSecret); } catch (_) {} }
