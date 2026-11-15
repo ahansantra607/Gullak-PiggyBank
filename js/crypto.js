@@ -27,6 +27,41 @@
   C.wrapWithSecret = async (secret, salt, raw, iter) => C.enc(await C.deriveKey(secret, salt, iter), raw);
   C.unwrapWithSecret = async (secret, salt, wrapped, iter) => C.dec(await C.deriveKey(secret, salt, iter), wrapped);
 
+  // Supervisor keys use ECDH P-256. Private keys are encrypted with the
+  // Supervisor's account password; Kid diary keys are shared end-to-end.
+  C.makeSupervisorKeyBundle = async password => {
+    const pair = await crypto.subtle.generateKey({ name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveBits']);
+    const publicKey = C.b64(await crypto.subtle.exportKey('spki', pair.publicKey));
+    const privateBytes = new Uint8Array(await crypto.subtle.exportKey('pkcs8', pair.privateKey));
+    const salt = C.salt();
+    const encrypted = await C.wrapWithSecret(password, salt, privateBytes, C.ITER);
+    return { public_key: publicKey, encrypted_private_key: encrypted, salt, iterations: C.ITER };
+  };
+  C.unlockSupervisorPrivateKey = async (password, bundle) => {
+    const bytes = await C.unwrapWithSecret(password, bundle.salt, bundle.encrypted_private_key, bundle.iterations);
+    return crypto.subtle.importKey('pkcs8', bytes, { name: 'ECDH', namedCurve: 'P-256' }, false, ['deriveBits']);
+  };
+  const sharedAesKey = async (privateKey, publicKey, salt) => {
+    const bits = await crypto.subtle.deriveBits({ name: 'ECDH', public: publicKey }, privateKey, 256);
+    const hkdf = await crypto.subtle.importKey('raw', bits, 'HKDF', false, ['deriveKey']);
+    return crypto.subtle.deriveKey({ name: 'HKDF', hash: 'SHA-256', salt, info: enc.encode('Gullak Supervisor diary-key share v1') },
+      hkdf, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
+  };
+  C.wrapDiaryKeyForSupervisor = async (diarySecret, supervisorPublicB64) => {
+    const supervisorPublic = await crypto.subtle.importKey('spki', C.unb64(supervisorPublicB64), { name: 'ECDH', namedCurve: 'P-256' }, false, []);
+    const ephemeral = await crypto.subtle.generateKey({ name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveBits']);
+    const ephemeralPublic = C.b64(await crypto.subtle.exportKey('spki', ephemeral.publicKey));
+    const salt = C.rand(16);
+    const key = await sharedAesKey(ephemeral.privateKey, supervisorPublic, salt);
+    const wrapped = await C.enc(key, enc.encode(String(diarySecret)));
+    return { ephemeral_public_key: ephemeralPublic, salt: C.b64(salt), wrapped_diary_key: wrapped };
+  };
+  C.unwrapDiaryKeyFromSupervisor = async (share, supervisorPrivateKey) => {
+    const ephemeralPublic = await crypto.subtle.importKey('spki', C.unb64(share.ephemeral_public_key), { name: 'ECDH', namedCurve: 'P-256' }, false, []);
+    const key = await sharedAesKey(supervisorPrivateKey, ephemeralPublic, C.unb64(share.salt));
+    return dec.decode(await C.dec(key, share.wrapped_diary_key));
+  };
+
   /* "Pani Puri " and "panipuri" count as the same answer */
   C.norm = (a) => String(a || '').toLowerCase().normalize('NFKD').replace(/[^a-z0-9ऀ-ॿ]/g, '');
   C.recoveryCode = () => {
