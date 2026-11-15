@@ -52,7 +52,10 @@
       if (mode === 'family') return html;
       return html
         .replace('<button class="icon-btn" data-act="go" data-to="grownup" aria-label="Grown-up mode">🔒</button>',
-          '<button class="icon-btn" data-act="go" data-to="individual-supervision" aria-label="My Supervisors">🛡️</button>');
+          '<button class="icon-btn" data-act="go" data-to="individual-supervision" aria-label="My Supervisors">🛡️</button>')
+        .replace('Can I buy this, Mum?', 'Can I buy this?')
+        .replace('waiting for a grown-up', 'waiting for a Supervisor')
+        .replace('Ask a grown-up with one tap', 'Ask your Supervisors with one tap');
     };
   }
 
