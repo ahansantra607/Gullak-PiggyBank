@@ -499,10 +499,17 @@ export default {
           .bind(hash).first<{ supervisor_user_id: string }>();
         if (!supervisor) return json({ error: "That Supervisor code is invalid or expired." }, 404);
         if (supervisor.supervisor_user_id === user.user_id) return json({ error: "You cannot add yourself as a Supervisor." }, 400);
-        const existing = await env.gullak_db.prepare("SELECT status FROM individual_supervisor_links WHERE kid_user_id = ? AND supervisor_user_id = ?").bind(user.user_id, supervisor.supervisor_user_id).first<{ status: string }>();
-        if (existing) return json({ error: existing.status === "accepted" ? "This person is already your Supervisor." : "A request to this Supervisor already exists." }, 409);
-        await env.gullak_db.prepare("INSERT INTO individual_supervisor_links (link_id, kid_user_id, supervisor_user_id, status, created_at, responded_at) VALUES (?, ?, ?, 'pending', ?, NULL)")
-          .bind(crypto.randomUUID(), user.user_id, supervisor.supervisor_user_id, new Date().toISOString()).run();
+        const existing = await env.gullak_db.prepare("SELECT link_id, status FROM individual_supervisor_links WHERE kid_user_id = ? AND supervisor_user_id = ?").bind(user.user_id, supervisor.supervisor_user_id).first<{ link_id: string; status: string }>();
+        if (existing?.status === "accepted") return json({ error: "This person is already your Supervisor." }, 409);
+        if (existing?.status === "pending") return json({ error: "A request to this Supervisor is already waiting." }, 409);
+        const now = new Date().toISOString();
+        if (existing?.status === "rejected") {
+          await env.gullak_db.prepare("UPDATE individual_supervisor_links SET status = 'pending', created_at = ?, responded_at = NULL WHERE link_id = ?")
+            .bind(now, existing.link_id).run();
+        } else {
+          await env.gullak_db.prepare("INSERT INTO individual_supervisor_links (link_id, kid_user_id, supervisor_user_id, status, created_at, responded_at) VALUES (?, ?, ?, 'pending', ?, NULL)")
+            .bind(crypto.randomUUID(), user.user_id, supervisor.supervisor_user_id, now).run();
+        }
         return json({ success: true, status: "pending" }, 201);
       } catch { return json({ error: "Could not send the Supervisor request." }, 400); }
     }
