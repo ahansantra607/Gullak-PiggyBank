@@ -522,7 +522,10 @@ export default {
       } catch { return json({ error: "Could not share the encrypted diary key." }, 400); }
     }
 
-    const supervisedKidVault = path.match(/^\\/api\\/individual\\/supervision\\/kids\\/([0-9a-f-]+)\\/vault$/i);
+    const supervisedKidVaultPrefix = "/api/individual/supervision/kids/";
+    const supervisedKidVaultId = path.startsWith(supervisedKidVaultPrefix) && path.endsWith("/vault")
+      ? path.slice(supervisedKidVaultPrefix.length, -"/vault".length) : "";
+    const supervisedKidVault = /^[0-9a-f-]{36}$/i.test(supervisedKidVaultId) ? [path, supervisedKidVaultId] : null;
     if (supervisedKidVault && (request.method === "GET" || request.method === "PUT")) {
       try {
         const user = await getCurrentUser(request, env);
