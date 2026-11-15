@@ -56,6 +56,7 @@
         cloudUser = remembered.user; cloudSecret = remembered.secret || ''; syncError = null;
         if (remembered.user?.role === 'kid' && remembered.user?.status === 'pending') {
           if (G.setMode) G.setMode('individual');
+          if (window.GullakNative && typeof window.GullakNative.onCloudReady === 'function') window.GullakNative.onCloudReady();
           return true;
         }
         if (remembered.user?.role === 'supervisor') {
