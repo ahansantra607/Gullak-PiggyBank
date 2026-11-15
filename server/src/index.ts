@@ -451,6 +451,90 @@ export default {
       }
     }
 
+    // Individual Supervisor key registration and client-encrypted diary-key sharing.
+    if (path === "/api/individual/supervision/keys" && request.method === "PUT") {
+      try {
+        const user = await getCurrentUser(request, env);
+        if (!user) return json({ error: "Authentication required." }, 401);
+        const role = user.account_type === "individual" ? await individualRole(env, user.user_id) : null;
+        if (!role || role.role !== "supervisor" || role.status !== "active") return json({ error: "Only an active Supervisor can register a key." }, 403);
+        const body = await request.json() as { public_key?: string; encrypted_private_key?: string; salt?: string; iterations?: number };
+        const pub = String(body.public_key || ""), wrapped = String(body.encrypted_private_key || ""), salt = String(body.salt || "");
+        const parts = wrapped.split(".");
+        const iterations = Number(body.iterations);
+        if (!validBase64(pub) || fromBase64(pub).length < 80 || fromBase64(pub).length > 256 ||
+            parts.length !== 2 || !validBase64(parts[0]) || !validBase64(parts[1]) ||
+            fromBase64(parts[0]).length !== 12 || fromBase64(parts[1]).length < 48 ||
+            !validBase64(salt) || fromBase64(salt).length !== 16 ||
+            !Number.isInteger(iterations) || iterations < 100000 || iterations > 500000) return json({ error: "Invalid encrypted Supervisor key bundle." }, 400);
+        await env.gullak_db.prepare("INSERT INTO individual_supervisor_keys (supervisor_user_id, public_key, encrypted_private_key, salt, iterations, updated_at) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(supervisor_user_id) DO UPDATE SET public_key = excluded.public_key, encrypted_private_key = excluded.encrypted_private_key, salt = excluded.salt, iterations = excluded.iterations, updated_at = excluded.updated_at")
+          .bind(user.user_id, pub, wrapped, salt, iterations, new Date().toISOString()).run();
+        return json({ success: true });
+      } catch { return json({ error: "Could not save the encrypted Supervisor key." }, 400); }
+    }
+
+    if (path === "/api/individual/supervision/keys" && request.method === "GET") {
+      const user = await getCurrentUser(request, env);
+      if (!user) return json({ error: "Authentication required." }, 401);
+      const role = user.account_type === "individual" ? await individualRole(env, user.user_id) : null;
+      if (!role || role.role !== "supervisor") return json({ error: "Supervisor account required." }, 403);
+      const row = await env.gullak_db.prepare("SELECT public_key, encrypted_private_key, salt, iterations FROM individual_supervisor_keys WHERE supervisor_user_id = ?").bind(user.user_id).first();
+      return json({ exists: !!row, key_bundle: row || null });
+    }
+
+    if (path === "/api/individual/supervision/key-shares" && request.method === "PUT") {
+      try {
+        const user = await getCurrentUser(request, env);
+        if (!user) return json({ error: "Authentication required." }, 401);
+        const role = user.account_type === "individual" ? await individualRole(env, user.user_id) : null;
+        if (!role || role.role !== "kid" || role.status !== "active") return json({ error: "An active Kid account is required." }, 403);
+        const body = await request.json() as { supervisor_user_id?: string; ephemeral_public_key?: string; salt?: string; wrapped_diary_key?: string };
+        const supervisorId = String(body.supervisor_user_id || "");
+        const eph = String(body.ephemeral_public_key || ""), salt = String(body.salt || ""), wrapped = String(body.wrapped_diary_key || "");
+        const parts = wrapped.split(".");
+        if (!supervisorId || !validBase64(eph) || fromBase64(eph).length < 80 || fromBase64(eph).length > 256 ||
+            !validBase64(salt) || fromBase64(salt).length !== 16 || parts.length !== 2 ||
+            !validBase64(parts[0]) || fromBase64(parts[0]).length !== 12 ||
+            !validBase64(parts[1]) || fromBase64(parts[1]).length < 32) return json({ error: "Invalid encrypted diary-key share." }, 400);
+        const link = await env.gullak_db.prepare("SELECT 1 AS ok FROM individual_supervisor_links WHERE kid_user_id = ? AND supervisor_user_id = ? AND status = 'accepted'").bind(user.user_id, supervisorId).first();
+        const key = await env.gullak_db.prepare("SELECT 1 AS ok FROM individual_supervisor_keys WHERE supervisor_user_id = ?").bind(supervisorId).first();
+        if (!link || !key) return json({ error: "This Supervisor is not accepted or has not secured their account key." }, 403);
+        await env.gullak_db.prepare("INSERT INTO individual_kid_key_shares (kid_user_id, supervisor_user_id, ephemeral_public_key, salt, wrapped_diary_key, updated_at) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(kid_user_id, supervisor_user_id) DO UPDATE SET ephemeral_public_key = excluded.ephemeral_public_key, salt = excluded.salt, wrapped_diary_key = excluded.wrapped_diary_key, updated_at = excluded.updated_at")
+          .bind(user.user_id, supervisorId, eph, salt, wrapped, new Date().toISOString()).run();
+        return json({ success: true });
+      } catch { return json({ error: "Could not share the encrypted diary key." }, 400); }
+    }
+
+    const supervisedKidVault = path.match(/^\\/api\\/individual\\/supervision\\/kids\\/([0-9a-f-]+)\\/vault$/i);
+    if (supervisedKidVault && (request.method === "GET" || request.method === "PUT")) {
+      try {
+        const user = await getCurrentUser(request, env);
+        if (!user) return json({ error: "Authentication required." }, 401);
+        const role = user.account_type === "individual" ? await individualRole(env, user.user_id) : null;
+        if (!role || role.role !== "supervisor" || role.status !== "active") return json({ error: "Active Supervisor account required." }, 403);
+        const kidId = supervisedKidVault[1];
+        const link = await env.gullak_db.prepare("SELECT 1 AS ok FROM individual_supervisor_links WHERE supervisor_user_id = ? AND kid_user_id = ? AND status = 'accepted'").bind(user.user_id, kidId).first();
+        const share = await env.gullak_db.prepare("SELECT ephemeral_public_key, salt, wrapped_diary_key FROM individual_kid_key_shares WHERE supervisor_user_id = ? AND kid_user_id = ?").bind(user.user_id, kidId).first();
+        if (!link || !share) return json({ error: "You do not have accepted access to this Kid's diary." }, 403);
+        if (request.method === "GET") {
+          const kidRole = await individualRole(env, kidId);
+          if (!kidRole || kidRole.role !== "kid" || kidRole.status !== "active") return json({ error: "This Kid account is not active." }, 403);
+          const vault = await env.gullak_db.prepare("SELECT ciphertext, iv, salt, schema_version, updated_at FROM user_vaults WHERE user_id = ?").bind(kidId).first<VaultRow>();
+          return json({ exists: !!vault, vault: vault || null, key_share: share });
+        }
+        const body = await request.json() as { ciphertext?: string; iv?: string; salt?: string; schema_version?: number };
+        const ciphertext = String(body.ciphertext || ""), iv = String(body.iv || ""), salt = String(body.salt || "");
+        const ctBytes = validBase64(ciphertext) ? fromBase64(ciphertext) : new Uint8Array();
+        if (!Number.isInteger(body.schema_version) || !body.schema_version || body.schema_version < 1 || body.schema_version > 100 ||
+            !validBase64(ciphertext) || ctBytes.length < 16 || ctBytes.length > MAX_VAULT_BYTES ||
+            !validBase64(iv) || fromBase64(iv).length !== 12 || !validBase64(salt) || fromBase64(salt).length !== 16) return json({ error: "Invalid encrypted diary data." }, 400);
+        const updatedAt = new Date().toISOString();
+        await env.gullak_db.prepare("INSERT INTO user_vaults (user_id, ciphertext, iv, salt, schema_version, updated_at) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(user_id) DO UPDATE SET ciphertext = excluded.ciphertext, iv = excluded.iv, salt = excluded.salt, schema_version = excluded.schema_version, updated_at = excluded.updated_at")
+          .bind(kidId, ciphertext, iv, salt, body.schema_version, updatedAt).run();
+        return json({ success: true, updated_at: updatedAt });
+      } catch { return json({ error: "Could not access the supervised Kid diary." }, 400); }
+    }
+
     // Individual-only Supervisor/Kid relationship management.
     if (path === "/api/individual/supervision" && request.method === "GET") {
       const user = await getCurrentUser(request, env);
@@ -460,8 +544,8 @@ export default {
       if (!role) return json({ error: "Individual role not found." }, 403);
       const supervisorView = role.role === "supervisor";
       const sql = supervisorView
-        ? "SELECT l.link_id, l.status, l.created_at, l.responded_at, u.user_id AS other_user_id, u.username AS other_username FROM individual_supervisor_links l JOIN users u ON u.user_id = l.kid_user_id WHERE l.supervisor_user_id = ? ORDER BY l.created_at DESC"
-        : "SELECT l.link_id, l.status, l.created_at, l.responded_at, u.user_id AS other_user_id, u.username AS other_username FROM individual_supervisor_links l JOIN users u ON u.user_id = l.supervisor_user_id WHERE l.kid_user_id = ? ORDER BY l.created_at ASC";
+        ? "SELECT l.link_id, l.status, l.created_at, l.responded_at, u.user_id AS other_user_id, u.username AS other_username, r.status AS kid_status, CASE WHEN k.supervisor_user_id IS NULL THEN 0 ELSE 1 END AS has_key_share FROM individual_supervisor_links l JOIN users u ON u.user_id = l.kid_user_id LEFT JOIN individual_account_roles r ON r.user_id = u.user_id LEFT JOIN individual_kid_key_shares k ON k.kid_user_id = u.user_id AND k.supervisor_user_id = l.supervisor_user_id WHERE l.supervisor_user_id = ? ORDER BY l.created_at DESC"
+        : "SELECT l.link_id, l.status, l.created_at, l.responded_at, u.user_id AS other_user_id, u.username AS other_username, k.public_key AS supervisor_public_key, CASE WHEN s.supervisor_user_id IS NULL THEN 0 ELSE 1 END AS has_key_share FROM individual_supervisor_links l JOIN users u ON u.user_id = l.supervisor_user_id LEFT JOIN individual_supervisor_keys k ON k.supervisor_user_id = l.supervisor_user_id LEFT JOIN individual_kid_key_shares s ON s.kid_user_id = l.kid_user_id AND s.supervisor_user_id = l.supervisor_user_id WHERE l.kid_user_id = ? ORDER BY l.created_at ASC";
       const rows = await env.gullak_db.prepare(sql).bind(user.user_id).all();
       return json({ role: role.role, status: role.status, links: rows.results || [] });
     }
