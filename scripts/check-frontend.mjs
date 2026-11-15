@@ -218,4 +218,12 @@ await G.waitForCloudSync();
 if (localWrites !== 0) throw new Error('Cloud-unlocked Individual saves still write to local storage.');
 if (remoteSaves < 2) throw new Error('Cloud-unlocked Individual saves did not sync remotely.');
 
+const androidCloudSource = readFileSync('js/cloud.js', 'utf8');
+const androidWorkerSource = readFileSync('server/src/index.ts', 'utf8');
+const androidActivitySource = readFileSync('app/src/main/java/com/ahansantra607/gullak/MainActivity.java', 'utf8');
+const androidPinHtml = readFileSync('app/src/main/assets/pin.html', 'utf8');
+if (!androidCloudSource.includes("'X-Gullak-Android': '1'") || !androidWorkerSource.includes('"Access-Control-Allow-Headers": "Content-Type, X-Gullak-Android"')) throw new Error('Android requests are not explicitly marked for cross-site session cookies.');
+if (!androidWorkerSource.includes('request.headers.get("X-Gullak-Android") === "1" ? "None" : "Strict"')) throw new Error('Android session cookies do not use the cross-site-safe policy while web cookies stay Strict.');
+if (!androidActivitySource.includes('CookieManager.getInstance().setAcceptThirdPartyCookies(webView, true)') || !androidActivitySource.includes('CookieManager.getInstance().flush()')) throw new Error('Android WebView does not persist its cross-site cloud session cookie.');
+if (!androidPinHtml.includes('aria-label="Gullak the piggy bank"') || androidPinHtml.includes('>🐷</div>')) throw new Error('Android PIN page does not use Gullak intro piggy artwork.');
 console.log('Frontend syntax, script order, Web Crypto, verified migration and cloud-only Individual saves passed.');
