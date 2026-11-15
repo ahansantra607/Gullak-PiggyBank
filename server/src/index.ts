@@ -512,7 +512,7 @@ export default {
         if (!supervisorId || !validBase64(eph) || fromBase64(eph).length < 80 || fromBase64(eph).length > 256 ||
             !validBase64(salt) || fromBase64(salt).length !== 16 || parts.length !== 2 ||
             !validBase64(parts[0]) || fromBase64(parts[0]).length !== 12 ||
-            !validBase64(parts[1]) || fromBase64(parts[1]).length < 32) return json({ error: "Invalid encrypted diary-key share." }, 400);
+            !validBase64(parts[1]) || fromBase64(parts[1]).length < 16) return json({ error: "Invalid encrypted diary-key share." }, 400);
         const link = await env.gullak_db.prepare("SELECT 1 AS ok FROM individual_supervisor_links WHERE kid_user_id = ? AND supervisor_user_id = ? AND status = 'accepted'").bind(user.user_id, supervisorId).first();
         const key = await env.gullak_db.prepare("SELECT 1 AS ok FROM individual_supervisor_keys WHERE supervisor_user_id = ?").bind(supervisorId).first();
         if (!link || !key) return json({ error: "This Supervisor is not accepted or has not secured their account key." }, 403);
