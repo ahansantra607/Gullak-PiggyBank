@@ -74,6 +74,9 @@
         if (G.setMode) G.setMode('individual');
         const remote = await G.cloud.loadVault(cloudSecret);
         if (remote) G.S = normalize(remote);
+        if (remembered.user?.role === 'kid' && remembered.user?.status === 'active') {
+          try { await shareKeyWithAcceptedSupervisors(); } catch (error) { console.warn('Supervisor diary-key sharing will retry later:', error); }
+        }
         return true;
       } catch (error) {
         cloudSecret = ''; cloudUser = null;
@@ -101,6 +104,18 @@
       return result;
     }
   };
+
+  async function shareKeyWithAcceptedSupervisors() {
+    if (cloudUser?.role !== 'kid' || cloudUser?.status !== 'active' || !cloudSecret) return;
+    const data = await G.cloud.individualSupervision();
+    supervisionData = data;
+    for (const link of data.links || []) {
+      if (link.status === 'accepted' && link.supervisor_public_key && !link.has_key_share) {
+        await G.cloud.shareDiaryKey(link.other_user_id, link.supervisor_public_key, cloudSecret);
+        link.has_key_share = 1;
+      }
+    }
+  }
 
   async function signOutFlow() {
     if (!(await G.confirm('Log out of Gullak Cloud?', 'Your cloud account and saved diary remain intact. This device will be signed out.', 'Log out', 'Stay'))) return;
@@ -169,7 +184,7 @@
   };
 
   G.FREE_ROUTES = G.FREE_ROUTES || ['welcome', 'parent', 'reply'];
-  ['cloud-account', 'cloud-families', 'cloud-family-join'].forEach(route => {
+  ['cloud-account', 'cloud-families', 'cloud-family-join', 'individual-supervision', 'supervised-kid'].forEach(route => {
     if (!G.FREE_ROUTES.includes(route)) G.FREE_ROUTES.push(route);
   });
 
@@ -280,6 +295,10 @@
             G.go('individual-supervision');
             G.toast('This Kid account is still waiting for a Supervisor to accept.', 6000);
             return;
+          }
+          if (authMode === 'login' && auth.user?.role === 'kid' && auth.user?.status === 'active') {
+            try { await shareKeyWithAcceptedSupervisors(); }
+            catch (error) { console.warn('Supervisor diary-key sharing will retry later:', error); }
           }
           syncError = null;
           if (stayLoggedIn) {
