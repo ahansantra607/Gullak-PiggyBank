@@ -9,6 +9,8 @@
   let supervisionLoading = false;
   let cloudSecret = '';
   let cloudUser = null;
+  let supervisorPrivateKey = null;
+  let supervisorOwnState = null;
   let syncChain = Promise.resolve();
   let syncError = null;
   let familyResults = [];
@@ -57,6 +59,7 @@
           return true;
         }
         if (remembered.user?.role === 'supervisor') {
+          supervisorPrivateKey = null;
           if (G.setMode) G.setMode('individual');
           if (window.GullakNative && typeof window.GullakNative.onCloudReady === 'function') window.GullakNative.onCloudReady();
           return true;
@@ -217,8 +220,10 @@
             ? (G.$('#individual-supervisor-codes')?.value || '').split(/[ ,;\n]+/).map(v => v.trim()).filter(Boolean)
             : [];
           if (authMode === 'register' && role === 'kid' && !supervisorCodes.length) throw new Error('Enter at least one Supervisor code to create a Kid account.');
+          const supervisorKeyBundle = authMode === 'register' && role === 'supervisor'
+            ? await G.cr.makeSupervisorKeyBundle(password) : null;
           const auth = authMode === 'register'
-            ? await G.cloud.registerIndividual(username, password, role, supervisorCodes, secret)
+            ? await G.cloud.registerIndividual(username, password, role, supervisorCodes, secret, supervisorKeyBundle)
             : await G.cloud.login(username, password);
           if (authMode === 'register' && role === 'kid') {
             cloudUser = auth.user; cloudSecret = secret; authMode = 'login'; registerRole = 'supervisor';
@@ -235,6 +240,7 @@
             if (G.setMode) G.setMode('individual');
             if (role === 'supervisor') {
               cloudSecret = '';
+              supervisorPrivateKey = await G.cr.unlockSupervisorPrivateKey(password, supervisorKeyBundle);
               if (stayLoggedIn) { try { await G.cloud.rememberDevice(''); } catch (_) {} }
               if (window.GullakNative && typeof window.GullakNative.onCloudReady === 'function') window.GullakNative.onCloudReady();
               G.go('individual-supervision');
@@ -244,6 +250,13 @@
             await G.cloud.saveKeyWrap(cloudSecret, password);
           } else if (auth.user?.role === 'supervisor') {
             cloudSecret = '';
+            let keyResult = await G.cloud.loadSupervisorKey();
+            if (!keyResult.exists || !keyResult.key_bundle) {
+              const bundle = await G.cr.makeSupervisorKeyBundle(password);
+              await G.cloud.saveSupervisorKey(bundle);
+              keyResult = { exists: true, key_bundle: bundle };
+            }
+            supervisorPrivateKey = await G.cr.unlockSupervisorPrivateKey(password, keyResult.key_bundle);
           } else {
             cloudSecret = await G.cloud.loadKeyWrap(password);
             if (!cloudSecret) {
@@ -385,7 +398,7 @@
           ${pending.length ? pending.map(x => `<div class="req-p"><b>🧒 ${esc(x.other_username)}</b><p class="small muted">Wants you to become their Supervisor.</p><div class="row gap"><button class="btn good grow" data-act="individual-decision" data-id="${esc(x.link_id)}" data-v="accept">Accept</button><button class="btn ghost grow" data-act="individual-decision" data-id="${esc(x.link_id)}" data-v="reject">Decline</button></div></div>`).join('') : '<p class="muted small">No pending requests.</p>'}
         </section>
         <section class="card"><h3>Kids you supervise (${accepted.length})</h3>
-          ${accepted.length ? accepted.map(x => `<div class="kid-row"><span>🧒</span><b class="grow">${esc(x.other_username)}</b><span class="small good">Accepted</span></div>`).join('') : '<p class="muted small">When a Kid requests you and you accept, they will appear here.</p>'}
+          ${accepted.length ? accepted.map(x => `<div class="kid-row"><span>🧒</span><b class="grow">${esc(x.other_username)}</b>${x.has_key_share ? `<button class="btn small primary" data-act="open-supervised-kid" data-id="${esc(x.other_user_id)}" data-name="${esc(x.other_username)}">Open diary</button>` : '<span class="small muted">Waiting for Kid to share diary key</span>'}</div>`).join('') : '<p class="muted small">When a Kid requests you and you accept, they will appear here.</p>'}
         </section>
         <button class="btn soft block" data-act="individual-refresh">Refresh requests</button>
         <button class="btn ghost block" data-act="individual-logout">Log out</button>
@@ -408,14 +421,43 @@
     after: root => {
       if (supervisionLoading || !cloudUser) return;
       supervisionLoading = true;
-      G.cloud.individualSupervision().then(data => {
+      G.cloud.individualSupervision().then(async data => {
         supervisionData = data;
         if (cloudUser && data.status) cloudUser.status = data.status;
+        if (data.role === 'kid' && data.status === 'active' && cloudSecret) {
+          for (const link of data.links || []) {
+            if (link.status === 'accepted' && link.supervisor_public_key && !link.has_key_share) {
+              try { await G.cloud.shareDiaryKey(link.other_user_id, link.supervisor_public_key, cloudSecret); link.has_key_share = 1; }
+              catch (error) { console.warn('Could not share encrypted diary key with a Supervisor:', error); }
+            }
+          }
+        }
         if (location.hash.includes('individual-supervision')) G.render({ keepScroll: true });
       }).catch(error => G.toast(error.message || 'Could not load Supervisor details.'))
         .finally(() => { supervisionLoading = false; });
     },
     handlers: () => ({
+      'open-supervised-kid': async el => {
+        try {
+          if (!supervisorPrivateKey) {
+            const password = window.prompt('Enter your Supervisor account password to unlock a Kid diary securely:');
+            if (!password) return;
+            const result = await G.cloud.loadSupervisorKey();
+            if (!result.exists || !result.key_bundle) throw new Error('This Supervisor account has no secure key yet. Log out and sign in again to repair it.');
+            supervisorPrivateKey = await G.cr.unlockSupervisorPrivateKey(password, result.key_bundle);
+          }
+          const loaded = await G.cloud.loadSupervisedKid(el.dataset.id, supervisorPrivateKey);
+          if (!loaded.state || !loaded.secret) throw new Error('This Kid has not created their diary yet.');
+          supervisorOwnState = G.S ? JSON.parse(JSON.stringify(G.S)) : G.fresh();
+          G.supervisedKidId = el.dataset.id;
+          G.supervisedKidName = el.dataset.name || 'Kid';
+          G.supervisedKidSecret = loaded.secret;
+          G.supervisedKidMode = true;
+          G.S = typeof G.normState === 'function' ? G.normState(loaded.state) : loaded.state;
+          G.parentUnlocked = true;
+          G.go('supervised-kid');
+        } catch (error) { G.toast(error.message || 'Could not open this Kid diary.'); }
+      },
       'individual-new-code': async button => {
         button.disabled = true;
         try { const result = await G.cloud.createSupervisorCode(); lastSupervisorCode = result.code; supervisionData = null; G.render({ keepScroll: true }); }
