@@ -37,6 +37,8 @@ const serverSource = readFileSync('server/src/index.ts', 'utf8');
 const individualSchemaSource = readFileSync('server/individual-supervision-schema.sql', 'utf8');
 if (!cloudUiSource.includes("data-act=\"individual-role\"") || !cloudUiSource.includes("registerRole === 'kid'") || !cloudUiSource.includes("G.cloud.registerIndividual")) throw new Error('Individual registration does not offer Supervisor and Kid account types.');
 if (!cloudUiSource.includes("G.screens['individual-supervision']") || !cloudUiSource.includes("individual-decision") || !cloudUiSource.includes("individual-add-supervisor")) throw new Error('Individual Supervisor dashboard or Kid multiple-Supervisor management is missing.');
+if (!cloudClientSource.includes("registerIndividual") || !cloudClientSource.includes("salt: C.b64(salt)") || !cloudClientSource.includes("supervisor_codes")) throw new Error('Kid registration does not securely wrap the diary key or send Supervisor codes.');
+
 if (!cloudUiSource.includes("G.cloud.createSupervisorCode") || !cloudUiSource.includes("G.cloud.decideSupervisorRequest")) throw new Error('Supervisor code generation or approval actions are not wired to the cloud API.');
 if (!cloudOnlySource.includes("name === 'me-pin'") || !cloudOnlySource.includes("name === 'grownup'") || !cloudOnlySource.includes("ls.removeItem('gullak:v1')")) throw new Error('Legacy Individual PIN/Grown-up routes or local diary cleanup remain active.');
 if (!serverSource.includes('role !== "supervisor" && role !== "kid"') || !serverSource.includes('role.status !== "active"') || !serverSource.includes('supervisionDecision')) throw new Error('Server does not enforce Individual roles and Supervisor acceptance.');
