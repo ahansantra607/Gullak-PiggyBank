@@ -91,7 +91,8 @@
         await familySyncChain.catch(() => {});
         await G.cloud.logout();
       } finally {
-        cloudSecret = ''; cloudUser = null; syncError = null;
+        cloudSecret = ''; cloudUser = null; supervisorPrivateKey = null; syncError = null;
+        G.supervisedKidMode = false; G.supervisedKidId = null; G.supervisedKidSecret = null; supervisorOwnState = null;
         if (window.GullakNative && typeof window.GullakNative.onCloudLogout === 'function') window.GullakNative.onCloudLogout();
       }
     },
@@ -99,7 +100,8 @@
       await syncChain.catch(() => {});
       await familySyncChain.catch(() => {});
       const result = await G.cloud.deleteAccount(password);
-      cloudSecret = ''; cloudUser = null; syncError = null;
+      cloudSecret = ''; cloudUser = null; supervisorPrivateKey = null; syncError = null;
+      G.supervisedKidMode = false; G.supervisedKidId = null; G.supervisedKidSecret = null; supervisorOwnState = null;
       if (window.GullakNative && typeof window.GullakNative.onCloudLogout === 'function') window.GullakNative.onCloudLogout();
       return result;
     }
