@@ -85,6 +85,9 @@
       method: 'POST', body: JSON.stringify({ username, password })
     }),
     me: () => request('/api/me'),
+    mobilePinStatus: () => request('/api/mobile-pin/status'),
+    setupMobilePin: pin => request('/api/mobile-pin/setup', { method: 'POST', body: JSON.stringify({ pin }) }),
+    verifyMobilePin: pin => request('/api/mobile-pin/verify', { method: 'POST', body: JSON.stringify({ pin }) }),
     rememberDevice,
     readRememberedDevice,
     clearRememberedDevice,
