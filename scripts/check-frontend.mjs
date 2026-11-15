@@ -48,7 +48,7 @@ if (!cloudUiSource.includes("G.cloud.createSupervisorCode") || !cloudUiSource.in
 if (!cloudOnlySource.includes("name === 'me-pin'") || !cloudOnlySource.includes("name === 'grownup'") || !cloudOnlySource.includes("ls.removeItem('gullak:v1')")) throw new Error('Legacy Individual PIN/Grown-up routes or local diary cleanup remain active.');
 if (cloudOnlySource.includes("name === 'ask' && G.cloudAccount") || !cloudOnlySource.includes("data-to=\"individual-supervision\"")) throw new Error('Individual home ask route or Supervisor shortcut is incorrect.');
 if (!cloudUiSource.includes("'individual-supervision', 'supervised-kid'")) throw new Error('Supervisor and pending Kid routes are not allowed before profile setup.');
-if (!screensAskSource.includes('Ask a Supervisor') || !screensAskSource.includes('your Supervisors') || !screensAskSource.includes('Waiting for a Supervisor')) throw new Error('Individual requests are not routed to Supervisors.');
+if (!screensAskSource.includes('Ask a Supervisor') || !screensAskSource.includes('your Supervisors') || !screensAskSource.includes('Waiting for ${individualCloud')) throw new Error('Individual requests are not routed to Supervisors.');
 
 if (!serverSource.includes('role !== "supervisor" && role !== "kid"') || !serverSource.includes('role.status !== "active"') || !serverSource.includes('supervisionDecision')) throw new Error('Server does not enforce Individual roles and Supervisor acceptance.');
 if (!serverSource.includes('A Supervisor must accept this Kid account before its diary can be opened') || !serverSource.includes('A Supervisor must accept this Kid account before its diary can be edited')) throw new Error('Pending Kid accounts are not blocked from Individual vault access.');
