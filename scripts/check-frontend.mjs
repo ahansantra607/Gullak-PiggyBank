@@ -66,7 +66,7 @@ if (!cloudUiSource.includes('shareKeyWithAcceptedSupervisors') || !cloudUiSource
 
 if (!readFileSync('scripts/smoke-live.mjs', 'utf8').includes('Supervisor accounts cannot open Kid diaries')) throw new Error('Live smoke tests do not verify Supervisor/Kid diary isolation.');
 
-if (!serverSource.includes("status = 'pending' WHERE user_id = ? AND role = 'kid' AND NOT EXISTS") || !readFileSync('scripts/smoke-live.mjs', 'utf8').includes('Kid diary relocked after last Supervisor deletion')) throw new Error('Deleting a Kid\'s last Supervisor does not re-lock the Kid account.');
+if (!serverSource.includes("status = 'pending' WHERE user_id = ? AND role = 'kid' AND NOT EXISTS") || !serverSource.includes("DELETE FROM sessions WHERE user_id = ? AND NOT EXISTS") || !readFileSync('scripts/smoke-live.mjs', 'utf8').includes("Last Supervisor deletion revokes the Kid's active session")) throw new Error('Deleting a Kid\'s last Supervisor does not re-lock the Kid account and revoke its session.');
 
 if (!cloudUiSource.includes('accountPending') || !cloudUiSource.includes('individual-refresh') || !cloudUiSource.includes('individual-logout')) throw new Error('Pending Kid accounts cannot check approval or log out.');
 if (!readFileSync('scripts/smoke-live.mjs', 'utf8').includes('Pending Kid can sign in to manage Supervisor requests')) throw new Error('Live smoke tests do not cover the restricted pending Kid state.');
