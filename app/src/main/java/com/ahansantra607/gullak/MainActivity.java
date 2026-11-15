@@ -288,7 +288,7 @@ public class MainActivity extends Activity {
             @Override
             public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
                 if (request.isForMainFrame()) {
-                    view.loadData("<meta name='viewport' content='width=device-width, initial-scale=1'><div style='font-family:sans-serif;padding:28px;text-align:center'><h2>Can't connect to Gullak</h2><p>Check your internet connection and try again.</p><button onclick=\\"location.href='https://gullak-piggybank.ahansantra607.workers.dev/#/'\\">Try again</button></div>", "text/html", "UTF-8");
+                    view.loadData("<meta name='viewport' content='width=device-width, initial-scale=1'><div style='font-family:sans-serif;padding:28px;text-align:center'><h2>Can't connect to Gullak</h2><p>Check your internet connection and try again.</p><a href='https://gullak-piggybank.ahansantra607.workers.dev/#/'>Try again</a></div>", "text/html", "UTF-8");
                 }
             }
         });
