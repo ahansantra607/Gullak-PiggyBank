@@ -215,9 +215,11 @@
   G.screens.grownup = {
     render: () => {
       const s = S();
-      const head = `<header class="page-h"><button class="back" data-act="go" data-to="home">←</button><h1>🔒 Grown-up mode</h1></header>`;
-      if (!s.pinHash) return head + pinPad(pinFirst ? 'Type it again' : 'Grown-ups: make a 4-digit PIN', 'This keeps kids from approving their own asks. It stays on this device only.');
-      if (!G.parentUnlocked) return head + pinPad('Grown-ups only', 'Type your 4-digit PIN') + `<p class="center"><button class="link" data-act="forgot">Forgot PIN?</button></p>`;
+      const head = G.supervisedKidMode
+        ? `<header class="page-h"><button class="back" data-act="supervisor-return">←</button><h1>🛡️ ${esc(G.supervisedKidName || s.profile?.nickname || 'Kid')}'s Gullak</h1></header>`
+        : `<header class="page-h"><button class="back" data-act="go" data-to="home">←</button><h1>🔒 Grown-up mode</h1></header>`;
+      if (!G.supervisedKidMode && !s.pinHash) return head + pinPad(pinFirst ? 'Type it again' : 'Grown-ups: make a 4-digit PIN', 'This keeps kids from approving their own asks. It stays on this device only.');
+      if (!G.supervisedKidMode && !G.parentUnlocked) return head + pinPad('Grown-ups only', 'Type your 4-digit PIN') + `<p class="center"><button class="link" data-act="forgot">Forgot PIN?</button></p>`;
       const pending = s.requests.filter(r => r.status === 'pending');
       const rep = G.report(); const p = s.profile;
       const choreDone = s.chores.filter(c => c.status === 'done');
@@ -251,8 +253,8 @@
           <div class="chips">${[[1 / 60, '1 min (demo)'], [1, '1 hour'], [24, '24 hours'], [48, '2 days']].map(([v, n]) => `<button class="chip ${Math.abs(s.settings.coolHours - v) < 1e-6 ? 'on' : ''}" data-act="cool" data-v="${v}">${n}</button>`).join('')}</div>
           <div class="label">Suggest cool-down for wants above</div>
           <div class="chips">${[100, 200, 500, 1000].map(v => `<button class="chip ${s.settings.coolMin === v ? 'on' : ''}" data-act="coolmin" data-v="${v}">${rs(v)}</button>`).join('')}</div>
-          <div class="row gap mt"><button class="btn soft grow" data-act="newpin">Change PIN</button><button class="btn primary grow" data-act="lock">🔒 Lock & exit</button></div></section>
-        <section class="card tips"><h3>💡 Money talk tips for grown-ups</h3><ul>
+          <div class="row gap mt">${G.supervisedKidMode ? '<button class="btn primary grow" data-act="supervisor-return">← Back to Supervisor dashboard</button>' : '<button class="btn soft grow" data-act="newpin">Change PIN</button><button class="btn primary grow" data-act="lock">🔒 Lock & exit</button>'}</div></section>
+        <section class="card tips"><h3>💡 ${G.supervisedKidMode ? 'Supervisor tips' : 'Money talk tips for grown-ups'}</h3><ul>
           <li>Say <b>"not now"</b> with a reason. Kids learn more from the why.</li>
           <li>Try the <b>half deal</b>: when they pay part, they value it more.</li>
           <li>Ask: <i>"Is it a need or a want? Would you still want it next week?"</i></li>
@@ -301,7 +303,8 @@
       cool: (el) => { S().settings.coolHours = +el.dataset.v; G.save(); G.render(); },
       coolmin: (el) => { S().settings.coolMin = +el.dataset.v; G.save(); G.render(); },
       newpin: () => { S().pinHash = null; G.parentUnlocked = false; pinFirst = null; pinBuf = ''; G.save(); G.render(); },
-      lock: () => { G.parentUnlocked = false; G.go('home'); }
+      lock: () => { if (G.supervisedKidMode) G.restoreSupervisorState?.(); else { G.parentUnlocked = false; G.go('home'); } },
+      'supervisor-return': () => G.restoreSupervisorState?.()
     })
   };
 
