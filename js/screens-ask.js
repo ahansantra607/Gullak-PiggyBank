@@ -167,7 +167,7 @@
             ? `<div class="timer" data-until="${r.coolUntil}">⏳ ${countdown(r.coolUntil)} left</div>`
             : `<div class="row gap mt"><button class="btn small primary" data-act="still" data-id="${r.id}">Yes, I still want it</button>
                <button class="btn small soft" data-act="drop" data-id="${r.id}">Nah, skip it 💪</button></div>`)).join('')}</section>` : ''}
-        ${pending.length ? `<section class="card"><h3>⏳ Waiting for a Supervisor</h3>${pending.map(r => card(r,
+        ${pending.length ? `<section class="card"><h3>⏳ Waiting for ${individualCloud ? "a Supervisor" : "a grown-up"}</h3>${pending.map(r => card(r,
           individualCloud
             ? `<div class="row gap mt"><button class="link danger" data-act="cancel" data-id="${r.id}">Cancel</button></div>`
             : `<div class="row gap mt"><button class="btn small soft" data-act="share" data-id="${r.id}">📨 Show / send</button><button class="link danger" data-act="cancel" data-id="${r.id}">Cancel</button></div>`)).join('')}</section>` : ''}
