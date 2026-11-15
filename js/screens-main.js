@@ -177,14 +177,17 @@
   G.screens.welcome = {
     render: () => {
       const dots = `<div class="dots">${[1, 2, 3, 4, 5].map(i => `<i class="${i <= ob.step ? 'on' : ''}"></i>`).join('')}</div>`;
-      if (ob.step === 0) return `<section class="welcome">
-        <div class="hero">${G.piggy('happy', 190)}</div>
-        <h1 class="brand">Gullak</h1>
-        <p class="tag">Your talking piggy bank that turns money into samosas, saves for your dreams, and helps you ask Mum or Dad. 🐷</p>
-        <button class="btn primary block big" data-act="next">Start my Gullak ✨</button>
-        <button class="btn soft block" data-act="sample">👀 Try it with sample data</button>
-        <p class="fine">🔒 No real money. No sign-up. No real names.<br>Everything stays on this device.</p>
-      </section>`;
+      if (ob.step === 0) {
+        const cloudAccount = !!(G.cloudAccount && G.cloudAccount.unlocked);
+        return `<section class="welcome">
+          <div class="hero">${G.piggy('happy', 190)}</div>
+          <h1 class="brand">Gullak</h1>
+          <p class="tag">Your talking piggy bank that turns money into samosas, saves for your dreams, and helps you ask your Supervisors. 🐷</p>
+          <button class="btn primary block big" data-act="next">${cloudAccount ? 'Set up my Gullak ✨' : 'Start my Gullak ✨'}</button>
+          ${cloudAccount ? '' : '<button class="btn soft block" data-act="sample">👀 Try it with sample data</button>'}
+          <p class="fine">🔒 No real money. No real names.<br>${cloudAccount ? 'Your diary is encrypted and synced to your Gullak account.' : 'Sample data stays on this device.'}</p>
+        </section>`;
+      }
       if (ob.step === 1) return `<section class="ob">${dots}<h2>Who are you? 🙂</h2>
         <div class="label">Pick your buddy</div>
         <div class="avatar-grid">${G.AVATARS.map(a => `<button class="av ${a === ob.avatar ? 'on' : ''}" data-act="av" data-v="${a}">${a}</button>`).join('')}</div>
