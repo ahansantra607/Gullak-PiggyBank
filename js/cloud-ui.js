@@ -205,7 +205,7 @@
         try {
           const role = registerRole;
           const supervisorCodes = role === 'kid'
-            ? (G.$('#individual-supervisor-codes')?.value || '').split(/[ ,;\\n]+/).map(v => v.trim()).filter(Boolean)
+            ? (G.$('#individual-supervisor-codes')?.value || '').split(/[ ,;\n]+/).map(v => v.trim()).filter(Boolean)
             : [];
           if (authMode === 'register' && role === 'kid' && !supervisorCodes.length) throw new Error('Enter at least one Supervisor code to create a Kid account.');
           const auth = authMode === 'register'
@@ -344,7 +344,7 @@
       const head = '<header class="page-h"><button class="back" data-act="go" data-to="settings">←</button><h1>🛡️ Supervisors</h1></header>';
       if (role === 'supervisor') return head + `
         <section class="card"><h2>Your Supervisor code</h2>
-          ${lastSupervisorCode ? `<div class="banner good"><b>Share this code with a Kid:</b><h2 style="letter-spacing:.12em">${esc(lastSupervisorCode)}</h2><p class="small">This code is shown only now. Keep it private and share it only with the Kid you agree to supervise.</p></div>` : '<p class="muted small">Generate a code and share it with a Kid. They can use it to request you as their Supervisor.</p>'}
+          ${lastSupervisorCode ? `<div class="banner good"><b>Share this code with a Kid:</b><h2>${esc(lastSupervisorCode)}</h2><p class="small">This code is shown only now. Keep it private and share it only with the Kid you agree to supervise.</p></div>` : '<p class="muted small">Generate a code and share it with a Kid. They can use it to request you as their Supervisor.</p>'}
           <button class="btn primary block" data-act="individual-new-code">${lastSupervisorCode ? 'Generate a new code' : 'Generate Supervisor code'}</button>
         </section>
         <section class="card"><h3>Requests waiting for you (${pending.length})</h3>
@@ -360,7 +360,6 @@
           <label class="label" for="individual-add-supervisor">Add another Supervisor</label>
           <input class="input" id="individual-add-supervisor" maxlength="20" placeholder="10-character Supervisor code">
           <button class="btn primary block mt" data-act="individual-add-supervisor">Send request</button>
-          <div class="divider"></div>
           <h3>Accepted</h3>
           ${accepted.map(x => `<div class="kid-row"><span>🛡️</span><b class="grow">${esc(x.other_username)}</b><span class="small good">Supervisor</span></div>`).join('') || '<p class="small muted">No Supervisor has accepted yet.</p>'}
           <h3>Waiting for acceptance</h3>
