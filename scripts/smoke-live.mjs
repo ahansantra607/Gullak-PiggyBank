@@ -1,4 +1,4 @@
-import { randomUUID, randomBytes } from 'node:crypto';
+import { randomUUID, randomBytes, webcrypto } from 'node:crypto';
 
 const appUrl = (process.env.APP_URL || "https://gullak-piggybank.ahansantra607.workers.dev").replace(/\/$/, "");
 const apiUrl = (process.env.API_URL || "https://server.ahansantra607.workers.dev").replace(/\/$/, "");
@@ -12,6 +12,48 @@ const encrypted = () => ({
   salt: b64(randomBytes(16)),
   schema_version: 1
 });
+const encoder = new TextEncoder();
+async function makeSupervisorKeyBundle(password) {
+  const pair = await webcrypto.subtle.generateKey({ name: "ECDH", namedCurve: "P-256" }, true, ["deriveBits"]);
+  const publicKey = new Uint8Array(await webcrypto.subtle.exportKey("spki", pair.publicKey));
+  const privateBytes = new Uint8Array(await webcrypto.subtle.exportKey("pkcs8", pair.privateKey));
+  const salt = randomBytes(16), iv = randomBytes(12);
+  const base = await webcrypto.subtle.importKey("raw", encoder.encode(password), "PBKDF2", false, ["deriveKey"]);
+  const key = await webcrypto.subtle.deriveKey({ name: "PBKDF2", hash: "SHA-256", salt, iterations: 150000 }, base,
+    { name: "AES-GCM", length: 256 }, false, ["encrypt"]);
+  const ciphertext = new Uint8Array(await webcrypto.subtle.encrypt({ name: "AES-GCM", iv }, key, privateBytes));
+  return {
+    body: { public_key: b64(publicKey), encrypted_private_key: b64(iv) + "." + b64(ciphertext), salt: b64(salt), iterations: 150000 },
+    privateKey: pair.privateKey
+  };
+}
+async function makeDiaryKeyShare(supervisorPublicKey, diarySecret) {
+  const publicKey = await webcrypto.subtle.importKey("spki", Buffer.from(supervisorPublicKey, "base64"),
+    { name: "ECDH", namedCurve: "P-256" }, false, []);
+  const ephemeral = await webcrypto.subtle.generateKey({ name: "ECDH", namedCurve: "P-256" }, true, ["deriveBits"]);
+  const ephemeralPublic = new Uint8Array(await webcrypto.subtle.exportKey("spki", ephemeral.publicKey));
+  const salt = randomBytes(16);
+  const bits = await webcrypto.subtle.deriveBits({ name: "ECDH", public: publicKey }, ephemeral.privateKey, 256);
+  const hkdf = await webcrypto.subtle.importKey("raw", bits, "HKDF", false, ["deriveKey"]);
+  const key = await webcrypto.subtle.deriveKey({ name: "HKDF", hash: "SHA-256", salt,
+    info: encoder.encode("Gullak Supervisor diary-key share v1") }, hkdf, { name: "AES-GCM", length: 256 }, false, ["encrypt"]);
+  const iv = randomBytes(12);
+  const ciphertext = new Uint8Array(await webcrypto.subtle.encrypt({ name: "AES-GCM", iv }, key, encoder.encode(diarySecret)));
+  return { ephemeral_public_key: b64(ephemeralPublic), salt: b64(salt), wrapped_diary_key: b64(iv) + "." + b64(ciphertext) };
+}
+async function openDiaryKeyShare(privateKey, share) {
+  const ephemeral = await webcrypto.subtle.importKey("spki", Buffer.from(share.ephemeral_public_key, "base64"),
+    { name: "ECDH", namedCurve: "P-256" }, false, []);
+  const salt = Buffer.from(share.salt, "base64");
+  const bits = await webcrypto.subtle.deriveBits({ name: "ECDH", public: ephemeral }, privateKey, 256);
+  const hkdf = await webcrypto.subtle.importKey("raw", bits, "HKDF", false, ["deriveKey"]);
+  const key = await webcrypto.subtle.deriveKey({ name: "HKDF", hash: "SHA-256", salt,
+    info: encoder.encode("Gullak Supervisor diary-key share v1") }, hkdf, { name: "AES-GCM", length: 256 }, false, ["decrypt"]);
+  const [iv, ct] = share.wrapped_diary_key.split(".");
+  const plain = await webcrypto.subtle.decrypt({ name: "AES-GCM", iv: Buffer.from(iv, "base64") }, key, Buffer.from(ct, "base64"));
+  return new TextDecoder().decode(plain);
+}
+
 const cookieFrom = response => {
   const values = response.headers.getSetCookie?.() || [];
   const value = values.find(item => item.startsWith("gullak_session="));
@@ -82,8 +124,10 @@ expect(await request("/api/login", { method: "POST", body: { username: superviso
 expect(await request("/api/family/login", { method: "POST", body: { username: "individual_" + suffix, password } }), 401, "Unknown Family identity rejected");
 
 const individualName = "indivtest_" + suffix;
+const individualPassword = "Individual-" + password;
+const individualKey = await makeSupervisorKeyBundle(individualPassword);
 const individual = expect(await request("/api/register", {
-  method: "POST", body: { username: individualName, password: "Individual-" + password, role: "supervisor" }
+  method: "POST", body: { username: individualName, password: individualPassword, role: "supervisor", supervisor_key: individualKey.body }
 }), 201, "Individual Supervisor registration");
 assert(individual.cookie && individual.data.supervisor_code?.length === 10 && individual.data.user.role === "supervisor",
   "Supervisor registration did not issue its account session and one-time linking code.");
@@ -119,11 +163,22 @@ assert(kidLogin.data.user.role === "kid" && kidLogin.data.user.status === "activ
 const kidLinks = expect(await request("/api/individual/supervision", { cookie: kidLogin.cookie }), 200, "Kid's Supervisor list");
 assert(kidLinks.data.links.some(row => row.other_username === individualName && row.status === "accepted"),
   "Kid does not see the accepted Supervisor relationship.");
+const acceptedFirstLink = kidLinks.data.links.find(row => row.other_username === individualName && row.status === "accepted");
+assert(acceptedFirstLink.supervisor_public_key, "Kid cannot retrieve the accepted Supervisor's public key.");
+const testDiarySecret = b64(randomBytes(32));
+const firstKeyShare = await makeDiaryKeyShare(acceptedFirstLink.supervisor_public_key, testDiarySecret);
+expect(await request("/api/individual/supervision/key-shares", { method: "PUT", cookie: kidLogin.cookie,
+  body: { supervisor_user_id: acceptedFirstLink.other_user_id, ...firstKeyShare } }), 200, "Kid shares diary key end-to-end");
+const firstSupervisorVaultBeforeDiary = expect(await request("/api/individual/supervision/kids/" + kidLogin.data.user.user_id + "/vault", { cookie: individualLogin.cookie }), 200, "Supervisor can access linked Kid vault");
+assert(!firstSupervisorVaultBeforeDiary.data.exists && firstSupervisorVaultBeforeDiary.data.key_share, "Supervisor key share was not returned for an empty Kid diary.");
+assert(await openDiaryKeyShare(individualKey.privateKey, firstSupervisorVaultBeforeDiary.data.key_share) === testDiarySecret,
+  "Supervisor could not decrypt the Kid's end-to-end encrypted diary key.");
 
 const secondSupervisorName = "indivsup2_" + suffix;
 const secondSupervisorPassword = "Second-Supervisor-" + randomUUID() + "!";
+const secondSupervisorKey = await makeSupervisorKeyBundle(secondSupervisorPassword);
 const secondSupervisor = expect(await request("/api/register", {
-  method: "POST", body: { username: secondSupervisorName, password: secondSupervisorPassword, role: "supervisor" }
+  method: "POST", body: { username: secondSupervisorName, password: secondSupervisorPassword, role: "supervisor", supervisor_key: secondSupervisorKey.body }
 }), 201, "Second Individual Supervisor registration");
 const secondSupervisorLogin = expect(await request("/api/login", {
   method: "POST", body: { username: secondSupervisorName, password: secondSupervisorPassword }
@@ -140,6 +195,14 @@ expect(await request("/api/individual/supervision/requests/" + secondRequest.lin
 const twoSupervisors = expect(await request("/api/individual/supervision", { cookie: kidLogin.cookie }), 200, "Kid's multiple Supervisor list");
 assert(twoSupervisors.data.links.filter(row => row.status === "accepted").length === 2,
   "Kid cannot have multiple accepted Supervisors.");
+const secondAcceptedLink = twoSupervisors.data.links.find(row => row.other_username === secondSupervisorName && row.status === "accepted");
+assert(secondAcceptedLink?.supervisor_public_key, "Second Supervisor public key was not shared with the Kid.");
+const secondKeyShare = await makeDiaryKeyShare(secondAcceptedLink.supervisor_public_key, testDiarySecret);
+expect(await request("/api/individual/supervision/key-shares", { method: "PUT", cookie: kidLogin.cookie,
+  body: { supervisor_user_id: secondAcceptedLink.other_user_id, ...secondKeyShare } }), 200, "Kid shares diary key with second Supervisor");
+const secondVaultAccess = expect(await request("/api/individual/supervision/kids/" + kidLogin.data.user.user_id + "/vault", { cookie: secondSupervisorLogin.cookie }), 200, "Second Supervisor can access linked Kid vault");
+assert(await openDiaryKeyShare(secondSupervisorKey.privateKey, secondVaultAccess.data.key_share) === testDiarySecret,
+  "Second Supervisor could not decrypt the shared diary key.");
 expect(await request("/api/individual/supervision", { cookie: supervisor.cookie }), 403, "Family account blocked from Individual supervision APIs");
 
 const privateVault = encrypted();
@@ -147,6 +210,13 @@ expect(await request("/api/vault", { method: "PUT", cookie: kidLogin.cookie, bod
 const ownVault = expect(await request("/api/vault", { cookie: kidLogin.cookie }), 200, "Encrypted Individual vault read");
 assert(ownVault.data.exists && ownVault.data.vault.ciphertext === privateVault.ciphertext,
   "Encrypted Individual vault read did not return the saved ciphertext.");
+const supervisorUpdatedVault = encrypted();
+expect(await request("/api/individual/supervision/kids/" + kidLogin.data.user.user_id + "/vault", {
+  method: "PUT", cookie: individualLogin.cookie, body: supervisorUpdatedVault
+}), 200, "Supervisor saves an approved Kid diary update");
+const kidSeesSupervisorUpdate = expect(await request("/api/vault", { cookie: kidLogin.cookie }), 200, "Kid sees Supervisor's cloud-synced update");
+assert(kidSeesSupervisorUpdate.data.vault.ciphertext === supervisorUpdatedVault.ciphertext,
+  "Supervisor diary changes did not sync back to the Kid account.");
 expect(await request("/api/vault", { cookie: individualLogin.cookie }), 403, "Supervisor accounts cannot open Kid diaries");
 const supervisorKeyWrap = expect(await request("/api/key-wrap", { cookie: individualLogin.cookie }), 200, "Supervisor key-wrapper check");
 assert(!supervisorKeyWrap.data.exists, "Supervisor account unexpectedly received a Kid diary key.");
