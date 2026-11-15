@@ -752,7 +752,8 @@ export default {
         }
         if (user.account_type !== "individual") return json({ error: "Family accounts cannot access Individual diaries." }, 403);
         const individual = await individualRole(env, user.user_id);
-        if (!individual || individual.status !== "active") return json({ error: "A Supervisor must accept this Kid account before its diary can be opened." }, 403);
+        if (!individual || individual.role !== "kid") return json({ error: "Supervisor accounts do not have a Kid diary." }, 403);
+        if (individual.status !== "active") return json({ error: "A Supervisor must accept this Kid account before its diary can be opened." }, 403);
 
         const vault = await env.gullak_db.prepare(`
           SELECT ciphertext, iv, salt, schema_version, updated_at
@@ -786,7 +787,8 @@ export default {
         }
         if (user.account_type !== "individual") return json({ error: "Family accounts cannot access Individual diaries." }, 403);
         const individual = await individualRole(env, user.user_id);
-        if (!individual || individual.status !== "active") return json({ error: "A Supervisor must accept this Kid account before its diary can be edited." }, 403);
+        if (!individual || individual.role !== "kid") return json({ error: "Supervisor accounts do not have a Kid diary." }, 403);
+        if (individual.status !== "active") return json({ error: "A Supervisor must accept this Kid account before its diary can be edited." }, 403);
 
         const contentLength = Number(
           request.headers.get("Content-Length") || 0
