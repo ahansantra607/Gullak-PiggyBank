@@ -3,11 +3,11 @@ name: Build and publish Gullak Android APK
 on:
   push:
     paths:
-      - '.github/release-v1.1.0'
+      - '.github/release-v1.1.1'
   workflow_dispatch:
     inputs:
       version:
-        description: "Release version without the v prefix (major feature update: 1.1.0)"
+        description: "Release version without the v prefix (patch update: 1.1.1)"
         required: true
         type: string
       release_notes:
@@ -33,7 +33,7 @@ jobs:
       - name: Validate release version
         id: version
         env:
-          RELEASE_TAG: ${{ github.event_name == 'release' && github.event.release.tag_name || (github.event_name == 'workflow_dispatch' && format('v{0}', github.event.inputs.version)) || 'v1.1.0' }}
+          RELEASE_TAG: ${{ github.event_name == 'release' && github.event.release.tag_name || (github.event_name == 'workflow_dispatch' && format('v{0}', github.event.inputs.version)) || 'v1.1.1' }}
         run: |
           version="${RELEASE_TAG#v}"
           if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
