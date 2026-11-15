@@ -100,7 +100,11 @@ const kidRegistration = expect(await request("/api/register", {
 }), 201, "Pending Kid registration");
 assert(kidRegistration.data.pending_approval && kidRegistration.cookie && kidRegistration.data.user.status === "pending",
   "A Kid account became active before Supervisor approval.");
-expect(await request("/api/login", { method: "POST", body: { username: kidName, password: kidPassword } }), 403, "Kid login blocked before approval");
+const pendingKidLogin = expect(await request("/api/login", { method: "POST", body: { username: kidName, password: kidPassword } }), 200, "Pending Kid can sign in to manage Supervisor requests");
+assert(pendingKidLogin.data.user.status === "pending", "Pending Kid session was incorrectly activated.");
+expect(await request("/api/vault", { cookie: pendingKidLogin.cookie }), 403, "Pending Kid cannot open a diary before approval");
+const pendingKidLinks = expect(await request("/api/individual/supervision", { cookie: pendingKidLogin.cookie }), 200, "Pending Kid can view Supervisor request status");
+assert(pendingKidLinks.data.status === "pending", "Pending Kid supervision state was not returned.");
 const firstSupervisorRequests = expect(await request("/api/individual/supervision", { cookie: individualLogin.cookie }), 200, "Supervisor request list");
 const firstRequest = firstSupervisorRequests.data.links.find(row => row.other_username === kidName && row.status === "pending");
 assert(firstRequest, "Supervisor did not receive the Kid's pending request.");
