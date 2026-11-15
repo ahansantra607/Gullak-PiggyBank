@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#7B3FE4">
+  <title>Gullak · Update</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://gullak-piggybank.ahansantra607.workers.dev/css/style.css">
+</head>
+<body>
+  <div id="app">
+    <main class="view ob center">
+      <div class="welcome">
+        <div class="hero"><div class="piggy huge" aria-hidden="true">🐷</div></div>
+        <div class="brand">Gullak</div>
+        <p class="tag">Your money buddy</p>
+      </div>
+      <section class="card">
+        <div class="small muted">A new version is ready</div>
+        <h1>Time for an update!</h1>
+        <p class="muted">A better, smoother Gullak is waiting for you.</p>
+        <div class="banner info left">
+          <b>What's new</b>
+          <p id="release-notes">The latest improvements and fixes are ready.</p>
+          <p class="small"><b>Version <span id="version">1.1.0</span></b></p>
+        </div>
+        <button class="btn primary block big" id="update">Update Gullak</button>
+        <button class="btn ghost block" id="later">Maybe later</button>
+        <p class="fine" id="message" aria-live="polite"></p>
+      </section>
+    </main>
+  </div>
+  <script>
+    (function () {
+      const $ = id => document.getElementById(id);
+      window.initGullakUpdate = function (version, notes) {
+        $('version').textContent = version;
+        $('release-notes').textContent = notes || 'Bug fixes and improvements.';
+      };
+      $('update').addEventListener('click', () => {
+        if (window.GullakNative && window.GullakNative.installUpdate) window.GullakNative.installUpdate();
+        else $('message').textContent = 'Updates can only be installed from the Gullak Android app.';
+      });
+      $('later').addEventListener('click', () => {
+        if (window.GullakNative && window.GullakNative.dismissUpdate) window.GullakNative.dismissUpdate();
+        else $('message').textContent = 'You can update Gullak later from the Android app.';
+      });
+    })();
+  </script>
+</body>
+</html>
