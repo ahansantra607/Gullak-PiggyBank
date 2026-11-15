@@ -51,7 +51,12 @@
     G.screens.home.render = q => {
       const html = individualHomeRender(q);
       if (mode === 'family') return html;
-      return html.replace('<button class="icon-btn" data-act="go" data-to="grownup" aria-label="Grown-up mode">🔒</button>', '');
+      return html
+        .replace('<button class="icon-btn" data-act="go" data-to="grownup" aria-label="Grown-up mode">🔒</button>', '')
+        .replace('data-to="ask"', 'data-to="individual-supervision"')
+        .replace('<b>Can I buy this, Mum?</b>', '<b>My Supervisors</b>')
+        .replace('Ask a grown-up with one tap', 'Manage Supervisor links')
+        .replace('waiting for a grown-up', 'waiting for a Supervisor');
     };
   }
 
@@ -110,6 +115,7 @@
     // Individual mode no longer uses the old local grown-up PIN or PIN-protected screen.
     if (mode !== 'family' && name === 'me-pin') return 'welcome';
     if (mode !== 'family' && name === 'grownup') return G.cloudAccount?.user?.account_type === 'individual' ? 'individual-supervision' : 'home';
+    if (mode !== 'family' && name === 'ask' && G.cloudAccount?.user?.account_type === 'individual') return 'individual-supervision';
     if (mode !== 'family' && G.cloudAccount?.user?.account_type === 'individual') {
       if (G.cloudAccount.user.role === 'kid' && G.cloudAccount.user.status === 'pending') {
         return name === 'individual-supervision' ? null : 'individual-supervision';
