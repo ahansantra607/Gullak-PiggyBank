@@ -76,8 +76,9 @@
     register: (username, password) => request('/api/register', {
       method: 'POST', body: JSON.stringify({ username, password })
     }),
-    async registerIndividual(username, password, role, supervisorCodes, secret) {
+    async registerIndividual(username, password, role, supervisorCodes, secret, supervisorKey) {
       const body = { username, password, role, supervisor_codes: supervisorCodes || [] };
+      if (role === 'supervisor' && supervisorKey) body.supervisor_key = supervisorKey;
       if (role === 'kid') {
         const salt = C.salt();
         const wrapped = await C.wrapWithSecret(password, salt, encoder.encode(secret), ITERATIONS);
@@ -86,6 +87,30 @@
       return request('/api/register', { method: 'POST', body: JSON.stringify(body) });
     },
     individualSupervision: () => request('/api/individual/supervision'),
+    saveSupervisorKey: bundle => request('/api/individual/supervision/keys', { method: 'PUT', body: JSON.stringify(bundle) }),
+    loadSupervisorKey: () => request('/api/individual/supervision/keys'),
+    async shareDiaryKey(supervisorId, publicKey, diarySecret) {
+      const share = await C.wrapDiaryKeyForSupervisor(diarySecret, publicKey);
+      return request('/api/individual/supervision/key-shares', { method: 'PUT', body: JSON.stringify({ supervisor_user_id: supervisorId, ...share }) });
+    },
+    async loadSupervisedKid(kidId, supervisorPrivateKey) {
+      const result = await request('/api/individual/supervision/kids/' + encodeURIComponent(kidId) + '/vault');
+      if (!result.exists || !result.vault) return { state: null, secret: null };
+      const secret = await C.unwrapDiaryKeyFromSupervisor(result.key_share, supervisorPrivateKey);
+      const vault = result.vault;
+      const key = await C.deriveKey(secret, vault.salt, ITERATIONS);
+      const state = JSON.parse(await C.decStr(key, vault.iv + '.' + vault.ciphertext));
+      return { state, secret };
+    },
+    async saveSupervisedKid(kidId, state, diarySecret) {
+      const salt = C.salt();
+      const key = await C.deriveKey(diarySecret, salt, ITERATIONS);
+      const packed = await C.enc(key, encoder.encode(JSON.stringify(state)));
+      const split = packed.indexOf('.');
+      return request('/api/individual/supervision/kids/' + encodeURIComponent(kidId) + '/vault', {
+        method: 'PUT', body: JSON.stringify({ ciphertext: packed.slice(split + 1), iv: packed.slice(0, split), salt, schema_version: 1 })
+      });
+    },
     createSupervisorCode: () => request('/api/individual/supervision/code', { method: 'POST', body: '{}' }),
     requestSupervisor: code => request('/api/individual/supervision/requests', { method: 'POST', body: JSON.stringify({ code }) }),
     decideSupervisorRequest: (linkId, decision) => request('/api/individual/supervision/requests/' + encodeURIComponent(linkId), { method: 'POST', body: JSON.stringify({ decision }) }),
