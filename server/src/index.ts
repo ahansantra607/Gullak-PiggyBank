@@ -397,8 +397,11 @@ export default {
           return json({ error: "Invalid username or password." }, 401);
         }
         const accountIdentity = await getCurrentUserAccountType(env, user.user_id);
-        if (accountIdentity !== expectedAccountType) {
-          return json({ error: "These credentials belong to a different Gullak mode." }, 403);
+        if (accountIdentity !== expectedAccountType) return json({ error: "These credentials belong to a different Gullak mode." }, 403);
+        if (expectedAccountType === "individual") {
+          const role = await individualRole(env, user.user_id);
+          if (!role) return json({ error: "This old Individual account has been retired. Create a new Supervisor or Kid account." }, 403);
+          if (role.status !== "active") return json({ error: "Your Kid account is waiting for a Supervisor to accept your request. You can log in after at least one Supervisor approves." }, 403);
         }
 
         const now = new Date();
@@ -436,6 +439,87 @@ export default {
       } catch {
         return json({ error: "Could not log in." }, 400);
       }
+    }
+
+    // Individual-only Supervisor/Kid relationship management.
+    if (path === "/api/individual/supervision" && request.method === "GET") {
+      const user = await getCurrentUser(request, env);
+      if (!user) return json({ error: "Authentication required." }, 401);
+      if (user.account_type !== "individual") return json({ error: "This feature is only for Individual accounts." }, 403);
+      const role = await individualRole(env, user.user_id);
+      if (!role) return json({ error: "Individual role not found." }, 403);
+      const supervisorView = role.role === "supervisor";
+      const sql = supervisorView
+        ? "SELECT l.link_id, l.status, l.created_at, l.responded_at, u.user_id AS other_user_id, u.username AS other_username FROM individual_supervisor_links l JOIN users u ON u.user_id = l.kid_user_id WHERE l.supervisor_user_id = ? ORDER BY l.created_at DESC"
+        : "SELECT l.link_id, l.status, l.created_at, l.responded_at, u.user_id AS other_user_id, u.username AS other_username FROM individual_supervisor_links l JOIN users u ON u.user_id = l.supervisor_user_id WHERE l.kid_user_id = ? ORDER BY l.created_at ASC";
+      const rows = await env.gullak_db.prepare(sql).bind(user.user_id).all();
+      return json({ role: role.role, status: role.status, links: rows.results || [] });
+    }
+
+    if (path === "/api/individual/supervision/code" && request.method === "POST") {
+      try {
+        const user = await getCurrentUser(request, env);
+        if (!user) return json({ error: "Authentication required." }, 401);
+        if (user.account_type !== "individual") return json({ error: "This feature is only for Individual accounts." }, 403);
+        const role = await individualRole(env, user.user_id);
+        if (!role || role.role !== "supervisor" || role.status !== "active") return json({ error: "Only an active Supervisor can create a code." }, 403);
+        const code = makeSupervisorCode();
+        const now = new Date().toISOString();
+        const hash = await supervisorCodeHash(code);
+        await env.gullak_db.batch([
+          env.gullak_db.prepare("UPDATE individual_supervisor_codes SET revoked_at = ? WHERE supervisor_user_id = ? AND revoked_at IS NULL").bind(now, user.user_id),
+          env.gullak_db.prepare("INSERT INTO individual_supervisor_codes (code_hash, supervisor_user_id, created_at, revoked_at) VALUES (?, ?, ?, NULL)").bind(hash, user.user_id, now)
+        ]);
+        return json({ success: true, code });
+      } catch { return json({ error: "Could not generate a Supervisor code." }, 400); }
+    }
+
+    if (path === "/api/individual/supervision/requests" && request.method === "POST") {
+      try {
+        const user = await getCurrentUser(request, env);
+        if (!user) return json({ error: "Authentication required." }, 401);
+        if (user.account_type !== "individual") return json({ error: "This feature is only for Individual accounts." }, 403);
+        const role = await individualRole(env, user.user_id);
+        if (!role || role.role !== "kid" || role.status !== "active") return json({ error: "Only an active Kid account can request another Supervisor." }, 403);
+        const body = await request.json() as { code?: string };
+        const code = String(body.code || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+        if (code.length !== 10) return json({ error: "Enter a valid 10-character Supervisor code." }, 400);
+        const hash = await supervisorCodeHash(code);
+        const supervisor = await env.gullak_db.prepare("SELECT c.supervisor_user_id FROM individual_supervisor_codes c JOIN individual_account_roles r ON r.user_id = c.supervisor_user_id WHERE c.code_hash = ? AND c.revoked_at IS NULL AND r.role = 'supervisor' AND r.status = 'active'")
+          .bind(hash).first<{ supervisor_user_id: string }>();
+        if (!supervisor) return json({ error: "That Supervisor code is invalid or expired." }, 404);
+        if (supervisor.supervisor_user_id === user.user_id) return json({ error: "You cannot add yourself as a Supervisor." }, 400);
+        const existing = await env.gullak_db.prepare("SELECT status FROM individual_supervisor_links WHERE kid_user_id = ? AND supervisor_user_id = ?").bind(user.user_id, supervisor.supervisor_user_id).first<{ status: string }>();
+        if (existing) return json({ error: existing.status === "accepted" ? "This person is already your Supervisor." : "A request to this Supervisor already exists." }, 409);
+        await env.gullak_db.prepare("INSERT INTO individual_supervisor_links (link_id, kid_user_id, supervisor_user_id, status, created_at, responded_at) VALUES (?, ?, ?, 'pending', ?, NULL)")
+          .bind(crypto.randomUUID(), user.user_id, supervisor.supervisor_user_id, new Date().toISOString()).run();
+        return json({ success: true, status: "pending" }, 201);
+      } catch { return json({ error: "Could not send the Supervisor request." }, 400); }
+    }
+
+    const supervisionDecision = path.match(/^\/api\/individual\/supervision\/requests\/([0-9a-f-]+)$/i);
+    if (supervisionDecision && request.method === "POST") {
+      try {
+        const user = await getCurrentUser(request, env);
+        if (!user) return json({ error: "Authentication required." }, 401);
+        if (user.account_type !== "individual") return json({ error: "This feature is only for Individual accounts." }, 403);
+        const role = await individualRole(env, user.user_id);
+        if (!role || role.role !== "supervisor" || role.status !== "active") return json({ error: "Only an active Supervisor can respond." }, 403);
+        const body = await request.json() as { decision?: string };
+        if (body.decision !== "accept" && body.decision !== "reject") return json({ error: "Choose accept or reject." }, 400);
+        const linkId = supervisionDecision[1];
+        const link = await env.gullak_db.prepare("SELECT kid_user_id, status FROM individual_supervisor_links WHERE link_id = ? AND supervisor_user_id = ?").bind(linkId, user.user_id).first<{ kid_user_id: string; status: string }>();
+        if (!link) return json({ error: "This request does not belong to your account." }, 404);
+        if (link.status !== "pending") return json({ error: "This request has already been answered." }, 409);
+        const nextStatus = body.decision === "accept" ? "accepted" : "rejected";
+        const now = new Date().toISOString();
+        const statements: D1PreparedStatement[] = [
+          env.gullak_db.prepare("UPDATE individual_supervisor_links SET status = ?, responded_at = ? WHERE link_id = ? AND supervisor_user_id = ? AND status = 'pending'").bind(nextStatus, now, linkId, user.user_id)
+        ];
+        if (nextStatus === "accepted") statements.push(env.gullak_db.prepare("UPDATE individual_account_roles SET status = 'active' WHERE user_id = ? AND role = 'kid'").bind(link.kid_user_id));
+        await env.gullak_db.batch(statements);
+        return json({ success: true, status: nextStatus });
+      } catch { return json({ error: "Could not update this Supervisor request." }, 400); }
     }
 
     // CHECK SESSION
