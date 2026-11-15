@@ -18,6 +18,9 @@ import android.webkit.WebResourceRequest;
 import android.webkit.WebChromeClient;
 import android.webkit.ValueCallback;
 import android.webkit.JavascriptInterface;
+import android.webkit.CookieManager;
+import android.text.InputFilter;
+import android.widget.EditText;
 import android.util.Base64;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
@@ -52,6 +55,13 @@ public class MainActivity extends Activity {
     private static final int REQUEST_SAVE_BACKUP = 2102;
     private ValueCallback<Uri[]> filePathCallback;
     private byte[] pendingBackupBytes;
+    private static final String API_URL = "https://server.ahansantra607.workers.dev";
+    private boolean pinCheckDone;
+    private boolean pinConfigured;
+    private boolean pinScreenVisible;
+    private boolean needsUnlock;
+    private EditText pinInput;
+    private String pendingSetupPin = "";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -167,17 +177,19 @@ public class MainActivity extends Activity {
 
         ObjectAnimator bounce = ObjectAnimator.ofPropertyValuesHolder(
             piggy,
-            PropertyValuesHolder.ofFloat(View.SCALE_X, 1.0f, 1.09f),
-            PropertyValuesHolder.ofFloat(View.SCALE_Y, 1.0f, 1.09f)
+            PropertyValuesHolder.ofFloat(View.SCALE_X, 1.0f, 1.055f, 1.0f),
+            PropertyValuesHolder.ofFloat(View.SCALE_Y, 1.0f, 1.055f, 1.0f),
+            PropertyValuesHolder.ofFloat(View.TRANSLATION_Y, 0f, -dp(7), 0f),
+            PropertyValuesHolder.ofFloat(View.ROTATION, 0f, -1.8f, 1.8f, 0f)
         );
-        bounce.setDuration(850);
-        bounce.setRepeatMode(ValueAnimator.REVERSE);
+        bounce.setDuration(1450);
+        bounce.setRepeatMode(ValueAnimator.RESTART);
         bounce.setRepeatCount(ValueAnimator.INFINITE);
         bounce.start();
 
         label.setAlpha(0f);
         label.setTranslationY(dp(12));
-        label.animate().alpha(1f).translationY(0f).setDuration(700).start();
+        label.animate().alpha(1f).translationY(0f).setDuration(950).start();
         tagline.setAlpha(0f);
         tagline.animate().alpha(1f).setStartDelay(250).setDuration(650).start();
     }
@@ -271,6 +283,33 @@ public class MainActivity extends Activity {
 
     private void openApp() {
         showingUpdate = false;
+        if (!pinCheckDone) {
+            String cookie = CookieManager.getInstance().getCookie(API_URL);
+            if (cookie != null && cookie.contains("gullak_session=")) {
+                executor.execute(() -> {
+                    try {
+                        JSONObject status = apiRequest("GET", "/api/mobile-pin/status", null);
+                        boolean configured = status.optBoolean("configured", false);
+                        runOnUiThread(() -> {
+                            pinCheckDone = true;
+                            pinConfigured = configured;
+                            if (configured) showPhonePinScreen(false);
+                            else openAppWebView();
+                        });
+                    } catch (Exception ignored) {
+                        runOnUiThread(() -> { pinCheckDone = true; openAppWebView(); });
+                    }
+                });
+                return;
+            }
+            pinCheckDone = true;
+        }
+        openAppWebView();
+    }
+
+    private void openAppWebView() {
+        pinScreenVisible = false;
+        needsUnlock = false;
         if (filePathCallback != null) {
             filePathCallback.onReceiveValue(null);
             filePathCallback = null;
@@ -329,7 +368,206 @@ public class MainActivity extends Activity {
     }
 
 
+
+    private JSONObject apiRequest(String method, String path, String pin) throws Exception {
+        URL url = new URL(API_URL + path);
+        HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+        connection.setRequestMethod(method);
+        connection.setConnectTimeout(8000);
+        connection.setReadTimeout(8000);
+        connection.setRequestProperty("Accept", "application/json");
+        String cookie = CookieManager.getInstance().getCookie(API_URL);
+        if (cookie == null || !cookie.contains("gullak_session=")) throw new IllegalStateException("Your Gullak session has expired. Log in again.");
+        connection.setRequestProperty("Cookie", cookie);
+        if (pin != null) {
+            connection.setDoOutput(true);
+            connection.setRequestProperty("Content-Type", "application/json");
+            byte[] body = new JSONObject().put("pin", pin).toString().getBytes("UTF-8");
+            try (OutputStream output = connection.getOutputStream()) { output.write(body); }
+        }
+        int status = connection.getResponseCode();
+        InputStream stream = status >= 200 && status < 300 ? connection.getInputStream() : connection.getErrorStream();
+        StringBuilder response = new StringBuilder();
+        if (stream != null) {
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(stream))) {
+                String line; while ((line = reader.readLine()) != null) response.append(line);
+            }
+        }
+        connection.disconnect();
+        JSONObject data = response.length() == 0 ? new JSONObject() : new JSONObject(response.toString());
+        if (status < 200 || status >= 300) throw new IllegalStateException(data.optString("error", "Phone PIN request failed."));
+        return data;
+    }
+
+    private void showPhonePinScreen(boolean setup) {
+        pinScreenVisible = true;
+        LinearLayout page = new LinearLayout(this);
+        page.setOrientation(LinearLayout.VERTICAL);
+        page.setGravity(Gravity.CENTER);
+        page.setPadding(dp(28), dp(28), dp(28), dp(28));
+        page.setBackgroundColor(Color.rgb(255, 247, 251));
+
+        TextView pig = new TextView(this);
+        pig.setText("🐷");
+        pig.setTextSize(48);
+        pig.setGravity(Gravity.CENTER);
+        page.addView(pig, matchWrap());
+
+        TextView title = new TextView(this);
+        title.setText(setup ? "Set up your phone PIN" : "Welcome back to Gullak");
+        title.setTextSize(24);
+        title.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        title.setTextColor(Color.rgb(163, 36, 91));
+        title.setGravity(Gravity.CENTER);
+        LinearLayout.LayoutParams titleParams = matchWrap();
+        titleParams.topMargin = dp(12);
+        page.addView(title, titleParams);
+
+        TextView hint = new TextView(this);
+        hint.setText(setup ? "Create a six-digit PIN. It will work on all phones using this Gullak account." : "Enter your six-digit PIN to unlock your Gullak.");
+        hint.setTextSize(14);
+        hint.setTextColor(Color.rgb(100, 82, 100));
+        hint.setGravity(Gravity.CENTER);
+        LinearLayout.LayoutParams hintParams = matchWrap();
+        hintParams.topMargin = dp(8);
+        page.addView(hint, hintParams);
+
+        pinInput = new EditText(this);
+        pinInput.setSingleLine(true);
+        pinInput.setInputType(android.text.InputType.TYPE_CLASS_NUMBER | android.text.InputType.TYPE_NUMBER_VARIATION_PASSWORD);
+        pinInput.setEms(6);
+        pinInput.setGravity(Gravity.CENTER);
+        pinInput.setTextSize(25);
+        pinInput.setLetterSpacing(0.25f);
+        pinInput.setFilters(new InputFilter[]{new InputFilter.LengthFilter(6)});
+        pinInput.setHint("••••••");
+        LinearLayout.LayoutParams inputParams = new LinearLayout.LayoutParams(dp(220), dp(58));
+        inputParams.topMargin = dp(22);
+        page.addView(pinInput, inputParams);
+
+        Button action = makeButton(setup ? "Continue" : "Unlock Gullak");
+        LinearLayout.LayoutParams actionParams = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(54));
+        actionParams.topMargin = dp(18);
+        page.addView(action, actionParams);
+        action.setOnClickListener(v -> {
+            String entered = pinInput.getText().toString();
+            if (!entered.matches("\\d{6}")) {
+                Toast.makeText(this, "Enter all six digits.", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            action.setEnabled(false);
+            if (setup) {
+                if (pendingSetupPin.isEmpty()) {
+                    pendingSetupPin = entered;
+                    pinInput.setText("");
+                    hint.setText("Enter the same six-digit PIN again to confirm.");
+                    title.setText("Confirm your phone PIN");
+                    action.setText("Set my PIN");
+                    action.setEnabled(true);
+                    return;
+                }
+                if (!pendingSetupPin.equals(entered)) {
+                    pendingSetupPin = "";
+                    pinInput.setText("");
+                    hint.setText("The PINs did not match. Please create your PIN again.");
+                    title.setText("Set up your phone PIN");
+                    action.setText("Continue");
+                    action.setEnabled(true);
+                    return;
+                }
+                executor.execute(() -> {
+                    try {
+                        apiRequest("POST", "/api/mobile-pin/setup", entered);
+                        runOnUiThread(() -> {
+                            pendingSetupPin = "";
+                            pinConfigured = true;
+                            pinCheckDone = true;
+                            Toast.makeText(this, "Phone PIN set up. It will work on your other phones too.", Toast.LENGTH_LONG).show();
+                            openAppWebView();
+                        });
+                    } catch (Exception error) {
+                        runOnUiThread(() -> {
+                            pendingSetupPin = "";
+                            pinInput.setText("");
+                            action.setEnabled(true);
+                            Toast.makeText(this, error.getMessage(), Toast.LENGTH_LONG).show();
+                        });
+                    }
+                });
+            } else {
+                executor.execute(() -> {
+                    try {
+                        apiRequest("POST", "/api/mobile-pin/verify", entered);
+                        runOnUiThread(() -> {
+                            pinConfigured = true;
+                            pinCheckDone = true;
+                            openAppWebView();
+                        });
+                    } catch (Exception error) {
+                        runOnUiThread(() -> {
+                            pinInput.setText("");
+                            action.setEnabled(true);
+                            Toast.makeText(this, error.getMessage(), Toast.LENGTH_LONG).show();
+                        });
+                    }
+                });
+            }
+        });
+
+        Button logout = makeButton("Log out");
+        logout.setBackground(tintedBackground(Color.rgb(232, 237, 229)));
+        logout.setTextColor(Color.rgb(42, 69, 49));
+        LinearLayout.LayoutParams logoutParams = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(50));
+        logoutParams.topMargin = dp(10);
+        page.addView(logout, logoutParams);
+        logout.setOnClickListener(v -> logoutFromPhone());
+
+        setContentView(page);
+    }
+
+    private void logoutFromPhone() {
+        executor.execute(() -> {
+            try { apiRequest("POST", "/api/logout", null); } catch (Exception ignored) { }
+            runOnUiThread(() -> {
+                CookieManager manager = CookieManager.getInstance();
+                manager.removeAllCookies(null);
+                manager.flush();
+                pinConfigured = false;
+                pinCheckDone = true;
+                pendingSetupPin = "";
+                if (webView != null) {
+                    webView.evaluateJavascript("if(window.G&&G.cloudAccount){G.cloudAccount.logout().catch(()=>{});}", null);
+                    webView.loadUrl(APP_URL);
+                    setContentView(webView);
+                } else {
+                    openAppWebView();
+                }
+            });
+        });
+    }
+
+    private void checkPinAfterCloudLogin() {
+        executor.execute(() -> {
+            try {
+                JSONObject status = apiRequest("GET", "/api/mobile-pin/status", null);
+                boolean configured = status.optBoolean("configured", false);
+                runOnUiThread(() -> {
+                    pinCheckDone = true;
+                    pinConfigured = configured;
+                    showPhonePinScreen(!configured);
+                });
+            } catch (Exception error) {
+                runOnUiThread(() -> Toast.makeText(this, error.getMessage(), Toast.LENGTH_LONG).show());
+            }
+        });
+    }
+
     private final class GullakNativeBridge {
+        @JavascriptInterface
+        public void onCloudReady() {
+            checkPinAfterCloudLogin();
+        }
+
         @JavascriptInterface
         public void saveEncryptedBackup(String filename, String mimeType, String base64) {
             try {
@@ -430,6 +668,18 @@ public class MainActivity extends Activity {
         } else {
             super.onBackPressed();
         }
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+        if (pinConfigured && webView != null && !showingUpdate && !pinScreenVisible) needsUnlock = true;
+    }
+
+    @Override
+    protected void onStart() {
+        super.onStart();
+        if (needsUnlock && pinConfigured && webView != null) showPhonePinScreen(false);
     }
 
     @Override
