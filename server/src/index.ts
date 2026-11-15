@@ -439,6 +439,54 @@ export default {
       }
     }
 
+    // Android-only account PIN. Its verifier is shared across devices for this account.
+    if (path === "/api/mobile-pin/status" && request.method === "GET") {
+      const user = await getCurrentUser(request, env);
+      if (!user) return json({ error: "Authentication required." }, 401);
+      const row = await env.gullak_db.prepare("SELECT 1 AS configured FROM user_mobile_pins WHERE user_id = ?").bind(user.user_id).first<{ configured: number }>();
+      return json({ configured: !!row });
+    }
+    if (path === "/api/mobile-pin/setup" && request.method === "POST") {
+      try {
+        const user = await getCurrentUser(request, env);
+        if (!user) return json({ error: "Authentication required." }, 401);
+        const body = await request.json() as { pin?: string };
+        const pin = String(body.pin || "");
+        if (!/^\\d{6}$/.test(pin)) return json({ error: "PIN must contain exactly six digits." }, 400);
+        const salt = randomBytes(16);
+        const hash = await derivePasswordHash(pin, salt, ITERATIONS);
+        const now = new Date().toISOString();
+        await env.gullak_db.prepare("INSERT INTO user_mobile_pins (user_id, pin_salt, pin_hash, failed_attempts, locked_until, created_at, updated_at) VALUES (?, ?, ?, 0, NULL, ?, ?)").bind(user.user_id, toBase64(salt), hash, now, now).run();
+        return json({ success: true });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (message.includes("UNIQUE")) return json({ error: "A phone PIN is already set for this account. Enter that PIN instead." }, 409);
+        return json({ error: "Could not set up the phone PIN." }, 400);
+      }
+    }
+    if (path === "/api/mobile-pin/verify" && request.method === "POST") {
+      try {
+        const user = await getCurrentUser(request, env);
+        if (!user) return json({ error: "Authentication required." }, 401);
+        const body = await request.json() as { pin?: string };
+        const pin = String(body.pin || "");
+        if (!/^\\d{6}$/.test(pin)) return json({ error: "Enter your six-digit PIN." }, 400);
+        const row = await env.gullak_db.prepare("SELECT pin_salt, pin_hash, failed_attempts, locked_until FROM user_mobile_pins WHERE user_id = ?").bind(user.user_id).first<{ pin_salt: string; pin_hash: string; failed_attempts: number; locked_until: string | null }>();
+        if (!row) return json({ error: "No phone PIN is configured for this account." }, 404);
+        const now = new Date();
+        if (row.locked_until && new Date(row.locked_until).getTime() > now.getTime()) return json({ error: "Too many incorrect attempts. Try again in a few minutes." }, 429);
+        const calculated = await derivePasswordHash(pin, fromBase64(row.pin_salt), ITERATIONS);
+        if (!constantTimeEqual(calculated, row.pin_hash)) {
+          const failures = row.failed_attempts + 1;
+          const lockedUntil = failures >= 5 ? new Date(now.getTime() + 5 * 60_000).toISOString() : null;
+          await env.gullak_db.prepare("UPDATE user_mobile_pins SET failed_attempts = ?, locked_until = ?, updated_at = ? WHERE user_id = ?").bind(failures >= 5 ? 0 : failures, lockedUntil, now.toISOString(), user.user_id).run();
+          return json({ error: lockedUntil ? "Too many incorrect attempts. Try again in five minutes." : "That PIN is incorrect." }, lockedUntil ? 429 : 403);
+        }
+        await env.gullak_db.prepare("UPDATE user_mobile_pins SET failed_attempts = 0, locked_until = NULL, updated_at = ? WHERE user_id = ?").bind(now.toISOString(), user.user_id).run();
+        return json({ success: true });
+      } catch { return json({ error: "Could not verify the phone PIN." }, 400); }
+    }
+
     // PERMANENT ACCOUNT DELETION. Password re-authentication is required.
     if (path === "/api/account" && request.method === "DELETE") {
       try {
