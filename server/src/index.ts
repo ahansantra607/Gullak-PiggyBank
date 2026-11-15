@@ -619,6 +619,12 @@ export default {
           return json({ error: "The account password is incorrect. Nothing has been deleted." }, 403);
         }
 
+        const currentIndividualRole = user.account_type === "individual" ? await individualRole(env, user.user_id) : null;
+        const supervisedKids = currentIndividualRole?.role === "supervisor"
+          ? await env.gullak_db.prepare("SELECT kid_user_id FROM individual_supervisor_links WHERE supervisor_user_id = ? AND status = 'accepted'")
+              .bind(user.user_id).all<{ kid_user_id: string }>()
+          : { results: [] as { kid_user_id: string }[] };
+
         const familyRows = await env.gullak_db.prepare(`
           SELECT f.family_id, f.created_by, m.role
           FROM cloud_families f
@@ -665,6 +671,11 @@ export default {
         changes.push(env.gullak_db.prepare(
           "DELETE FROM users WHERE user_id = ?"
         ).bind(user.user_id));
+        for (const kid of supervisedKids.results || []) {
+          changes.push(env.gullak_db.prepare(
+            "UPDATE individual_account_roles SET status = 'pending' WHERE user_id = ? AND role = 'kid' AND NOT EXISTS (SELECT 1 FROM individual_supervisor_links WHERE kid_user_id = ? AND status = 'accepted')"
+          ).bind(kid.kid_user_id, kid.kid_user_id));
+        }
         await env.gullak_db.batch(changes);
 
         return new Response(JSON.stringify({ success: true, deleted: true }), {
