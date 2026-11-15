@@ -139,6 +139,17 @@ function validOrigin(request: Request): boolean {
   }
 }
 
+async function individualRole(env: Env, userId: string): Promise<{ role: "supervisor" | "kid"; status: "active" | "pending" } | null> {
+  return env.gullak_db.prepare("SELECT role, status FROM individual_account_roles WHERE user_id = ?").bind(userId).first<{ role: "supervisor" | "kid"; status: "active" | "pending" }>();
+}
+function makeSupervisorCode(): string {
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  return Array.from(randomBytes(10), byte => alphabet[byte % alphabet.length]).join("");
+}
+async function supervisorCodeHash(code: string): Promise<string> {
+  return sha256("gullak-individual-supervisor:" + code.toUpperCase().replace(/[^A-Z0-9]/g, ""));
+}
+
 async function getCurrentUserAccountType(env: Env, userId: string): Promise<"individual" | "family"> {
   const familyMember = await env.gullak_db.prepare(
     "SELECT 1 AS found FROM cloud_family_members WHERE user_id = ? LIMIT 1"
