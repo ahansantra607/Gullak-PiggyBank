@@ -34,7 +34,7 @@ ON individual_supervisor_links(kid_user_id, status);
 -- are deleted. New Individual accounts created after this migration have a role
 -- row and survive every later deployment. Family identities and creators are protected.
 DELETE FROM users
-WHERE user_id IN (SELECT user_id FROM user_account_types WHERE account_type = 'individual')
+WHERE COALESCE((SELECT account_type FROM user_account_types t WHERE t.user_id = users.user_id), 'individual') = 'individual'
   AND NOT EXISTS (SELECT 1 FROM individual_account_roles r WHERE r.user_id = users.user_id)
   AND NOT EXISTS (SELECT 1 FROM cloud_family_members fm WHERE fm.user_id = users.user_id)
   AND NOT EXISTS (SELECT 1 FROM cloud_families f WHERE f.created_by = users.user_id);
