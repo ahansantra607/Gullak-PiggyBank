@@ -132,7 +132,11 @@
   }
 
   async function deleteAccountFlow() {
-    if (!(await G.confirm('Permanently delete this Gullak account?', 'This permanently deletes the account, Individual diary, password-wrapped key and memberships. Families you created will be transferred to another supervisor where possible; otherwise an empty family is deleted. This cannot be undone.', 'Continue to delete', 'Cancel'))) return;
+    const supervisorAccount = cloudUser?.role === 'supervisor';
+    const deletionMessage = supervisorAccount
+      ? 'This permanently deletes your Supervisor account, codes and access. Kids keep their own diaries; any Kid who has no other accepted Supervisor will be locked until another Supervisor accepts.'
+      : 'This permanently deletes your Kid account, encrypted diary, password-wrapped encryption key and Supervisor links. This cannot be undone.';
+    if (!(await G.confirm('Permanently delete this Gullak account?', deletionMessage, 'Continue to delete', 'Cancel'))) return;
     const modal = G.modal({ html: '<h2>Confirm account deletion</h2><p class="small muted">Enter your Gullak account password to permanently delete this account.</p><input class="input" id="delete-account-password" type="password" autocomplete="current-password" placeholder="Account password"><button class="btn danger block mt" data-act="confirm-delete-account">Permanently delete account</button>', handlers: {
       'confirm-delete-account': async button => {
         const password = G.$('#delete-account-password', modal.el)?.value || '';
