@@ -111,6 +111,9 @@
     if (mode !== 'family' && name === 'me-pin') return 'welcome';
     if (mode !== 'family' && name === 'grownup') return G.cloudAccount?.user?.account_type === 'individual' ? 'individual-supervision' : 'home';
     if (mode !== 'family' && G.cloudAccount?.user?.account_type === 'individual') {
+      if (G.cloudAccount.user.role === 'kid' && G.cloudAccount.user.status === 'pending') {
+        return name === 'individual-supervision' ? null : 'individual-supervision';
+      }
       if (name === 'welcome') return G.S && G.S.profile ? 'home' : null;
       if (name === 'modes') return G.S && G.S.profile ? 'home' : 'welcome';
       if (!G.S?.profile && !['individual-supervision', 'welcome'].includes(name)) return 'welcome';
