@@ -164,7 +164,7 @@ async function getCurrentUserAccountType(env: Env, userId: string): Promise<"ind
 async function getCurrentUser(
   request: Request,
   env: Env
-): Promise<{ user_id: string; username: string; account_type: "individual" | "family" } | null> {
+): Promise<{ user_id: string; username: string; account_type: "individual" | "family"; role?: "supervisor" | "kid"; status?: "active" | "pending" } | null> {
   const token = getCookie(request, "gullak_session");
   if (!token || token.length > 200) return null;
 
@@ -176,14 +176,16 @@ async function getCurrentUser(
         CASE
           WHEN EXISTS (SELECT 1 FROM cloud_family_members fm WHERE fm.user_id = users.user_id) THEN 'family'
           ELSE COALESCE((SELECT account_type FROM user_account_types uat WHERE uat.user_id = users.user_id), 'individual')
-        END AS account_type
+        END AS account_type,
+        (SELECT role FROM individual_account_roles ir WHERE ir.user_id = users.user_id) AS role,
+        (SELECT status FROM individual_account_roles ir WHERE ir.user_id = users.user_id) AS status
       FROM sessions
       JOIN users ON users.user_id = sessions.user_id
       WHERE sessions.session_id_hash = ?
         AND sessions.expires_at > ?
     `)
     .bind(tokenHash, new Date().toISOString())
-    .first<{ user_id: string; username: string; account_type: "individual" | "family" }>();
+    .first<{ user_id: string; username: string; account_type: "individual" | "family"; role?: "supervisor" | "kid"; status?: "active" | "pending" }>();
 
   return session || null;
 }
@@ -281,7 +283,7 @@ export default {
         const password = body.password || "";
         const role = accountType === "individual" ? body.role : undefined;
         if (!/^[a-z0-9_]{3,24}$/.test(username)) return json({ error: "Username must be 3–24 characters using letters, numbers or underscores." }, 400);
-        if (password.length < 8 || password.length > 128 || !/[a-z]/.test(password) || !/[A-Z]/.test(password) || !/[0-9]/.test(password) || !/[^A-Za-z0-9 ]/.test(password) && !password.includes("_") && !password.includes("!") && !password.includes("@") && !password.includes("#") && !password.includes("$") && !password.includes("%") && !password.includes("^") && !password.includes("&") && !password.includes("*") && !password.includes("-") && !password.includes("+") && !password.includes("=") && !password.includes(".") && !password.includes("?")) return json({ error: "Password must be at least 8 characters and include uppercase, lowercase, a number and a special character." }, 400);
+        if (password.length < 8 || password.length > 128 || !/[a-z]/.test(password) || !/[A-Z]/.test(password) || !/[0-9]/.test(password) || !/[^A-Za-z0-9 ]/.test(password)) return json({ error: "Password must be at least 8 characters and include uppercase, lowercase, a number and a special character." }, 400);
         if (accountType === "individual" && role !== "supervisor" && role !== "kid") return json({ error: "Choose Supervisor or Kid account." }, 400);
 
         const supervisors: string[] = [];
@@ -421,12 +423,14 @@ export default {
           now.toISOString(), expires.toISOString()
         ).run();
 
+        const individual = expectedAccountType === "individual" ? await individualRole(env, user.user_id) : null;
         return new Response(JSON.stringify({
           success: true,
           user: {
             user_id: user.user_id,
             username: user.username,
-            account_type: expectedAccountType
+            account_type: expectedAccountType,
+            ...(individual ? { role: individual.role, status: individual.status } : {})
           }
         }), {
           headers: {
