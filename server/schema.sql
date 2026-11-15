@@ -40,3 +40,14 @@ CREATE TABLE IF NOT EXISTS user_vaults (
     schema_version INTEGER NOT NULL,
     updated_at TEXT NOT NULL
 );
+
+
+CREATE TABLE IF NOT EXISTS user_mobile_pins (
+    user_id TEXT PRIMARY KEY REFERENCES users(user_id) ON DELETE CASCADE,
+    pin_salt TEXT NOT NULL,
+    pin_hash TEXT NOT NULL,
+    failed_attempts INTEGER NOT NULL DEFAULT 0,
+    locked_until TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
