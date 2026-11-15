@@ -56,6 +56,7 @@ public class MainActivity extends Activity {
     private ValueCallback<Uri[]> filePathCallback;
     private byte[] pendingBackupBytes;
     private static final String API_URL = "https://server.ahansantra607.workers.dev";
+    private static final String APP_ORIGIN = "https://gullak-piggybank.ahansantra607.workers.dev";
     private boolean pinCheckDone;
     private boolean pinConfigured;
     private boolean pinScreenVisible;
@@ -376,6 +377,7 @@ public class MainActivity extends Activity {
         connection.setConnectTimeout(8000);
         connection.setReadTimeout(8000);
         connection.setRequestProperty("Accept", "application/json");
+        connection.setRequestProperty("Origin", APP_ORIGIN);
         String cookie = CookieManager.getInstance().getCookie(API_URL);
         if (cookie == null || !cookie.contains("gullak_session=")) throw new IllegalStateException("Your Gullak session has expired. Log in again.");
         connection.setRequestProperty("Cookie", cookie);
@@ -661,6 +663,7 @@ public class MainActivity extends Activity {
 
     @Override
     public void onBackPressed() {
+        if (pinScreenVisible) return;
         if (showingUpdate) {
             openApp();
         } else if (webView != null && webView.canGoBack()) {
