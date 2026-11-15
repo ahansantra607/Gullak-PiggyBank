@@ -7,12 +7,20 @@ WHERE name LIKE 'Smoke Family %'
      SELECT user_id FROM users
      WHERE substr(username, 1, 9) IN ('smokesup_', 'smokekid_', 'vault_test_')
         OR username LIKE 'Smoke-test-account-%'
+        OR username LIKE 'indivtest_%'
+        OR username LIKE 'indivsup2_%'
+        OR username LIKE 'kidtest_%'
+        OR username LIKE 'createdkid_%'
    );
 
 -- Cascades remove each test account's sessions, key wraps, vaults and memberships.
 DELETE FROM users
 WHERE substr(username, 1, 9) IN ('smokesup_', 'smokekid_', 'vault_test_')
-   OR username LIKE 'Smoke-test-account-%';
+   OR username LIKE 'Smoke-test-account-%'
+   OR username LIKE 'indivtest_%'
+   OR username LIKE 'indivsup2_%'
+   OR username LIKE 'kidtest_%'
+   OR username LIKE 'createdkid_%';
 
 -- Return remaining fixture counts; both values must be zero.
 SELECT
@@ -20,4 +28,8 @@ SELECT
    WHERE name LIKE 'Smoke Family %' OR name LIKE 'QA Family %') AS remaining_test_families,
   (SELECT COUNT(*) FROM users
    WHERE substr(username, 1, 9) IN ('smokesup_', 'smokekid_', 'vault_test_')
-      OR username LIKE 'Smoke-test-account-%') AS remaining_test_accounts;
+      OR username LIKE 'Smoke-test-account-%'
+      OR username LIKE 'indivtest_%'
+      OR username LIKE 'indivsup2_%'
+      OR username LIKE 'kidtest_%'
+      OR username LIKE 'createdkid_%') AS remaining_test_accounts;
