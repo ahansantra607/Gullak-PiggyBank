@@ -35,6 +35,8 @@ const familySource = readFileSync('js/family.js', 'utf8');
 const cloudSource = readFileSync('js/cloud.js', 'utf8');
 const serverSource = readFileSync('server/src/index.ts', 'utf8');
 const individualSchemaSource = readFileSync('server/individual-supervision-schema.sql', 'utf8');
+const screensAskSource = readFileSync('js/screens-ask.js', 'utf8');
+
 if (!cloudUiSource.includes("data-act=\"individual-role\"") || !cloudUiSource.includes("registerRole === 'kid'") || !cloudUiSource.includes("G.cloud.registerIndividual")) throw new Error('Individual registration does not offer Supervisor and Kid account types.');
 if (!cloudUiSource.includes("G.screens['individual-supervision']") || !cloudUiSource.includes("individual-decision") || !cloudUiSource.includes("individual-add-supervisor")) throw new Error('Individual Supervisor dashboard or Kid multiple-Supervisor management is missing.');
 if (!cloudUiSource.includes("authMode === 'register' && registerRole === 'kid'") || !cloudUiSource.includes("cloudUser.role === 'supervisor'")) throw new Error('Supervisor account creation still requires a Kid diary or is not independently unlocked.');
@@ -49,6 +51,15 @@ if (!cloudOnlySource.includes("name === 'ask'") || !cloudOnlySource.includes("da
 if (!serverSource.includes('role !== "supervisor" && role !== "kid"') || !serverSource.includes('role.status !== "active"') || !serverSource.includes('supervisionDecision')) throw new Error('Server does not enforce Individual roles and Supervisor acceptance.');
 if (!serverSource.includes('A Supervisor must accept this Kid account before its diary can be opened') || !serverSource.includes('A Supervisor must accept this Kid account before its diary can be edited')) throw new Error('Pending Kid accounts are not blocked from Individual vault access.');
 if (!serverSource.includes('individual.role !== "kid"')) throw new Error('Supervisor accounts can access Kid diary vault endpoints.');
+if (!cloudSource.includes('shareDiaryKey') || !cloudSource.includes('loadSupervisedKid') || !cloudSource.includes('saveSupervisedKid')) throw new Error('Client encrypted Supervisor diary access methods are missing.');
+if (!cloudSource.includes('registerIndividual(username, password, role, supervisorCodes, secret, supervisorKey)')) throw new Error('Supervisor public/private key bundle is not included during account registration.');
+if (!screensAskSource.includes('G.supervisedKidMode') || !screensAskSource.includes('supervisor-return')) throw new Error('Supervisor view does not reuse the existing approvals and chores tools without the old PIN.');
+if (!cloudUiSource.includes("G.screens['supervised-kid']") || !cloudUiSource.includes('open-supervised-kid') || !cloudUiSource.includes('makeSupervisorKeyBundle')) throw new Error('Supervisor dashboard cannot open a securely shared Kid diary.');
+if (!cloudOnlySource.includes('G.supervisedKidMode && G.supervisedKidId') || !cloudOnlySource.includes('saveSupervisedKid')) throw new Error('Supervisor edits are not synced to the Kid encrypted cloud vault.');
+if (!individualSchemaSource.includes('individual_supervisor_keys') || !individualSchemaSource.includes('individual_kid_key_shares')) throw new Error('Supervisor ECDH key-sharing schema is missing.');
+if (!serverSource.includes('/api/individual/supervision/key-shares') || !serverSource.includes('/api/individual/supervision/kids/') || !serverSource.includes('status = \'accepted\'')) throw new Error('Server does not enforce accepted relationships for diary-key sharing.');
+if (!cloudUiSource.includes('shareKeyWithAcceptedSupervisors') || !cloudUiSource.includes('supervisor_public_key')) throw new Error('Kid login does not share the diary key with accepted Supervisors.');
+
 if (!readFileSync('scripts/smoke-live.mjs', 'utf8').includes('Supervisor accounts cannot open Kid diaries')) throw new Error('Live smoke tests do not verify Supervisor/Kid diary isolation.');
 
 if (!serverSource.includes("status = 'pending' WHERE user_id = ? AND role = 'kid' AND NOT EXISTS") || !readFileSync('scripts/smoke-live.mjs', 'utf8').includes('Kid diary relocked after last Supervisor deletion')) throw new Error('Deleting a Kid\'s last Supervisor does not re-lock the Kid account.');
