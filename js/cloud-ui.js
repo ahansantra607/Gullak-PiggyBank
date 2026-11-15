@@ -3,6 +3,10 @@
 (function (G) {
   const esc = G.esc;
   let authMode = 'login';
+  let registerRole = 'supervisor';
+  let lastSupervisorCode = '';
+  let supervisionData = null;
+  let supervisionLoading = false;
   let cloudSecret = '';
   let cloudUser = null;
   let syncChain = Promise.resolve();
@@ -163,11 +167,13 @@
       <header class="page-h"><button class="back" data-act="go" data-to="${G.S.profile ? 'settings' : 'welcome'}" aria-label="Back">←</button><h1>☁️ Gullak Cloud</h1></header>
       <div class="card">
         <h2>${authMode === 'register' ? 'Create your cloud account' : 'Log in to Gullak'}</h2>
-        <p class="small muted">${authMode === 'register' ? 'Choose a separate encryption passphrase once. Gullak securely wraps it with your account password so you will not be asked for it again at login.' : 'Your account password signs you in and unlocks your encrypted diary. Your separate encryption passphrase is not requested again.'}</p>
+        <p class="small muted">${authMode === 'register' ? 'Create a Supervisor account or a Kid account. Kid accounts become active only after a Supervisor accepts.' : 'Your account password signs you in and unlocks your encrypted diary. Your separate encryption passphrase is not requested again.'}</p>
+        ${authMode === 'register' ? `<div class="seg"><button class="seg-b ${registerRole === 'supervisor' ? 'on' : ''}" data-act="individual-role" data-v="supervisor">🛡️ Supervisor</button><button class="seg-b ${registerRole === 'kid' ? 'on' : ''}" data-act="individual-role" data-v="kid">🧒 Kid</button></div><p class="hint">${registerRole === 'supervisor' ? 'Create your own account and receive a code that a Kid can use to request you as their Supervisor.' : 'Enter at least one Supervisor code. Each Supervisor must accept before your account can be used.'}</p>` : ''}
         <label class="label" for="cloud-username">Username</label>
         <input class="input" id="cloud-username" maxlength="24" autocomplete="username" ${authMode === 'register' ? 'placeholder="3–24 letters, numbers or _"' : ''}>
         <label class="label" for="cloud-password">Account password</label>
         <input class="input" id="cloud-password" type="password" maxlength="128" autocomplete="${authMode === 'register' ? 'new-password' : 'current-password'}" ${authMode === 'register' ? 'placeholder="8+ chars: upper, lower, number & symbol"' : ''}>
+        ${authMode === 'register' && registerRole === 'kid' ? '<label class="label" for="individual-supervisor-codes">Supervisor code(s)</label><input class="input" id="individual-supervisor-codes" maxlength="80" placeholder="Enter one or more codes, separated by commas"><p class="hint">Ask each Supervisor for their 10-character code. You can add more Supervisors later in Settings.</p>' : ''}
         ${authMode === 'register' ? '<div id="cloud-password-rules" class="password-rules" hidden aria-live="polite"><div class="password-rules-title">Password strength checklist</div><div data-rule="length"><span>○</span> At least 8 characters</div><div data-rule="upper"><span>○</span> One uppercase letter</div><div data-rule="lower"><span>○</span> One lowercase letter</div><div data-rule="number"><span>○</span> One number</div><div data-rule="special"><span>○</span> One special character</div></div>' : ''}
         ${authMode === 'register' ? '<label class="label" for="cloud-secret">Separate encryption passphrase</label><input class="input" id="cloud-secret" type="password" maxlength="256" autocomplete="new-password" placeholder="Choose a different passphrase"><label class="label" for="cloud-secret-confirm">Confirm encryption passphrase</label><input class="input" id="cloud-secret-confirm" type="password" maxlength="256" autocomplete="new-password" placeholder="Type it again"><p class="hint">Asked only when creating your account. It is encrypted with your account password so login can unlock your diary without asking again.</p>' : ''}
         ${authMode === 'login' && !(window.GullakNative && typeof window.GullakNative.onCloudReady === 'function') ? '<label class="check-row mt"><input id="cloud-stay-logged-in" type="checkbox"> <span>Stay logged in on this device</span></label><p class="hint">Keeps this device signed in while your secure 7-day cloud session is valid. You can still log out from Settings.</p>' : ''}
@@ -178,7 +184,8 @@
       <p class="fine">🔐 Gullak syncs your diary to your cloud account. The server stores encrypted vault data and a password-wrapped encryption key, never the passphrase itself.</p>
     </section>`,
     handlers: () => ({
-      'cloud-mode': () => { authMode = authMode === 'login' ? 'register' : 'login'; G.render(); },
+      'cloud-mode': () => { authMode = authMode === 'login' ? 'register' : 'login'; registerRole = 'supervisor'; G.render(); },
+      'individual-role': el => { registerRole = el.dataset.v === 'kid' ? 'kid' : 'supervisor'; G.render(); },
       'cloud-signout': signOutFlow,
       'cloud-delete-account': deleteAccountFlow,
       'cloud-connect': async (button) => {
@@ -196,13 +203,29 @@
         const stayLoggedIn = (authMode === 'login' && (!!G.$('#cloud-stay-logged-in')?.checked || isAndroidApp)) || (authMode === 'register' && isAndroidApp);
         button.disabled = true; button.textContent = '🔐 Connecting…';
         try {
+          const role = registerRole;
+          const supervisorCodes = role === 'kid'
+            ? (G.$('#individual-supervisor-codes')?.value || '').split(/[ ,;\\n]+/).map(v => v.trim()).filter(Boolean)
+            : [];
+          if (authMode === 'register' && role === 'kid' && !supervisorCodes.length) throw new Error('Enter at least one Supervisor code to create a Kid account.');
           const auth = authMode === 'register'
-            ? await G.cloud.register(username, password)
+            ? await G.cloud.registerIndividual(username, password, role, supervisorCodes, secret)
             : await G.cloud.login(username, password);
+          if (authMode === 'register' && role === 'kid') {
+            authMode = 'login'; registerRole = 'supervisor'; G.render();
+            G.toast('Kid account created. It will become active after at least one Supervisor accepts your request. Then log in with your username and password.', 6500);
+            return;
+          }
           cloudUser = auth.user;
           if (authMode === 'register') {
             cloudSecret = secret;
             await G.cloud.saveKeyWrap(cloudSecret, password);
+            lastSupervisorCode = auth.supervisor_code || '';
+            if (lastSupervisorCode) {
+              try { await G.cloud.rememberDevice(cloudSecret); } catch (_) {}
+              G.go('individual-supervision');
+              return;
+            }
           } else {
             cloudSecret = await G.cloud.loadKeyWrap(password);
             if (!cloudSecret) {
@@ -286,8 +309,8 @@
           } else {
             G.S = G.fresh();
             if (G.mode) G.setMode('individual');
-            G.go(returnAfterLogin || 'me-pin');
-            G.toast('Account ready. First set the grown-up PIN and house rules.');
+            G.go(returnAfterLogin || 'welcome');
+            G.toast('Account ready. Set up your Gullak profile.');
           }
         } catch (error) {
           cloudSecret = ''; cloudUser = null;
