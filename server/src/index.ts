@@ -779,6 +779,9 @@ export default {
           changes.push(env.gullak_db.prepare(
             "UPDATE individual_account_roles SET status = 'pending' WHERE user_id = ? AND role = 'kid' AND NOT EXISTS (SELECT 1 FROM individual_supervisor_links WHERE kid_user_id = ? AND status = 'accepted')"
           ).bind(kid.kid_user_id, kid.kid_user_id));
+          changes.push(env.gullak_db.prepare(
+            "DELETE FROM sessions WHERE user_id = ? AND NOT EXISTS (SELECT 1 FROM individual_supervisor_links WHERE kid_user_id = ? AND status = 'accepted')"
+          ).bind(kid.kid_user_id, kid.kid_user_id));
         }
         await env.gullak_db.batch(changes);
 
