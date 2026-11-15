@@ -45,6 +45,8 @@ if (!cloudOnlySource.includes("name === 'ask'") || !cloudOnlySource.includes("da
 
 if (!serverSource.includes('role !== "supervisor" && role !== "kid"') || !serverSource.includes('role.status !== "active"') || !serverSource.includes('supervisionDecision')) throw new Error('Server does not enforce Individual roles and Supervisor acceptance.');
 if (!serverSource.includes('A Supervisor must accept this Kid account before its diary can be opened') || !serverSource.includes('A Supervisor must accept this Kid account before its diary can be edited')) throw new Error('Pending Kid accounts are not blocked from Individual vault access.');
+if (!serverSource.includes("status = 'pending' WHERE user_id = ? AND role = 'kid' AND NOT EXISTS") || !readFileSync('scripts/smoke-live.mjs', 'utf8').includes('Kid diary relocked after last Supervisor deletion')) throw new Error('Deleting a Kid\'s last Supervisor does not re-lock the Kid account.');
+
 if (!cloudUiSource.includes('accountPending') || !cloudUiSource.includes('individual-refresh') || !cloudUiSource.includes('individual-logout')) throw new Error('Pending Kid accounts cannot check approval or log out.');
 if (!readFileSync('scripts/smoke-live.mjs', 'utf8').includes('Pending Kid can sign in to manage Supervisor requests')) throw new Error('Live smoke tests do not cover the restricted pending Kid state.');
 
