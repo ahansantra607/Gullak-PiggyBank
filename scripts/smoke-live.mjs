@@ -147,6 +147,9 @@ expect(await request("/api/vault", { method: "PUT", cookie: kidLogin.cookie, bod
 const ownVault = expect(await request("/api/vault", { cookie: kidLogin.cookie }), 200, "Encrypted Individual vault read");
 assert(ownVault.data.exists && ownVault.data.vault.ciphertext === privateVault.ciphertext,
   "Encrypted Individual vault read did not return the saved ciphertext.");
+expect(await request("/api/vault", { cookie: individualLogin.cookie }), 403, "Supervisor accounts cannot open Kid diaries");
+const supervisorKeyWrap = expect(await request("/api/key-wrap", { cookie: individualLogin.cookie }), 200, "Supervisor key-wrapper check");
+assert(!supervisorKeyWrap.data.exists, "Supervisor account unexpectedly received a Kid diary key.");
 expect(await request("/api/family/login", { method: "POST", body: { username: individualName, password: "Individual-" + password } }), 403, "Individual credentials rejected by Family login");
 expect(await request("/api/vault", { cookie: supervisor.cookie }), 403, "Family account blocked from Individual vault");
 
