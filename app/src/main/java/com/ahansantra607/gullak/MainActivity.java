@@ -207,9 +207,7 @@ public class MainActivity extends Activity {
         pendingUpdateVersion = version == null ? "" : version;
         pendingUpdateNotes = notes == null ? "" : notes;
         pendingUpdateApkUrl = apkUrl == null ? "" : apkUrl;
-        showHtmlScreen("update.html", "");
-        webView.evaluateJavascript("window.initGullakUpdate && window.initGullakUpdate(" +
-            JSONObject.quote(pendingUpdateVersion) + "," + JSONObject.quote(pendingUpdateNotes) + ")", null);
+        showHtmlScreen("update.html", "update");
     }
 
     private void openApp() {
@@ -303,38 +301,31 @@ public class MainActivity extends Activity {
             try (InputStream input = getAssets().open(assetName);
                  BufferedReader reader = new BufferedReader(new InputStreamReader(input, "UTF-8"))) {
                 String line;
-                while ((line = reader.readLine()) != null) html.append(line).append("\\n");
+                while ((line = reader.readLine()) != null) html.append(line).append("\n");
             }
-            setContentView(webView);
-            webView.loadDataWithBaseURL(APP_ORIGIN + "/", html.toString(), "text/html", "UTF-8", null);
-            if (mode != null && !mode.isEmpty()) {
-                webView.setWebViewClient(new WebViewClient() {
-                    @Override public void onPageFinished(WebView view, String url) {
+            webView.setWebViewClient(new WebViewClient() {
+                @Override public void onPageFinished(WebView view, String url) {
+                    if ("update".equals(mode)) {
+                        view.evaluateJavascript("window.initGullakUpdate && window.initGullakUpdate(" +
+                            JSONObject.quote(pendingUpdateVersion) + "," + JSONObject.quote(pendingUpdateNotes) + ")", null);
+                    } else if (mode != null && !mode.isEmpty()) {
                         view.evaluateJavascript("window.initGullakPin && window.initGullakPin(" + JSONObject.quote(mode) + ")", null);
                     }
-                    @Override public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
-                        Uri uri = request.getUrl();
-                        if ("https".equalsIgnoreCase(uri.getScheme()) && APP_HOST.equalsIgnoreCase(uri.getHost())) return false;
-                        try { startActivity(new Intent(Intent.ACTION_VIEW, uri)); } catch (Exception ignored) { }
-                        return true;
-                    }
-                });
-            } else {
-                webView.setWebViewClient(new WebViewClient() {
-                    @Override public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
-                        Uri uri = request.getUrl();
-                        if ("https".equalsIgnoreCase(uri.getScheme()) && APP_HOST.equalsIgnoreCase(uri.getHost())) return false;
-                        try { startActivity(new Intent(Intent.ACTION_VIEW, uri)); } catch (Exception ignored) { }
-                        return true;
-                    }
-                });
-            }
+                }
+                @Override public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
+                    Uri uri = request.getUrl();
+                    if ("https".equalsIgnoreCase(uri.getScheme()) && APP_HOST.equalsIgnoreCase(uri.getHost())) return false;
+                    try { startActivity(new Intent(Intent.ACTION_VIEW, uri)); } catch (Exception ignored) { }
+                    return true;
+                }
+            });
+            setContentView(webView);
+            webView.loadDataWithBaseURL(APP_ORIGIN + "/", html.toString(), "text/html", "UTF-8", null);
         } catch (Exception error) {
             Toast.makeText(this, "Could not open the secure Gullak screen.", Toast.LENGTH_LONG).show();
             if (!showingUpdate) openAppWebView();
         }
     }
-
 
 
     private JSONObject apiRequest(String method, String path, String pin) throws Exception {
