@@ -112,7 +112,10 @@
       return prior;
     }
     // Individual mode no longer uses the old local grown-up PIN or PIN-protected screen.
-    if (mode !== 'family' && name === 'me-pin') return 'welcome';
+    if (mode !== 'family' && name === 'me-pin') {
+      return G.cloudAccount?.user?.role === 'supervisor' || (G.cloudAccount?.user?.role === 'kid' && G.cloudAccount.user.status === 'pending')
+        ? 'individual-supervision' : 'welcome';
+    }
     if (mode !== 'family' && name === 'grownup') return G.cloudAccount?.user?.account_type === 'individual' ? 'individual-supervision' : 'home';
     if (mode !== 'family' && name === 'ask' && G.cloudAccount?.user?.account_type === 'individual') return 'individual-supervision';
     if (mode !== 'family' && G.cloudAccount?.user?.account_type === 'individual') {
