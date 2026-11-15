@@ -221,6 +221,8 @@
             cloudSecret = secret;
             await G.cloud.saveKeyWrap(cloudSecret, password);
             lastSupervisorCode = auth.supervisor_code || '';
+            authMode = 'login';
+            if (G.setMode) G.setMode('individual');
             if (lastSupervisorCode) {
               if (stayLoggedIn) { try { await G.cloud.rememberDevice(cloudSecret); } catch (_) {} }
               if (window.GullakNative && typeof window.GullakNative.onCloudReady === 'function') window.GullakNative.onCloudReady();
