@@ -76,6 +76,7 @@
 
   /* ---------- the "Can I buy this?" form ---------- */
   G.openAsk = (pre = {}) => {
+    const supervisorFlow = G.cloudAccount?.user?.account_type === 'individual' && (!G.mode || G.mode() !== 'family');
     const st = { e: pre.emoji || '🎮', price: pre.price || 0, nw: null, reasons: new Set(), pct: 50 };
     let upd = () => {};
     const m = G.modal({
@@ -92,7 +93,7 @@
         <input type="range" id="a-pct" min="0" max="100" step="10" value="${st.pct}" class="range" aria-label="How much you will pay">
         <div id="a-impact"></div>
         <div id="a-cool"></div>
-        <button class="btn primary block big" data-act="send" disabled>Ask a Supervisor</button>`,
+        <button class="btn primary block big" data-act="send" disabled>${supervisorFlow ? "Ask a Supervisor" : "Ask a grown-up"}</button>`,
       handlers: {
         emo: (el) => { st.e = el.dataset.v; G.$$('.emo', m.el).forEach(b => b.classList.toggle('on', b === el)); },
         nw: (el) => { st.nw = el.dataset.v; G.$$('.seg-b', m.el).forEach(b => b.classList.toggle('on', b === el)); upd(); },
@@ -129,7 +130,7 @@
         Put it in the <b>Cool-down Jar</b> for ${S().settings.coolHours >= 1 ? G.plural(S().settings.coolHours, 'hour') : G.plural(Math.round(S().settings.coolHours * 60), 'minute')} first?
         <button class="btn soft block mt" data-act="cool">🧊 Cool it first</button></div>` : '';
       const ok = itemEl.value.trim() && st.price > 0 && st.nw;
-      btn.disabled = !ok; btn.textContent = ok ? '🙋 Ask a Supervisor' : !itemEl.value.trim() ? 'What do you want?' : !st.price ? 'How much is it?' : 'Need or want?';
+      btn.disabled = !ok; btn.textContent = ok ? (supervisorFlow ? '🙋 Ask a Supervisor' : '🙋 Ask a grown-up') : !itemEl.value.trim() ? 'What do you want?' : !st.price ? 'How much is it?' : 'Need or want?';
     };
     itemEl.addEventListener('input', upd);
     pctEl.addEventListener('input', () => { st.pct = +pctEl.value; upd(); });
@@ -156,7 +157,7 @@
       const individualCloud = G.cloudAccount?.user?.account_type === 'individual' && (!G.mode || G.mode() !== 'family');
       return `<header class="page-h"><button class="back" data-act="go" data-to="home">←</button><h1>🙋 Can I buy this?</h1></header>
         <section class="card center ask-hero">
-          <p>Want something? Send a request to your Supervisors. They can review it from their Gullak account.</p>
+          <p>${individualCloud ? "Want something? Send a request to your Supervisors. They can review it from their Gullak account." : "Want something? Ask a grown-up. Gullak shows them how it changes your money and your dream."}</p>
           <button class="btn primary big block" data-act="new">➕ New ask</button>
           ${individualCloud ? '' : `<div class="row gap mt"><input class="input grow" id="code" maxlength="20" placeholder="Got a reply code? e.g. YES-R7K2Q-4F9A" aria-label="Reply code" autocomplete="off">
           <button class="btn soft" data-act="code">Use</button></div>`}
