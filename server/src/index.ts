@@ -227,7 +227,8 @@ export default {
         const requiredTables = [
           "users", "sessions", "user_vaults", "user_account_types",
           "cloud_families", "cloud_family_members",
-          "cloud_family_vaults", "cloud_family_member_vaults", "user_key_wraps"
+          "cloud_family_vaults", "cloud_family_member_vaults", "user_key_wraps",
+          "individual_account_roles", "individual_supervisor_codes", "individual_supervisor_links"
         ];
         const tableChecks = await Promise.all(requiredTables.map(name =>
           env.gullak_db.prepare(
@@ -247,9 +248,10 @@ export default {
         }));
         const missingColumns = columnChecks.flat();
         const tablesReady = tableChecks.every(Boolean);
-        const familySchemaReady = tableChecks.slice(4).every(Boolean);
+        const familySchemaReady = tableChecks.slice(4, 8).every(Boolean);
+        const individualSchemaReady = tableChecks.slice(9).every(Boolean);
         const authSchemaReady = !!tableChecks[0] && !!tableChecks[1] && missingColumns.length === 0;
-        const allReady = tablesReady && missingColumns.length === 0;
+        const allReady = tablesReady && missingColumns.length === 0 && familySchemaReady && individualSchemaReady;
 
         return json({
           status: allReady ? "healthy" : "error",
@@ -257,6 +259,7 @@ export default {
           authSchema: authSchemaReady ? "ready" : "migration_required",
           vaultTable: tableChecks[2] && !missingColumns.some(name => name.startsWith("user_vaults.")) ? "ready" : "migration_required",
           familySchema: familySchemaReady ? "ready" : "migration_required",
+          individualSchema: individualSchemaReady ? "ready" : "migration_required",
           schemaIssues: missingColumns
         }, allReady ? 200 : 500);
       } catch {
