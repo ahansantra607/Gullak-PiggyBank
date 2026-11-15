@@ -255,6 +255,8 @@ public class MainActivity extends Activity {
     private void ensureWebView() {
         if (webView != null) return;
         webView = new WebView(this);
+        CookieManager.getInstance().setAcceptCookie(true);
+        CookieManager.getInstance().setAcceptThirdPartyCookies(webView, true);
         webView.setBackgroundColor(Color.WHITE);
         webView.getSettings().setJavaScriptEnabled(true);
         webView.getSettings().setDomStorageEnabled(true);
@@ -339,6 +341,7 @@ public class MainActivity extends Activity {
         connection.setReadTimeout(8000);
         connection.setRequestProperty("Accept", "application/json");
         connection.setRequestProperty("Origin", APP_ORIGIN);
+        connection.setRequestProperty("X-Gullak-Android", "1");
         String cookie = CookieManager.getInstance().getCookie(API_URL);
         if (cookie == null || !cookie.contains("gullak_session=")) throw new IllegalStateException("Your Gullak session has expired. Log in again.");
         connection.setRequestProperty("Cookie", cookie);
@@ -422,7 +425,10 @@ public class MainActivity extends Activity {
 
     private final class GullakNativeBridge {
         @JavascriptInterface
-        public void onCloudReady() { checkPinAfterCloudLogin(); }
+        public void onCloudReady() {
+            CookieManager.getInstance().flush();
+            checkPinAfterCloudLogin();
+        }
 
         @JavascriptInterface
         public void onCloudLogout() {
