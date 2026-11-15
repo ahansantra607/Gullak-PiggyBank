@@ -22,6 +22,7 @@
         ? await G.cloud.registerFamilyAccount(username, password)
         : await G.cloud.loginFamilyAccount(username, password);
       cloudUser = auth.user;
+      if (window.GullakNative && typeof window.GullakNative.onCloudReady === 'function') window.GullakNative.onCloudReady();
       if (create) {
         cloudSecret = G.cr.b64(G.cr.rand(32));
         await G.cloud.saveKeyWrap(cloudSecret, password);
@@ -181,7 +182,8 @@
         if (authMode === 'register' && secret.length < 10) return G.toast('Encryption passphrase must be at least 10 characters.');
         if (authMode === 'register' && secret !== G.$('#cloud-secret-confirm').value) return G.toast('The encryption passphrases do not match.');
         if (!G.cr || !G.cr.available) return G.toast('Secure browser encryption is unavailable. Open Gullak over HTTPS.');
-        const stayLoggedIn = authMode === 'login' && !!G.$('#cloud-stay-logged-in')?.checked;
+        const isAndroidApp = !!(window.GullakNative && typeof window.GullakNative.onCloudReady === 'function');
+        const stayLoggedIn = authMode === 'login' && (!!G.$('#cloud-stay-logged-in')?.checked || isAndroidApp);
         button.disabled = true; button.textContent = '🔐 Connecting…';
         try {
           const auth = authMode === 'register'
