@@ -258,9 +258,14 @@ assert(transferred.data.members.some(item => item.username === memberName && ite
   "Family ownership/supervisor role was not transferred to the remaining member.");
 // Clean up every account and the family created by this live test.
 expect(await request("/api/account", { method: "DELETE", cookie: createdKidLogin.cookie, body: { password: createdKidPassword } }), 200, "Delete test-created kid account");
-expect(await request("/api/account", { method: "DELETE", cookie: kidLogin.cookie, body: { password: kidPassword } }), 200, "Delete test Kid account and Supervisor links");
 expect(await request("/api/account", { method: "DELETE", cookie: secondSupervisorLogin.cookie, body: { password: secondSupervisorPassword } }), 200, "Delete second test Supervisor account");
-expect(await request("/api/account", { method: "DELETE", cookie: individualLogin.cookie, body: { password: "Individual-" + password } }), 200, "Delete test Individual Supervisor account");
+const kidAfterOneSupervisor = expect(await request("/api/me", { cookie: kidLogin.cookie }), 200, "Kid remains active with one accepted Supervisor");
+assert(kidAfterOneSupervisor.data.user.status === "active", "Kid was locked while another accepted Supervisor remained.");
+expect(await request("/api/account", { method: "DELETE", cookie: individualLogin.cookie, body: { password: "Individual-" + password } }), 200, "Delete last test Individual Supervisor account");
+const kidAfterLastSupervisor = expect(await request("/api/me", { cookie: kidLogin.cookie }), 200, "Kid returns to pending after last Supervisor deletion");
+assert(kidAfterLastSupervisor.data.user.status === "pending", "Kid stayed active after losing every accepted Supervisor.");
+expect(await request("/api/vault", { cookie: kidLogin.cookie }), 403, "Kid diary relocked after last Supervisor deletion");
+expect(await request("/api/account", { method: "DELETE", cookie: kidLogin.cookie, body: { password: kidPassword } }), 200, "Delete test Kid account and Supervisor links");
 expect(await request("/api/account", { method: "DELETE", cookie: member.cookie, body: { password: "Member-" + password } }), 200, "Delete test member and empty test family");
 expect(await request("/api/me", { cookie: member.cookie }), 401, "Deleted test member session denial");
 
