@@ -14,8 +14,6 @@ on:
         description: "What is new in this update (leave blank to use Bug fixes)"
         required: false
         type: string
-  release:
-    types: [published]
 
 permissions:
   contents: write
@@ -48,14 +46,18 @@ jobs:
         id: notes
         env:
           RELEASE_NOTES: ${{ github.event.inputs.release_notes }}
+          EVENT_NAME: ${{ github.event_name }}
         run: |
           notes="${RELEASE_NOTES:-}"
+          if [ "$EVENT_NAME" = "push" ] && [ -f .github/release-v1.1.0 ]; then
+            notes="$(cat .github/release-v1.1.0)"
+          fi
           if [ -z "$(printf '%s' "$notes" | tr -d '[:space:]')" ]; then
             notes="Bug fixes"
           fi
           {
             echo 'body<<GULLAK_RELEASE_NOTES'
-            printf '%s\\n' "$notes"
+            printf '%s\n' "$notes"
             echo 'GULLAK_RELEASE_NOTES'
           } >> "$GITHUB_OUTPUT"
       - name: Set up Java
