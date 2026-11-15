@@ -49,8 +49,8 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
         run: |
           notes="${RELEASE_NOTES:-}"
-          if [ "$EVENT_NAME" = "push" ] && [ -f .github/release-v1.1.0 ]; then
-            notes="$(cat .github/release-v1.1.0)"
+          if [ "$EVENT_NAME" = "push" ] && [ -f .github/release-v1.1.1 ]; then
+            notes="$(cat .github/release-v1.1.1)"
           fi
           if [ -z "$(printf '%s' "$notes" | tr -d '[:space:]')" ]; then
             notes="Bug fixes"
