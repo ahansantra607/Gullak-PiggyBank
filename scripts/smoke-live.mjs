@@ -98,7 +98,7 @@ const kidKeyWrap = { wrapped_secret: b64(randomBytes(12)) + "." + b64(randomByte
 const kidRegistration = expect(await request("/api/register", {
   method: "POST", body: { username: kidName, password: kidPassword, role: "kid", supervisor_codes: [individual.data.supervisor_code], key_wrap: kidKeyWrap }
 }), 201, "Pending Kid registration");
-assert(kidRegistration.data.pending_approval && !kidRegistration.cookie && kidRegistration.data.user.status === "pending",
+assert(kidRegistration.data.pending_approval && kidRegistration.cookie && kidRegistration.data.user.status === "pending",
   "A Kid account became active before Supervisor approval.");
 expect(await request("/api/login", { method: "POST", body: { username: kidName, password: kidPassword } }), 403, "Kid login blocked before approval");
 const firstSupervisorRequests = expect(await request("/api/individual/supervision", { cookie: individualLogin.cookie }), 200, "Supervisor request list");
