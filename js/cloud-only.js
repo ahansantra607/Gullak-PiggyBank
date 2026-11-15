@@ -11,6 +11,8 @@
   const safeCopy = value => JSON.parse(JSON.stringify(value));
   const familyKey = key => /^gullak:(families|famdata:|lastfam|mode|famsession)/.test(String(key));
   const cloudOnlyKey = key => familyKey(key) || String(key) === 'gullak:v1';
+  // Retire legacy Individual browser data as part of the new account system.
+  try { ls.removeItem('gullak:v1'); } catch (_) {}
 
   // Family indexes, family ciphertext and mode selection are memory-only.
   const ls = window.localStorage;
@@ -43,6 +45,16 @@
   };
 
 
+  // The old Individual Grown-up mode button is no longer part of the Supervisor/Kid model.
+  if (G.screens.home) {
+    const individualHomeRender = G.screens.home.render;
+    G.screens.home.render = q => {
+      const html = individualHomeRender(q);
+      if (mode === 'family') return html;
+      return html.replace('<button class="icon-btn" data-act="go" data-to="grownup" aria-label="Grown-up mode">🔒</button>', '');
+    };
+  }
+
   // A diary cannot be started or edited until its cloud account is unlocked.
   const modesHandlers0 = G.screens.modes && G.screens.modes.handlers;
   const modesRender0 = G.screens.modes && G.screens.modes.render;
@@ -62,7 +74,7 @@
         mode = 'individual';
         if (!G.cloudAccount.unlocked) { G.go('cloud-account'); return; }
         if (G.S && G.S.profile) { G.go('home'); return; }
-        G.setMode('individual'); G.go('me-pin');
+        G.setMode('individual'); G.go('welcome');
       },
       'mode-fam': () => {
         mode = 'family'; G.setMode('family');
@@ -76,7 +88,7 @@
   G.go = (name, q) => {
     if (name === 'modes' && G.cloudAccount && G.cloudAccount.unlocked) {
       if (mode === 'family') return goCloudOnly0(G.FAM ? (G.isSupervisor && G.isSupervisor() ? 'sup' : 'home') : 'fam-pick', q);
-      return goCloudOnly0(G.S && G.S.profile ? 'home' : 'me-pin', q);
+      return goCloudOnly0(G.S && G.S.profile ? 'home' : 'welcome', q);
     }
     return goCloudOnly0(name, q);
   };
@@ -94,6 +106,13 @@
     if (!G.cloudAccount.unlocked && !G.backupTemporary) {
       if (!['welcome', 'modes', 'cloud-account', 'family-account', 'cloud-families', 'cloud-family-join', 'fam-pick', 'fam-users'].includes(name) && !(mode === 'family' && name === 'fam-create')) return 'cloud-account';
       return prior;
+    }
+    // New Individual accounts use Supervisor/Kid roles; the old PIN and grown-up screens are retired.
+    if (mode !== 'family' && G.cloudAccount?.user?.account_type === 'individual') {
+      if (name === 'me-pin' || name === 'grownup') return 'individual-supervision';
+      if (name === 'welcome') return G.S && G.S.profile ? 'home' : null;
+      if (name === 'modes') return G.S && G.S.profile ? 'home' : 'welcome';
+      if (!G.S?.profile && !['individual-supervision', 'welcome'].includes(name)) return 'welcome';
     }
     // Once signed in, the welcome/mode chooser is never a destination.
     // Preserve Family's own role-aware redirect (supervisor -> sup, member -> home).
