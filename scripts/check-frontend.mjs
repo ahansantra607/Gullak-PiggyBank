@@ -37,6 +37,9 @@ const serverSource = readFileSync('server/src/index.ts', 'utf8');
 const individualSchemaSource = readFileSync('server/individual-supervision-schema.sql', 'utf8');
 if (!cloudUiSource.includes("data-act=\"individual-role\"") || !cloudUiSource.includes("registerRole === 'kid'") || !cloudUiSource.includes("G.cloud.registerIndividual")) throw new Error('Individual registration does not offer Supervisor and Kid account types.');
 if (!cloudUiSource.includes("G.screens['individual-supervision']") || !cloudUiSource.includes("individual-decision") || !cloudUiSource.includes("individual-add-supervisor")) throw new Error('Individual Supervisor dashboard or Kid multiple-Supervisor management is missing.');
+if (!cloudUiSource.includes("authMode === 'register' && registerRole === 'kid'") || !cloudUiSource.includes("cloudUser.role === 'supervisor'")) throw new Error('Supervisor account creation still requires a Kid diary or is not independently unlocked.');
+if (!cloudOnlySource.includes("G.cloudAccount.user.role === 'supervisor'")) throw new Error('Supervisor accounts are not routed to their dedicated dashboard.');
+
 if (!cloudSource.includes("registerIndividual") || !cloudSource.includes("salt: C.b64(salt)") || !cloudSource.includes("supervisor_codes")) throw new Error('Kid registration does not securely wrap the diary key or send Supervisor codes.');
 
 if (!cloudUiSource.includes("G.cloud.createSupervisorCode") || !cloudUiSource.includes("G.cloud.decideSupervisorRequest")) throw new Error('Supervisor code generation or approval actions are not wired to the cloud API.');
@@ -45,6 +48,9 @@ if (!cloudOnlySource.includes("name === 'ask'") || !cloudOnlySource.includes("da
 
 if (!serverSource.includes('role !== "supervisor" && role !== "kid"') || !serverSource.includes('role.status !== "active"') || !serverSource.includes('supervisionDecision')) throw new Error('Server does not enforce Individual roles and Supervisor acceptance.');
 if (!serverSource.includes('A Supervisor must accept this Kid account before its diary can be opened') || !serverSource.includes('A Supervisor must accept this Kid account before its diary can be edited')) throw new Error('Pending Kid accounts are not blocked from Individual vault access.');
+if (!serverSource.includes('individual.role !== "kid"')) throw new Error('Supervisor accounts can access Kid diary vault endpoints.');
+if (!readFileSync('scripts/smoke-live.mjs', 'utf8').includes('Supervisor accounts cannot open Kid diaries')) throw new Error('Live smoke tests do not verify Supervisor/Kid diary isolation.');
+
 if (!serverSource.includes("status = 'pending' WHERE user_id = ? AND role = 'kid' AND NOT EXISTS") || !readFileSync('scripts/smoke-live.mjs', 'utf8').includes('Kid diary relocked after last Supervisor deletion')) throw new Error('Deleting a Kid\'s last Supervisor does not re-lock the Kid account.');
 
 if (!cloudUiSource.includes('accountPending') || !cloudUiSource.includes('individual-refresh') || !cloudUiSource.includes('individual-logout')) throw new Error('Pending Kid accounts cannot check approval or log out.');
