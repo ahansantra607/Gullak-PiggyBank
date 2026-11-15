@@ -10,6 +10,8 @@ import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.view.Gravity;
 import android.view.View;
 import android.webkit.SafeBrowsingResponse;
@@ -63,6 +65,11 @@ public class MainActivity extends Activity {
     private boolean needsUnlock;
     private EditText pinInput;
     private String pendingSetupPin = "";
+    private static final long INACTIVITY_LOCK_MS = 7 * 60 * 1000L;
+    private final Handler inactivityHandler = new Handler(Looper.getMainLooper());
+    private final Runnable inactivityLock = () -> {
+        if (pinConfigured && webView != null && !showingUpdate && !pinScreenVisible) showPhonePinScreen(false);
+    };
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -197,69 +204,117 @@ public class MainActivity extends Activity {
 
     private void showUpdate(String version, String notes, String apkUrl) {
         showingUpdate = true;
+        String updateNotes = notes == null || notes.trim().isEmpty() ? "Bug fixes" : notes.trim();
+
+        ScrollView scroll = new ScrollView(this);
+        scroll.setFillViewport(true);
+        scroll.setBackgroundColor(Color.rgb(255, 247, 251));
+
         LinearLayout page = new LinearLayout(this);
         page.setOrientation(LinearLayout.VERTICAL);
         page.setGravity(Gravity.CENTER_HORIZONTAL);
-        page.setPadding(dp(26), dp(34), dp(26), dp(24));
-        page.setBackgroundColor(Color.rgb(248, 249, 244));
+        page.setPadding(dp(22), dp(30), dp(22), dp(24));
 
-        TextView icon = new TextView(this);
-        icon.setText("🐷");
-        icon.setTextSize(58);
-        icon.setGravity(Gravity.CENTER);
-        page.addView(icon, matchWrap());
+        LinearLayout brandRow = new LinearLayout(this);
+        brandRow.setOrientation(LinearLayout.HORIZONTAL);
+        brandRow.setGravity(Gravity.CENTER_VERTICAL);
+        ImageView pig = new ImageView(this);
+        pig.setImageResource(R.drawable.gullak_piggy);
+        pig.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        brandRow.addView(pig, new LinearLayout.LayoutParams(dp(54), dp(48)));
+        TextView brand = new TextView(this);
+        brand.setText("GULLAK");
+        brand.setTextColor(Color.rgb(163, 36, 91));
+        brand.setTextSize(19);
+        brand.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        brand.setLetterSpacing(0.12f);
+        LinearLayout.LayoutParams brandParams = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        brandParams.leftMargin = dp(10);
+        brandRow.addView(brand, brandParams);
+        page.addView(brandRow);
+
+        LinearLayout hero = new LinearLayout(this);
+        hero.setOrientation(LinearLayout.VERTICAL);
+        hero.setGravity(Gravity.CENTER_HORIZONTAL);
+        hero.setPadding(dp(22), dp(26), dp(22), dp(24));
+        hero.setBackground(tintedBackground(Color.WHITE));
+        LinearLayout.LayoutParams heroParams = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        heroParams.topMargin = dp(24);
+        page.addView(hero, heroParams);
+
+        TextView eyebrow = new TextView(this);
+        eyebrow.setText("A NEW GULLAK IS HERE");
+        eyebrow.setTextColor(Color.rgb(163, 36, 91));
+        eyebrow.setTextSize(11);
+        eyebrow.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        eyebrow.setLetterSpacing(0.12f);
+        eyebrow.setGravity(Gravity.CENTER);
+        hero.addView(eyebrow, matchWrap());
 
         TextView title = new TextView(this);
-        title.setText("Gullak update available");
-        title.setTextColor(Color.rgb(31, 55, 40));
-        title.setTextSize(25);
+        title.setText("A little upgrade,\na better Gullak.");
+        title.setTextColor(Color.rgb(73, 45, 65));
+        title.setTextSize(28);
         title.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         title.setGravity(Gravity.CENTER);
+        title.setLineSpacing(dp(2), 1f);
         LinearLayout.LayoutParams titleParams = matchWrap();
-        titleParams.topMargin = dp(18);
-        page.addView(title, titleParams);
+        titleParams.topMargin = dp(12);
+        hero.addView(title, titleParams);
 
-        TextView versionText = new TextView(this);
-        versionText.setText("Version " + version + " is ready");
-        versionText.setTextColor(Color.rgb(38, 115, 77));
-        versionText.setTextSize(17);
-        versionText.setGravity(Gravity.CENTER);
-        LinearLayout.LayoutParams versionParams = matchWrap();
-        versionParams.topMargin = dp(8);
-        page.addView(versionText, versionParams);
+        TextView versionPill = new TextView(this);
+        versionPill.setText("VERSION  " + version);
+        versionPill.setTextColor(Color.rgb(163, 36, 91));
+        versionPill.setTextSize(12);
+        versionPill.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        versionPill.setGravity(Gravity.CENTER);
+        versionPill.setPadding(dp(15), dp(9), dp(15), dp(9));
+        versionPill.setBackground(tintedBackground(Color.rgb(255, 235, 244)));
+        LinearLayout.LayoutParams pillParams = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        pillParams.topMargin = dp(18);
+        hero.addView(versionPill, pillParams);
 
-        TextView description = new TextView(this);
-        description.setText("A newer version of Gullak is available. Update to get the latest improvements.");
-        description.setTextColor(Color.rgb(76, 82, 76));
-        description.setTextSize(15);
-        description.setGravity(Gravity.CENTER);
-        LinearLayout.LayoutParams descParams = matchWrap();
-        descParams.topMargin = dp(20);
-        page.addView(description, descParams);
+        LinearLayout notesCard = new LinearLayout(this);
+        notesCard.setOrientation(LinearLayout.VERTICAL);
+        notesCard.setPadding(dp(20), dp(19), dp(20), dp(20));
+        notesCard.setBackground(tintedBackground(Color.rgb(255, 255, 255)));
+        LinearLayout.LayoutParams notesCardParams = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        notesCardParams.topMargin = dp(16);
+        page.addView(notesCard, notesCardParams);
 
-        if (!notes.isEmpty()) {
-            TextView notesTitle = new TextView(this);
-            notesTitle.setText("What's new");
-            notesTitle.setTextColor(Color.rgb(31, 55, 40));
-            notesTitle.setTextSize(17);
-            notesTitle.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-            LinearLayout.LayoutParams nt = matchWrap();
-            nt.topMargin = dp(26);
-            page.addView(notesTitle, nt);
+        TextView notesTitle = new TextView(this);
+        notesTitle.setText("WHAT'S NEW");
+        notesTitle.setTextColor(Color.rgb(163, 36, 91));
+        notesTitle.setTextSize(12);
+        notesTitle.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        notesTitle.setLetterSpacing(0.1f);
+        notesCard.addView(notesTitle, matchWrap());
 
-            TextView notesText = new TextView(this);
-            notesText.setText(notes.length() > 5000 ? notes.substring(0, 5000) : notes);
-            notesText.setTextColor(Color.rgb(76, 82, 76));
-            notesText.setTextSize(14);
-            LinearLayout.LayoutParams np = matchWrap();
-            np.topMargin = dp(8);
-            page.addView(notesText, np);
-        }
+        TextView notesText = new TextView(this);
+        notesText.setText(updateNotes.length() > 5000 ? updateNotes.substring(0, 5000) : updateNotes);
+        notesText.setTextColor(Color.rgb(91, 75, 88));
+        notesText.setTextSize(15);
+        notesText.setLineSpacing(dp(5), 1f);
+        LinearLayout.LayoutParams notesTextParams = matchWrap();
+        notesTextParams.topMargin = dp(12);
+        notesCard.addView(notesText, notesTextParams);
 
-        View spacer = new View(this);
-        page.addView(spacer, new LinearLayout.LayoutParams(1, 0, 1));
+        TextView footer = new TextView(this);
+        footer.setText("Keep Gullak up to date to enjoy the latest improvements.");
+        footer.setTextColor(Color.rgb(130, 107, 126));
+        footer.setTextSize(13);
+        footer.setGravity(Gravity.CENTER);
+        footer.setLineSpacing(dp(3), 1f);
+        LinearLayout.LayoutParams footerParams = matchWrap();
+        footerParams.topMargin = dp(20);
+        page.addView(footer, footerParams);
 
-        Button update = makeButton("Update now");
+        Button update = makeButton("Update Gullak");
+        update.setTextColor(Color.WHITE);
+        update.setBackground(tintedBackground(Color.rgb(163, 36, 91)));
+        LinearLayout.LayoutParams updateParams = matchWidth();
+        updateParams.topMargin = dp(24);
+        page.addView(update, updateParams);
         update.setOnClickListener(v -> {
             try {
                 startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(apkUrl)));
@@ -267,17 +322,15 @@ public class MainActivity extends Activity {
                 openApp();
             }
         });
-        page.addView(update, matchWidth());
 
-        Button later = makeButton("Not now");
-        later.setBackground(tintedBackground(Color.rgb(232, 237, 229)));
-        later.setTextColor(Color.rgb(42, 69, 49));
-        later.setOnClickListener(v -> openApp());
+        Button later = makeButton("Maybe later");
+        later.setTextColor(Color.rgb(117, 77, 101));
+        later.setBackground(tintedBackground(Color.rgb(255, 232, 242)));
         LinearLayout.LayoutParams laterParams = matchWidth();
         laterParams.topMargin = dp(10);
         page.addView(later, laterParams);
+        later.setOnClickListener(v -> openApp());
 
-        ScrollView scroll = new ScrollView(this);
         scroll.addView(page);
         setContentView(scroll);
     }
@@ -311,6 +364,7 @@ public class MainActivity extends Activity {
     private void openAppWebView() {
         pinScreenVisible = false;
         needsUnlock = false;
+        resetInactivityLock();
         if (filePathCallback != null) {
             filePathCallback.onReceiveValue(null);
             filePathCallback = null;
@@ -402,6 +456,7 @@ public class MainActivity extends Activity {
     }
 
     private void showPhonePinScreen(boolean setup) {
+        inactivityHandler.removeCallbacks(inactivityLock);
         pinScreenVisible = true;
         LinearLayout page = new LinearLayout(this);
         page.setOrientation(LinearLayout.VERTICAL);
@@ -536,6 +591,7 @@ public class MainActivity extends Activity {
                 manager.flush();
                 pinConfigured = false;
                 pinCheckDone = true;
+                inactivityHandler.removeCallbacks(inactivityLock);
                 pendingSetupPin = "";
                 if (webView != null) {
                     webView.evaluateJavascript("if(window.G&&G.cloudAccount){G.cloudAccount.logout().catch(()=>{});}", null);
@@ -546,6 +602,19 @@ public class MainActivity extends Activity {
                 }
             });
         });
+    }
+
+    private void resetInactivityLock() {
+        inactivityHandler.removeCallbacks(inactivityLock);
+        if (pinConfigured && webView != null && !pinScreenVisible && !showingUpdate) {
+            inactivityHandler.postDelayed(inactivityLock, INACTIVITY_LOCK_MS);
+        }
+    }
+
+    @Override
+    public boolean dispatchTouchEvent(android.view.MotionEvent event) {
+        if (event.getAction() == android.view.MotionEvent.ACTION_DOWN && pinConfigured && !pinScreenVisible && !showingUpdate) resetInactivityLock();
+        return super.dispatchTouchEvent(event);
     }
 
     private void checkPinAfterCloudLogin() {
@@ -684,6 +753,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onStop() {
         super.onStop();
+        inactivityHandler.removeCallbacks(inactivityLock);
         if (pinConfigured && webView != null && !showingUpdate && !pinScreenVisible) needsUnlock = true;
     }
 
@@ -695,6 +765,7 @@ public class MainActivity extends Activity {
 
     @Override
     protected void onDestroy() {
+        inactivityHandler.removeCallbacks(inactivityLock);
         executor.shutdownNow();
         if (filePathCallback != null) {
             filePathCallback.onReceiveValue(null);
