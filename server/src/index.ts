@@ -272,85 +272,86 @@ export default {
       return json({ error: "Invalid request origin" }, 403);
     }
 
-    // REGISTER: Individual and Family identities use distinct endpoint types.
+    // Family registration is unchanged. Individual accounts choose Supervisor or Kid.
     if ((path === "/api/register" || path === "/api/family/register") && request.method === "POST") {
       const accountType = path === "/api/family/register" ? "family" : "individual";
       try {
-        const body = await request.json() as {
-          username?: string;
-          password?: string;
-        };
-
+        const body = await request.json() as { username?: string; password?: string; role?: string; supervisor_codes?: string[]; key_wrap?: { wrapped_secret?: string; salt?: string; iterations?: number } };
         const username = body.username?.trim().toLowerCase() || "";
         const password = body.password || "";
+        const role = accountType === "individual" ? body.role : undefined;
+        if (!/^[a-z0-9_]{3,24}$/.test(username)) return json({ error: "Username must be 3–24 characters using letters, numbers or underscores." }, 400);
+        if (password.length < 8 || password.length > 128 || !/[a-z]/.test(password) || !/[A-Z]/.test(password) || !/[0-9]/.test(password) || !/[^A-Za-z0-9 ]/.test(password) && !password.includes("_") && !password.includes("!") && !password.includes("@") && !password.includes("#") && !password.includes("$") && !password.includes("%") && !password.includes("^") && !password.includes("&") && !password.includes("*") && !password.includes("-") && !password.includes("+") && !password.includes("=") && !password.includes(".") && !password.includes("?")) return json({ error: "Password must be at least 8 characters and include uppercase, lowercase, a number and a special character." }, 400);
+        if (accountType === "individual" && role !== "supervisor" && role !== "kid") return json({ error: "Choose Supervisor or Kid account." }, 400);
 
-        if (!/^[a-z0-9_]{3,24}$/.test(username)) {
-          return json({
-            error: "Username must be 3–24 characters using letters, numbers or underscores."
-          }, 400);
+        const supervisors: string[] = [];
+        if (role === "kid") {
+          const codes = Array.isArray(body.supervisor_codes) ? [...new Set(body.supervisor_codes.map(v => String(v || "").toUpperCase().replace(/[^A-Z0-9]/g, "")).filter(Boolean))] : [];
+          if (!codes.length || codes.length > 5) return json({ error: "Enter at least one Supervisor code (up to five)." }, 400);
+          for (const code of codes) {
+            if (code.length !== 10) return json({ error: "One of the Supervisor codes is not valid." }, 400);
+            const hash = await supervisorCodeHash(code);
+            const row = await env.gullak_db.prepare("SELECT c.supervisor_user_id FROM individual_supervisor_codes c JOIN individual_account_roles r ON r.user_id = c.supervisor_user_id WHERE c.code_hash = ? AND c.revoked_at IS NULL AND r.role = 'supervisor' AND r.status = 'active'")
+              .bind(hash).first<{ supervisor_user_id: string }>();
+            if (!row) return json({ error: "A Supervisor code is invalid or no longer active." }, 400);
+            supervisors.push(row.supervisor_user_id);
+          }
         }
 
-        if (password.length < 8 || password.length > 128 || !/[a-z]/.test(password) || !/[A-Z]/.test(password) || !/[0-9]/.test(password) || !/[^A-Za-z0-9\s]/.test(password)) {
-          return json({ error: "Password must be at least 8 characters and include uppercase, lowercase, a number and a special character." }, 400);
+        let keyWrap: { wrapped_secret: string; salt: string; iterations: number } | null = null;
+        if (role === "kid") {
+          const candidate = body.key_wrap || {};
+          const parts = String(candidate.wrapped_secret || "").split(".");
+          const wrapSalt = String(candidate.salt || "");
+          const iterations = Number(candidate.iterations);
+          if (parts.length !== 2 || !validBase64(parts[0]) || !validBase64(parts[1]) || !validBase64(wrapSalt) || fromBase64(parts[0]).length !== 12 || fromBase64(wrapSalt).length !== 16 || fromBase64(parts[1]).length < 16 || !Number.isInteger(iterations) || iterations < 100000 || iterations > 500000) return json({ error: "Could not securely prepare the Kid account's encryption key." }, 400);
+          keyWrap = { wrapped_secret: candidate.wrapped_secret!, salt: wrapSalt, iterations };
         }
 
         const salt = randomBytes(16);
-        const passwordHash = await derivePasswordHash(
-          password, salt, ITERATIONS
-        );
-
+        const passwordHash = await derivePasswordHash(password, salt, ITERATIONS);
         const userId = crypto.randomUUID();
-        const now = new Date();
-        const expires = new Date(
-          now.getTime() + SESSION_DAYS * 86400000
-        );
-
-        const token = toBase64(randomBytes(32));
-        const tokenHash = await sha256(token);
-
-        // D1 batch makes account + first session creation atomic.
-        await env.gullak_db.batch([
-          env.gullak_db.prepare(`
-            INSERT INTO users (
-              user_id, username, password_salt,
-              password_hash, password_iterations, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?)
-          `).bind(
-            userId, username, toBase64(salt),
-            passwordHash, ITERATIONS, now.toISOString()
-          ),
+        const now = new Date().toISOString();
+        const token = accountType === "family" || role === "supervisor" ? toBase64(randomBytes(32)) : "";
+        const tokenHash = token ? await sha256(token) : "";
+        const expires = new Date(Date.now() + SESSION_DAYS * 86400000).toISOString();
+        const statements: D1PreparedStatement[] = [
+          env.gullak_db.prepare("INSERT INTO users (user_id, username, password_salt, password_hash, password_iterations, created_at) VALUES (?, ?, ?, ?, ?, ?)")
+            .bind(userId, username, toBase64(salt), passwordHash, ITERATIONS, now),
           env.gullak_db.prepare("INSERT INTO user_account_types (user_id, account_type, created_at) VALUES (?, ?, ?)")
-            .bind(userId, accountType, now.toISOString()),
-          env.gullak_db.prepare(`
-            INSERT INTO sessions (
-              session_id_hash, user_id, created_at, expires_at
-            ) VALUES (?, ?, ?, ?)
-          `).bind(
-            tokenHash, userId,
-            now.toISOString(), expires.toISOString()
-          )
-        ]);
-
-        return new Response(JSON.stringify({
-          success: true,
-          user: { user_id: userId, username, account_type: accountType }
-        }), {
-          status: 201,
-          headers: {
-            "Content-Type": "application/json",
-            "Cache-Control": "no-store",
-            "Set-Cookie": sessionCookie(token, request),
-            ...CORS_HEADERS
+            .bind(userId, accountType, now)
+        ];
+        if (accountType === "individual") {
+          statements.push(env.gullak_db.prepare("INSERT INTO individual_account_roles (user_id, role, status, created_at) VALUES (?, ?, ?, ?)")
+            .bind(userId, role, role === "supervisor" ? "active" : "pending", now));
+          if (role === "supervisor") {
+            const code = makeSupervisorCode();
+            statements.push(env.gullak_db.prepare("INSERT INTO individual_supervisor_codes (code_hash, supervisor_user_id, created_at, revoked_at) VALUES (?, ?, ?, NULL)")
+              .bind(await supervisorCodeHash(code), userId, now));
+            statements.push(env.gullak_db.prepare("INSERT INTO sessions (session_id_hash, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)")
+              .bind(tokenHash, userId, now, expires));
+            await env.gullak_db.batch(statements);
+            return new Response(JSON.stringify({ success: true, role: "supervisor", supervisor_code: code, user: { user_id: userId, username, account_type: "individual", role: "supervisor", status: "active" } }), {
+              status: 201, headers: { "Content-Type": "application/json", "Cache-Control": "no-store", "Set-Cookie": sessionCookie(token, request), ...CORS_HEADERS }
+            });
           }
+          for (const supervisorId of supervisors) statements.push(env.gullak_db.prepare("INSERT INTO individual_supervisor_links (link_id, kid_user_id, supervisor_user_id, status, created_at, responded_at) VALUES (?, ?, ?, 'pending', ?, NULL)")
+            .bind(crypto.randomUUID(), userId, supervisorId, now));
+          statements.push(env.gullak_db.prepare("INSERT INTO user_key_wraps (user_id, wrapped_secret, salt, iterations, updated_at) VALUES (?, ?, ?, ?, ?)")
+            .bind(userId, keyWrap!.wrapped_secret, keyWrap!.salt, keyWrap!.iterations, now));
+          await env.gullak_db.batch(statements);
+          return json({ success: true, pending_approval: true, user: { user_id: userId, username, account_type: "individual", role: "kid", status: "pending" }, message: "Your account is waiting for at least one Supervisor to accept." }, 201);
+        }
+        if (token) statements.push(env.gullak_db.prepare("INSERT INTO sessions (session_id_hash, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)")
+          .bind(tokenHash, userId, now, expires));
+        await env.gullak_db.batch(statements);
+        return new Response(JSON.stringify({ success: true, user: { user_id: userId, username, account_type: accountType } }), {
+          status: 201, headers: { "Content-Type": "application/json", "Cache-Control": "no-store", "Set-Cookie": sessionCookie(token, request), ...CORS_HEADERS }
         });
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         console.error("Gullak account registration failed:", message);
-
-        if (message.includes("UNIQUE")) {
-          return json({ error: "That username is already taken." }, 409);
-        }
-
+        if (message.includes("UNIQUE")) return json({ error: "That username or Supervisor link already exists." }, 409);
         return json({ error: "Could not create account." }, 400);
       }
     }
