@@ -373,7 +373,9 @@
       const pending = links.filter(x => x.status === 'pending');
       const accepted = links.filter(x => x.status === 'accepted');
       const rejected = links.filter(x => x.status === 'rejected');
-      const head = '<header class="page-h"><button class="back" data-act="go" data-to="settings">←</button><h1>🛡️ Supervisors</h1></header>';
+      const head = role === 'supervisor'
+        ? '<header class="page-h"><h1>🛡️ Supervisor account</h1></header>'
+        : '<header class="page-h"><button class="back" data-act="go" data-to="settings">←</button><h1>🛡️ Supervisors</h1></header>';
       if (role === 'supervisor') return head + `
         <section class="card"><h2>Your Supervisor code</h2>
           ${lastSupervisorCode ? `<div class="banner good"><b>Share this code with a Kid:</b><h2>${esc(lastSupervisorCode)}</h2><p class="small">This code is shown only now. Keep it private and share it only with the Kid you agree to supervise.</p></div>` : '<p class="muted small">Generate a code and share it with a Kid. They can use it to request you as their Supervisor.</p>'}
@@ -385,7 +387,9 @@
         <section class="card"><h3>Kids you supervise (${accepted.length})</h3>
           ${accepted.length ? accepted.map(x => `<div class="kid-row"><span>🧒</span><b class="grow">${esc(x.other_username)}</b><span class="small good">Accepted</span></div>`).join('') : '<p class="muted small">When a Kid requests you and you accept, they will appear here.</p>'}
         </section>
-        <button class="btn soft block" data-act="individual-continue">Continue to my Gullak</button><button class="btn ghost block" data-act="individual-logout">Log out</button>`;
+        <button class="btn soft block" data-act="individual-refresh">Refresh requests</button>
+        <button class="btn ghost block" data-act="individual-logout">Log out</button>
+        <button class="btn danger block mt" data-act="cloud-delete-account">Delete Supervisor account</button>`;
       return head + `
         ${accountPending ? '<div class="banner info">⏳ Your Kid account is pending. Your diary stays locked until at least one Supervisor accepts.</div>' : ''}
         <section class="card"><h2>My Supervisors</h2>
@@ -430,6 +434,7 @@
       },
       'individual-refresh': () => { supervisionData = null; G.render({ keepScroll: true }); },
       'individual-logout': signOutFlow,
+      'cloud-delete-account': deleteAccountFlow,
       'individual-continue': () => {
         if (window.GullakNative && typeof window.GullakNative.onCloudReady === 'function') window.GullakNative.onCloudReady();
         G.go(G.S?.profile ? 'home' : 'welcome');
