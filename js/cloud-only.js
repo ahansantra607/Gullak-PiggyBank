@@ -107,9 +107,10 @@
       if (!['welcome', 'modes', 'cloud-account', 'family-account', 'cloud-families', 'cloud-family-join', 'fam-pick', 'fam-users'].includes(name) && !(mode === 'family' && name === 'fam-create')) return 'cloud-account';
       return prior;
     }
-    // New Individual accounts use Supervisor/Kid roles; the old PIN and grown-up screens are retired.
+    // Individual mode no longer uses the old local grown-up PIN or PIN-protected screen.
+    if (mode !== 'family' && name === 'me-pin') return 'welcome';
+    if (mode !== 'family' && name === 'grownup') return G.cloudAccount?.user?.account_type === 'individual' ? 'individual-supervision' : 'home';
     if (mode !== 'family' && G.cloudAccount?.user?.account_type === 'individual') {
-      if (name === 'me-pin' || name === 'grownup') return 'individual-supervision';
       if (name === 'welcome') return G.S && G.S.profile ? 'home' : null;
       if (name === 'modes') return G.S && G.S.profile ? 'home' : 'welcome';
       if (!G.S?.profile && !['individual-supervision', 'welcome'].includes(name)) return 'welcome';
@@ -117,13 +118,9 @@
     // Once signed in, the welcome/mode chooser is never a destination.
     // Preserve Family's own role-aware redirect (supervisor -> sup, member -> home).
     if (name === 'welcome' || name === 'modes') {
-      // First-time Individual setup must continue through the kid profile wizard
-      // after the grown-up has saved the PIN and house rules. Do not send it
-      // back to me-pin until that onboarding has actually been completed.
-      if (name === 'welcome' && mode !== 'family' && !G.S?.profile && G._pendingPin && G._pendingRules) return null;
       if (prior) return prior;
       if (mode === 'family') return G.FAM ? 'sup' : 'fam-pick';
-      return G.S && G.S.profile ? 'home' : 'me-pin';
+      return G.S && G.S.profile ? 'home' : 'welcome';
     }
     return prior;
   };
