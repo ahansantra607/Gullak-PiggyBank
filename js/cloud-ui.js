@@ -414,7 +414,10 @@
         catch (error) { G.toast(error.message || 'Could not send the request.'); button.disabled = false; }
       },
       'individual-refresh': () => { supervisionData = null; G.render({ keepScroll: true }); },
-      'individual-continue': () => G.go(G.S?.profile ? 'home' : 'welcome')
+      'individual-continue': () => {
+        if (window.GullakNative && typeof window.GullakNative.onCloudReady === 'function') window.GullakNative.onCloudReady();
+        G.go(G.S?.profile ? 'home' : 'welcome');
+      }
     })
   };
 
