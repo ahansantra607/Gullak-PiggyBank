@@ -15,6 +15,7 @@
       cache: 'no-store',
       headers: {
         ...(options.body ? { 'Content-Type': 'application/json' } : {}),
+        ...(window.GullakNative ? { 'X-Gullak-Android': '1' } : {}),
         ...(options.headers || {})
       }
     });
