@@ -182,7 +182,7 @@
         return `<section class="welcome">
           <div class="hero">${G.piggy('happy', 190)}</div>
           <h1 class="brand">Gullak</h1>
-          <p class="tag">Your talking piggy bank that turns money into samosas, saves for your dreams, and helps you ask your Supervisors. 🐷</p>
+          <p class="tag">Your talking piggy bank that turns money into samosas, saves for your dreams, and keeps you connected with your Supervisors. 🐷</p>
           <button class="btn primary block big" data-act="next">${cloudAccount ? 'Set up my Gullak ✨' : 'Start my Gullak ✨'}</button>
           ${cloudAccount ? '' : '<button class="btn soft block" data-act="sample">👀 Try it with sample data</button>'}
           <p class="fine">🔒 No real money. No real names.<br>${cloudAccount ? 'Your diary is encrypted and synced to your Gullak account.' : 'Sample data stays on this device.'}</p>
