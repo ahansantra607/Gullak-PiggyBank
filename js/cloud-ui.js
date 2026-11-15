@@ -370,7 +370,7 @@
         <section class="card"><h3>Kids you supervise (${accepted.length})</h3>
           ${accepted.length ? accepted.map(x => `<div class="kid-row"><span>🧒</span><b class="grow">${esc(x.other_username)}</b><span class="small good">Accepted</span></div>`).join('') : '<p class="muted small">When a Kid requests you and you accept, they will appear here.</p>'}
         </section>
-        <button class="btn soft block" data-act="individual-continue">Continue to my Gullak</button>`;
+        <button class="btn soft block" data-act="individual-continue">Continue to my Gullak</button><button class="btn ghost block" data-act="individual-logout">Log out</button>`;
       return head + `
         ${accountPending ? '<div class="banner info">⏳ Your Kid account is pending. Your diary stays locked until at least one Supervisor accepts.</div>' : ''}
         <section class="card"><h2>My Supervisors</h2>
@@ -384,7 +384,7 @@
           ${pending.map(x => `<div class="kid-row"><span>⏳</span><b class="grow">${esc(x.other_username)}</b><span class="small muted">Pending</span></div>`).join('') || '<p class="small muted">No pending requests.</p>'}
           ${rejected.length ? '<h3>Declined</h3>' + rejected.map(x => `<div class="kid-row"><span>↩️</span><b class="grow">${esc(x.other_username)}</b><span class="small muted">Declined</span></div>`).join('') : ''}
         </section>
-        ${accountPending ? '<button class="btn soft block" data-act="individual-refresh">Check approval status</button>' : '<button class="btn soft block" data-act="individual-continue">Continue to my Gullak</button>'}`;
+        ${accountPending ? '<button class="btn soft block" data-act="individual-refresh">Check approval status</button>' : '<button class="btn soft block" data-act="individual-continue">Continue to my Gullak</button>'}<button class="btn ghost block" data-act="individual-logout">Log out</button>`;
     },
     after: root => {
       if (supervisionLoading || !cloudUser) return;
@@ -414,6 +414,7 @@
         catch (error) { G.toast(error.message || 'Could not send the request.'); button.disabled = false; }
       },
       'individual-refresh': () => { supervisionData = null; G.render({ keepScroll: true }); },
+      'individual-logout': signOutFlow,
       'individual-continue': () => {
         if (window.GullakNative && typeof window.GullakNative.onCloudReady === 'function') window.GullakNative.onCloudReady();
         G.go(G.S?.profile ? 'home' : 'welcome');
@@ -427,12 +428,14 @@
     G.screens.settings.render = q => {
       let html = settingsRenderBeforeSupervision(q);
       if (G.mode?.() !== 'family' && cloudUser?.account_type === 'individual') {
-        html = html.replace('<section class="card small muted"><h3>About Gullak</h3>', '<section class="card"><h3>🛡️ Supervisors</h3><p class="small muted">Manage Supervisor requests, share your code, or add another Supervisor.</p><button class="btn soft block" data-act="individual-supervision">Manage Supervisors</button></section><section class="card small muted"><h3>About Gullak</h3>');
+        html = html.replace('<section class="card small muted"><h3>About Gullak</h3>', '<section class="card"><h3>🛡️ Supervisors</h3><p class="small muted">Manage Supervisor requests, share your code, or add another Supervisor.</p><button class="btn soft block" data-act="individual-supervision">Manage Supervisors</button></section><section class="card"><h3>Cloud account</h3><button class="btn ghost block" data-act="cloud-signout">Log out</button><button class="btn danger block mt" data-act="cloud-delete-account">Delete account</button></section><section class="card small muted"><h3>About Gullak</h3>');
       }
       return html;
     };
     G.screens.settings.handlers = q => Object.assign(settingsHandlersBeforeSupervision(q), {
-      'individual-supervision': () => G.go('individual-supervision')
+      'individual-supervision': () => G.go('individual-supervision'),
+      'cloud-signout': signOutFlow,
+      'cloud-delete-account': deleteAccountFlow
     });
   }
 
