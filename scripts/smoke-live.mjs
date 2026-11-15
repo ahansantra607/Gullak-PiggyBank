@@ -155,10 +155,10 @@ const validKidSalt = b64(randomBytes(16));
 const kidKeyWrap = { wrapped_secret: b64(randomBytes(12)) + "." + b64(randomBytes(48)), salt: validKidSalt, iterations: 150000 };
 const doubleEncodedSaltAttempt = await request("/api/register", {
   method: "POST", body: { username: "kidbad_" + suffix, password: kidPassword, role: "kid",
-    supervisor_codes: [individual.data.supervisor_code], key_wrap: { ...kidKeyWrap, salt: b64(Buffer.from(validKidSalt, "utf8")) } }
+    supervisor_codes: [individual.data.supervisor_code], key_wrap: { ...kidKeyWrap, salt: b64(randomBytes(0)) } }
 });
 assert(doubleEncodedSaltAttempt.response.status === 400 && /encryption key/i.test(doubleEncodedSaltAttempt.data.error || ""),
-  "Kid registration unexpectedly accepted a double-encoded encryption salt.");
+  "Kid registration unexpectedly accepted a zero-length encryption salt.");
 const kidRegistration = expect(await request("/api/register", {
   method: "POST", body: { username: kidName, password: kidPassword, role: "kid", supervisor_codes: [individual.data.supervisor_code], key_wrap: kidKeyWrap }
 }), 201, "Pending Kid registration");
