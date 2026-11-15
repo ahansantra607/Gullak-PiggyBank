@@ -117,9 +117,7 @@
     if (mode !== 'family' && name === 'ask' && G.cloudAccount?.user?.account_type === 'individual') return 'individual-supervision';
     if (mode !== 'family' && G.cloudAccount?.user?.account_type === 'individual') {
       if (G.cloudAccount.user.role === 'supervisor') {
-        if (G.supervisedKidMode && !['individual-supervision', 'supervised-kid', 'report'].includes(name)) {
-          G.restoreSupervisorState?.();
-        }
+        if (G.supervisedKidMode && name !== 'supervised-kid' && name !== 'report') G.restoreSupervisorState?.(false);
         return ['individual-supervision', 'supervised-kid'].includes(name) || (name === 'report' && G.supervisedKidMode) ? null : 'individual-supervision';
       }
       if (G.cloudAccount.user.role === 'kid' && G.cloudAccount.user.status === 'pending') {
