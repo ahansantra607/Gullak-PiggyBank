@@ -550,3 +550,27 @@ select.input { appearance: auto; }
 .kid-pending-add{padding:16px;border:1px solid var(--line);border-radius:18px;background:var(--card)}
 .kid-pending-add>p{margin:0 0 10px}
 .kid-pending-logout{margin-top:0}
+
+
+/* Final alignment pass for the inactive Kid activation page */
+.kid-pending{align-items:stretch}
+.kid-pending-hero{display:flex;flex-direction:column;align-items:center;text-align:center}
+.kid-pending-art{width:88px;height:88px;min-width:88px;min-height:88px;margin:0 auto 16px;border-radius:26px;background:var(--soft);display:grid;place-items:center;position:relative}
+.kid-pending-art>.piggy{width:76px;height:auto;max-width:100%;margin:0 auto}
+.kid-pending-art>i{right:50%;bottom:-12px;transform:translateX(50%);z-index:1}
+.kid-pending-hero .sup-eyebrow,.kid-pending-hero h1,.kid-pending-hero>p:not(.sup-eyebrow),.kid-pending-status{text-align:center}
+.kid-pending-status{justify-content:center;align-self:center}
+.kid-pending-refresh,.kid-create-button,.kid-pending-logout{align-self:center;width:100%}
+.kid-pending-card h2,.kid-pending-card>p{text-align:center}
+.kid-pending-row{justify-content:center}
+.kid-pending-row>div{text-align:center;flex:0 1 auto}
+.kid-pending-tag{margin-left:2px}
+.kid-pending-add{text-align:center}
+.kid-pending-add .label{text-align:center}
+.kid-pending-add .input{text-align:center}
+.kid-pending-add .btn{max-width:320px;margin-left:auto;margin-right:auto}
+@media(max-width:420px){
+ .kid-pending-art{width:88px;height:88px}
+ .kid-pending-art>.piggy{width:76px}
+ .kid-pending-row{gap:8px}
+}
