@@ -3,7 +3,7 @@ name: Build and publish Gullak Android APK
 on:
   push:
     paths:
-      - '.github/release-v2.0.1'
+      - '.github/release-v2.0.2'
   workflow_dispatch:
     inputs:
       version:
@@ -33,7 +33,7 @@ jobs:
       - name: Validate release version
         id: version
         env:
-          RELEASE_TAG: ${{ github.event_name == 'release' && github.event.release.tag_name || (github.event_name == 'workflow_dispatch' && format('v{0}', github.event.inputs.version)) || 'v2.0.1' }}
+          RELEASE_TAG: ${{ github.event_name == 'release' && github.event.release.tag_name || (github.event_name == 'workflow_dispatch' && format('v{0}', github.event.inputs.version)) || 'v2.0.2' }}
         run: |
           version="${RELEASE_TAG#v}"
           if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
@@ -49,8 +49,8 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
         run: |
           notes="${RELEASE_NOTES:-}"
-          if [ "$EVENT_NAME" = "push" ] && [ -f .github/release-v2.0.1 ]; then
-            notes="$(cat .github/release-v2.0.1)"
+          if [ "$EVENT_NAME" = "push" ] && [ -f .github/release-v2.0.2 ]; then
+            notes="$(cat .github/release-v2.0.2)"
           fi
           if [ -z "$(printf '%s' "$notes" | tr -d '[:space:]')" ]; then
             notes="Bug fixes"
