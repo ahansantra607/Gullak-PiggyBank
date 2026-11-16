@@ -208,6 +208,23 @@ export default {
       });
     }
 
+    if (path === "/api/username/check" && request.method === "POST") {
+      if (!validOrigin(request)) return json({ error: "Invalid request origin" }, 403);
+      try {
+        const body = await request.json() as { username?: string };
+        const username = String(body.username || "").trim().toLowerCase();
+        if (!/^[a-z0-9_]{3,24}$/.test(username)) {
+          return json({ valid: false, available: false, exists: false });
+        }
+        const row = await env.gullak_db.prepare(
+          "SELECT 1 AS found FROM users WHERE username = ? LIMIT 1"
+        ).bind(username).first<{ found: number }>();
+        return json({ valid: true, available: !row, exists: !!row });
+      } catch {
+        return json({ error: "Could not check username." }, 400);
+      }
+    }
+
     if (path === "/api/health" && request.method === "GET") {
       try {
         const table = await env.gullak_db
