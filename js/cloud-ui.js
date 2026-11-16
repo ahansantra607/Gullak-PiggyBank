@@ -616,6 +616,7 @@
         if (cloudUser?.role !== 'kid') return;
         const quietRefresh = button.classList.contains('kid-supervision-refresh');
         const label = button.innerHTML;
+        const minimumSpin = quietRefresh ? new Promise(resolve => setTimeout(resolve, 850)) : Promise.resolve();
         button.disabled = true;
         if (button.classList.contains('kid-supervision-refresh')) {
           const spinner = document.createElement('span');
@@ -628,6 +629,7 @@
         }
         try {
           const latest = await G.cloud.individualSupervision();
+          await minimumSpin;
           supervisionData = latest;
           if (latest.status) cloudUser.status = latest.status;
           G.render({ keepScroll: true });
@@ -636,6 +638,7 @@
             else G.toast('Still waiting for a Supervisor to accept your request.');
           }
         } catch (error) {
+          await minimumSpin;
           if (!quietRefresh) G.toast(error.message || 'Could not check approval status. Please try again.');
           button.disabled = false;
           button.innerHTML = label;
