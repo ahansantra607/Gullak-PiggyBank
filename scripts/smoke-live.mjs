@@ -136,7 +136,7 @@ const individualName = "indivtest_" + suffix;
 const individualPassword = "Individual-" + password;
 const individualKey = await makeSupervisorKeyBundle(individualPassword);
 const individual = expect(await request("/api/register", {
-  method: "POST", body: { username: individualName, password: individualPassword, role: "supervisor", supervisor_key: individualKey.body }
+  method: "POST", body: { username: individualName, password: individualPassword, role: "supervisor", real_name: "Test Supervisor " + suffix, supervisor_key: individualKey.body }
 }), 201, "Individual Supervisor registration");
 assert(individual.cookie && individual.data.supervisor_code?.length === 10 && individual.data.user.role === "supervisor",
   "Supervisor registration did not issue its account session and one-time linking code.");
@@ -160,7 +160,7 @@ const doubleEncodedSaltAttempt = await request("/api/register", {
 assert(doubleEncodedSaltAttempt.response.status === 400 && /encryption key/i.test(doubleEncodedSaltAttempt.data.error || ""),
   "Kid registration unexpectedly accepted a zero-length encryption salt.");
 const kidRegistration = expect(await request("/api/register", {
-  method: "POST", body: { username: kidName, password: kidPassword, role: "kid", supervisor_codes: [individual.data.supervisor_code], key_wrap: kidKeyWrap }
+  method: "POST", body: { username: kidName, password: kidPassword, role: "kid", real_name: "Test Kid " + suffix, supervisor_codes: [individual.data.supervisor_code], key_wrap: kidKeyWrap }
 }), 201, "Pending Kid registration");
 assert(kidRegistration.data.pending_approval && kidRegistration.cookie && kidRegistration.data.user.status === "pending",
   "A Kid account became active before Supervisor approval.");
@@ -203,7 +203,7 @@ const secondSupervisorName = "indivsup2_" + suffix;
 const secondSupervisorPassword = "Second-Supervisor-" + randomUUID() + "!";
 const secondSupervisorKey = await makeSupervisorKeyBundle(secondSupervisorPassword);
 const secondSupervisor = expect(await request("/api/register", {
-  method: "POST", body: { username: secondSupervisorName, password: secondSupervisorPassword, role: "supervisor", supervisor_key: secondSupervisorKey.body }
+  method: "POST", body: { username: secondSupervisorName, password: secondSupervisorPassword, role: "supervisor", real_name: "Second Supervisor " + suffix, supervisor_key: secondSupervisorKey.body }
 }), 201, "Second Individual Supervisor registration");
 const secondSupervisorLogin = expect(await request("/api/login", {
   method: "POST", body: { username: secondSupervisorName, password: secondSupervisorPassword }
