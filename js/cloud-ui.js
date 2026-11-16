@@ -535,8 +535,8 @@
           </section>
           <footer class="sup-account-actions"><button class="btn" data-act="individual-logout">Log out</button><button class="btn danger" data-act="cloud-delete-account">Delete Supervisor account</button></footer>
         </div>`;
-      if (role === 'kid' && accountPending) return `
-        <main class="kid-pending">
+      if (role === 'kid') return `
+        <main class="kid-pending kid-supervision-kid">
           <section class="kid-pending-hero">
             <div class="kid-pending-art" aria-hidden="true">${G.piggy('happy', 112)}<i>${kidActive ? '✓' : '⌛'}</i></div>
             <p class="sup-eyebrow">YOUR INDIVIDUAL GULLAK</p>
@@ -546,65 +546,22 @@
             <button class="btn primary block kid-create-button" data-act="individual-continue" ${accountPending ? 'disabled aria-disabled="true"' : ''}>Create your Gullak</button>
             ${accountPending ? '<button class="btn ghost block kid-pending-refresh" data-act="individual-refresh">↻ Check approval status</button>' : ''}
           </section>
-          ${accountPending ? `<section class="kid-pending-add">
-            <p class="small muted">Have another Supervisor code? You can send an additional request.</p>
+          <section class="kid-pending-add">
+            <p class="small muted">${kidActive ? 'You can add another Supervisor at any time.' : 'Have another Supervisor code? You can send an additional request while you wait.'}</p>
             <label class="label" for="individual-add-supervisor">Supervisor code</label>
-            <input class="input" id="individual-add-supervisor" maxlength="20" placeholder="Enter the 10-character code">
-            <button class="btn ghost block mt" data-act="individual-add-supervisor">＋ Add another Supervisor</button>
-          </section>` : ''}
-          ${accountPending ? `<section class="kid-pending-card">
+            <input class="input" id="individual-add-supervisor" maxlength="20" autocomplete="off" placeholder="Enter the 10-character code">
+            <button class="btn ${kidActive ? 'primary' : 'ghost'} block mt" data-act="individual-add-supervisor">${kidActive ? '＋ Add another Supervisor' : '＋ Add another Supervisor'}</button>
+          </section>
+          <section class="kid-pending-card">
             <h2>Supervisor requests</h2>
-            <p class="small muted">Here you can see which Supervisors you have asked and whether they have accepted.</p>
+            <p class="small muted">Every Supervisor request stays listed here independently. Approving one does not cancel the others.</p>
             ${links.length ? links.map(x => `<div class="kid-pending-row">
               <span class="kid-pending-person" aria-hidden="true">🛡️</span>
               <div><b>${esc(x.other_username || 'Supervisor')}</b><small>Supervisor request</small></div>
               <span class="kid-pending-tag ${x.status === 'accepted' ? 'accepted' : x.status === 'rejected' ? 'declined' : ''}">${x.status === 'accepted' ? 'Accepted' : x.status === 'rejected' ? 'Declined' : 'Pending'}</span>
             </div>`).join('') : '<div class="kid-pending-empty"><span>📭</span><b>No Supervisor requests yet</b><p>Add a Supervisor code above to send your first request.</p></div>'}
-          </section>` : ''}
+          </section>
           <button class="btn block kid-pending-logout" data-act="individual-logout">Log out</button>
-        </main>`;
-      return `
-        <main class="kid-pending kid-supervision-active">
-          <header class="page-h kid-supervision-page-head">
-            <button class="back" data-act="go" data-to="home" aria-label="Back to Gullak">←</button>
-            <h1>🛡️ My Supervisors</h1>
-            <button class="btn ghost kid-supervision-refresh" data-act="individual-refresh" aria-label="Refresh Supervisors">↻</button>
-          </header>
-          <section class="kid-pending-hero kid-supervision-hero">
-            <div class="kid-pending-art" aria-hidden="true">${G.piggy('happy', 112)}<i>✓</i></div>
-            <p class="sup-eyebrow">YOUR GULLAK SUPPORT TEAM</p>
-            <h1>You're all set!</h1>
-            <p>These are the people connected to your Gullak. You can add another Supervisor whenever you need.</p>
-            <div class="kid-pending-status is-ready"><span></span>Gullak active</div>
-            <div class="kid-supervision-stats">
-              <div><strong>${accepted.length}</strong><span>Accepted</span></div>
-              <div><strong>${pending.length}</strong><span>Waiting</span></div>
-              <div><strong>${rejected.length}</strong><span>Declined</span></div>
-            </div>
-          </section>
-          <section class="kid-pending-card">
-            <div class="kid-pending-title"><h2>Connected Supervisors</h2><span class="kid-supervision-count">${accepted.length}</span></div>
-            ${accepted.length ? accepted.map(x => `<div class="kid-pending-row">
-              <span class="kid-pending-person" aria-hidden="true">🛡️</span>
-              <div><b>${esc(x.other_username || 'Supervisor')}</b><small>Can help manage your Gullak</small></div>
-              <span class="kid-pending-tag accepted">Accepted</span>
-            </div>`).join('') : '<div class="kid-pending-empty"><span>🌱</span><b>No connected Supervisors</b><p>Add a Supervisor using their code below.</p></div>'}
-          </section>
-          <section class="kid-pending-add kid-supervision-add">
-            <div class="kid-pending-title"><h2>Add a Supervisor</h2><span aria-hidden="true">＋</span></div>
-            <p>Enter a Supervisor code. They must accept your request before they are connected to your Gullak.</p>
-            <label class="label" for="individual-add-supervisor">Supervisor code</label>
-            <input class="input" id="individual-add-supervisor" maxlength="20" autocomplete="off" placeholder="Enter the 10-character code">
-            <button class="btn primary block mt" data-act="individual-add-supervisor">Send request</button>
-          </section>
-          ${pending.length ? `<section class="kid-pending-card">
-            <div class="kid-pending-title"><h2>Waiting for approval</h2><span class="kid-supervision-count">${pending.length}</span></div>
-            ${pending.map(x => `<div class="kid-pending-row"><span class="kid-pending-person" aria-hidden="true">⏳</span><div><b>${esc(x.other_username || 'Supervisor')}</b><small>Your request has been sent</small></div><span class="kid-pending-tag">Pending</span></div>`).join('')}
-          </section>` : ''}
-          ${rejected.length ? `<section class="kid-pending-card">
-            <div class="kid-pending-title"><h2>Declined requests</h2><span class="kid-supervision-count">${rejected.length}</span></div>
-            ${rejected.map(x => `<div class="kid-pending-row"><span class="kid-pending-person" aria-hidden="true">↩️</span><div><b>${esc(x.other_username || 'Supervisor')}</b><small>This request was declined</small></div><span class="kid-pending-tag declined">Declined</span></div>`).join('')}
-          </section>` : ''}
         </main>`;
     },
     after: root => {
