@@ -281,11 +281,12 @@
             ? await G.cr.makeSupervisorKeyBundle(password) : null;
           const auth = authMode === 'register'
             ? await G.cloud.registerIndividual(username, password, role, supervisorCodes, secret, supervisorKeyBundle)
-            : await G.cloud.login(username, password);
+            : await G.cloud.login(username, password, !stayLoggedIn && !isAndroidApp);
           if (authMode === 'register' && role === 'kid') {
             cloudUser = auth.user; cloudSecret = secret; authMode = 'login'; registerRole = 'supervisor';
             if (G.setMode) G.setMode('individual');
             if (stayLoggedIn) { try { await G.cloud.rememberDevice(cloudSecret); } catch (_) {} }
+            else { try { await G.cloud.clearRememberedDevice(); await G.cloud.rememberSessionDevice(cloudSecret); } catch (_) {} }
             if (window.GullakNative && typeof window.GullakNative.onCloudReady === 'function') window.GullakNative.onCloudReady();
             G.go('individual-supervision');
             G.toast('Kid account created. It is locked until at least one Supervisor accepts. You can add more Supervisor codes here while you wait.', 6500);
@@ -300,6 +301,7 @@
               cloudSecret = '';
               supervisorPrivateKey = await G.cr.unlockSupervisorPrivateKey(password, supervisorKeyBundle);
               if (stayLoggedIn) { try { await G.cloud.rememberDevice(''); } catch (_) {} }
+              else { try { await G.cloud.clearRememberedDevice(); await G.cloud.rememberSessionDevice(''); } catch (_) {} }
               if (window.GullakNative && typeof window.GullakNative.onCloudReady === 'function') window.GullakNative.onCloudReady();
               G.go('individual-supervision');
               return;
@@ -327,6 +329,7 @@
           }
           if (authMode === 'login' && auth.user?.role === 'supervisor') {
             if (stayLoggedIn) { try { await G.cloud.rememberDevice(''); } catch (_) {} }
+            else { try { await G.cloud.clearRememberedDevice(); await G.cloud.rememberSessionDevice(''); } catch (_) {} }
             if (G.setMode) G.setMode('individual');
             if (window.GullakNative && typeof window.GullakNative.onCloudReady === 'function') window.GullakNative.onCloudReady();
             G.go('individual-supervision');
@@ -334,6 +337,7 @@
           }
           if (authMode === 'login' && auth.user?.role === 'kid' && auth.user?.status === 'pending') {
             if (stayLoggedIn) { try { await G.cloud.rememberDevice(cloudSecret); } catch (_) {} }
+            else { try { await G.cloud.clearRememberedDevice(); await G.cloud.rememberSessionDevice(cloudSecret); } catch (_) {} }
             if (window.GullakNative && typeof window.GullakNative.onCloudReady === 'function') window.GullakNative.onCloudReady();
             if (G.setMode) G.setMode('individual');
             G.go('individual-supervision');
@@ -350,6 +354,10 @@
             catch (rememberError) { G.toast('Signed in, but this browser could not save the stay-logged-in setting.'); }
           } else if (authMode === 'login' && G.cloud.clearRememberedDevice) {
             await G.cloud.clearRememberedDevice().catch(() => {});
+            if (!isAndroidApp) {
+              try { await G.cloud.rememberSessionDevice(cloudSecret); }
+              catch (sessionError) { G.toast('Signed in, but this tab could not retain the session through refresh.'); }
+            }
           }
           // Only show the native PIN setup/unlock screen after the account session
           // and encrypted diary key have both been saved for restoration.
