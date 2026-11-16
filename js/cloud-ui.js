@@ -505,7 +505,7 @@
           </div>
           <section class="card sup-code-card">
             <div class="sup-section-head"><div><p class="sup-eyebrow">INVITE A KID</p><h2>Your Supervisor code</h2></div><span class="sup-section-icon">🔑</span></div>
-            ${lastSupervisorCode ? `<div class="sup-code-reveal"><span>YOUR NEW CODE</span><strong>${esc(lastSupervisorCode)}</strong><p>Share this privately with the Kid you agree to supervise.</p></div>` : '<p class="small muted sup-code-intro">Generate a personal code. A Kid can use it to send you a supervision request.</p>'}
+            ${lastSupervisorCode ? `<div class="sup-code-reveal"><span>YOUR NEW CODE</span><strong>${esc(lastSupervisorCode)}</strong><p>Share this privately with the Kid you agree to supervise.</p><button class="btn soft block" data-act="individual-copy-code">📋 Copy code</button></div>` : '<p class="small muted sup-code-intro">Generate a personal code. A Kid can use it to send you a supervision request.</p>'}
             <button class="btn primary block sup-main-action" data-act="individual-new-code">${lastSupervisorCode ? 'Generate a new code' : '＋ Generate Supervisor code'}</button>
           </section>
           <section class="card sup-section">
@@ -626,6 +626,7 @@
           G.go('supervised-kid');
         } catch (error) { G.toast(error.message || 'Could not open this Kid diary.'); }
       },
+      'individual-copy-code': () => { if (!lastSupervisorCode) return; G.copy(lastSupervisorCode); G.toast('Supervisor code copied.'); },
       'individual-new-code': async button => {
         button.disabled = true;
         try { const result = await G.cloud.createSupervisorCode(); lastSupervisorCode = result.code; supervisionData = null; G.render({ keepScroll: true }); }
