@@ -280,7 +280,7 @@
           const supervisorKeyBundle = authMode === 'register' && role === 'supervisor'
             ? await G.cr.makeSupervisorKeyBundle(password) : null;
           const auth = authMode === 'register'
-            ? await G.cloud.registerIndividual(username, password, role, supervisorCodes, secret, supervisorKeyBundle)
+            ? await G.cloud.registerIndividual(username, password, role, supervisorCodes, secret, supervisorKeyBundle, !stayLoggedIn && !isAndroidApp)
             : await G.cloud.login(username, password, !stayLoggedIn && !isAndroidApp);
           if (authMode === 'register' && role === 'kid') {
             cloudUser = auth.user; cloudSecret = secret; authMode = 'login'; registerRole = 'supervisor';
