@@ -141,7 +141,7 @@
               G.toast(error.message || 'That password could not unlock your Supervisor key.');
             }
           },
-          'cancel-supervisor-key': () => { modal.close(); resolve(false); }
+          'cancel-supervisor-key': () => { modal.close(); resolve(null); }
         }
       });
     });
