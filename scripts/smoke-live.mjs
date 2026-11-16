@@ -169,9 +169,11 @@ assert(pendingKidLogin.data.user.status === "pending", "Pending Kid session was 
 expect(await request("/api/vault", { cookie: pendingKidLogin.cookie }), 403, "Pending Kid cannot open a diary before approval");
 const pendingKidLinks = expect(await request("/api/individual/supervision", { cookie: pendingKidLogin.cookie }), 200, "Pending Kid can view Supervisor request status");
 assert(pendingKidLinks.data.status === "pending", "Pending Kid supervision state was not returned.");
+assert(pendingKidLinks.data.links[0]?.other_real_name == null, "Kid was shown a Supervisor real name before acceptance.");
 const firstSupervisorRequests = expect(await request("/api/individual/supervision", { cookie: individualLogin.cookie }), 200, "Supervisor request list");
 const firstRequest = firstSupervisorRequests.data.links.find(row => row.other_username === kidName && row.status === "pending");
 assert(firstRequest, "Supervisor did not receive the Kid's pending request.");
+assert(firstRequest.other_real_name === "Test Kid " + suffix, "Supervisor request did not include the Kid real name.");
 expect(await request("/api/individual/supervision/requests/" + firstRequest.link_id, {
   method: "POST", cookie: individualLogin.cookie, body: { decision: "accept", rules: {
     loanInterest: 5, matchPct: 10, coolHours: 24, coolMin: 200, reviewHours: 12
@@ -185,6 +187,8 @@ assert(kidLogin.data.user.role === "kid" && kidLogin.data.user.status === "activ
 const kidLinks = expect(await request("/api/individual/supervision", { cookie: kidLogin.cookie }), 200, "Kid's Supervisor list");
 assert(kidLinks.data.links.some(row => row.other_username === individualName && row.status === "accepted"),
   "Kid does not see the accepted Supervisor relationship.");
+assert(kidLinks.data.links.find(row => row.other_username === individualName)?.other_real_name === "Test Supervisor " + suffix,
+  "Kid did not see the Supervisor real name after acceptance.");
 assert(kidLinks.data.rules && kidLinks.data.rules.loanInterest === 5 && kidLinks.data.rules.matchPct === 10 &&
   kidLinks.data.rules.coolHours === 24 && kidLinks.data.rules.coolMin === 200 && kidLinks.data.rules.reviewHours === 12,
   "Kid did not receive the Grown-up Rules saved during first approval.");
@@ -216,6 +220,7 @@ expect(await request("/api/individual/supervision/requests", {
 const pendingSecondLinkData = expect(await request("/api/individual/supervision", { cookie: kidLogin.cookie }), 200, "Kid pending second Supervisor link");
 const pendingSecondLink = pendingSecondLinkData.data.links.find(row => row.other_username === secondSupervisorName);
 assert(pendingSecondLink?.supervisor_public_key, "Kid cannot retrieve the second Supervisor public key.");
+assert(pendingSecondLink.other_real_name == null, "Kid saw the second Supervisor real name before acceptance.");
 const unacceptedShare = await makeDiaryKeyShare(pendingSecondLink.supervisor_public_key, testDiarySecret);
 expect(await request("/api/individual/supervision/key-shares", { method: "PUT", cookie: kidLogin.cookie,
   body: { supervisor_user_id: pendingSecondLink.other_user_id, ...unacceptedShare } }), 403, "Kid cannot share diary key before Supervisor acceptance");
@@ -231,6 +236,7 @@ assert(twoSupervisors.data.links.filter(row => row.status === "accepted").length
   "Kid cannot have multiple accepted Supervisors.");
 const secondAcceptedLink = twoSupervisors.data.links.find(row => row.other_username === secondSupervisorName && row.status === "accepted");
 assert(secondAcceptedLink?.supervisor_public_key, "Second Supervisor public key was not shared with the Kid.");
+assert(secondAcceptedLink.other_real_name === "Second Supervisor " + suffix, "Kid did not see the second Supervisor real name after acceptance.");
 const secondKeyShare = await makeDiaryKeyShare(secondAcceptedLink.supervisor_public_key, testDiarySecret);
 expect(await request("/api/individual/supervision/key-shares", { method: "PUT", cookie: kidLogin.cookie,
   body: { supervisor_user_id: secondAcceptedLink.other_user_id, ...secondKeyShare } }), 200, "Kid shares diary key with second Supervisor");
