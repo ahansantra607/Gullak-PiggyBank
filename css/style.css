@@ -437,3 +437,60 @@ select.input { appearance: auto; }
 .calc-tab th, .calc-tab td { padding: 4px 6px; text-align: right; border-bottom: 1px dashed var(--line); }
 .calc-tab th:first-child, .calc-tab td:first-child { text-align: left; }
 .msg-b .calc sup { font-size: 10px; }
+
+
+/* Individual Supervisor dashboard */
+.sup-dashboard{display:flex;flex-direction:column;gap:16px;max-width:760px;margin:0 auto;padding-bottom:12px}
+.sup-dash-head{display:flex;align-items:center;gap:13px;padding:8px 2px 4px}
+.sup-dash-mark{width:54px;height:54px;flex:none;border-radius:18px;background:var(--soft);display:grid;place-items:center;font-size:27px}
+.sup-dash-heading{min-width:0;flex:1}
+.sup-dash-heading h1{font-size:clamp(22px,5vw,29px);line-height:1.15;margin:2px 0 5px}
+.sup-dash-heading>p:last-child{font-size:13px;color:var(--muted);margin:0}
+.sup-eyebrow{font-size:10px;letter-spacing:1.15px;font-weight:850;color:var(--muted);margin:0 0 5px}
+.sup-refresh{flex:none;padding:8px 10px;white-space:nowrap}
+.sup-stat-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:11px}
+.sup-stat{background:var(--soft);border:1px solid var(--line);border-radius:18px;padding:13px 15px;display:grid;grid-template-columns:34px 1fr;column-gap:8px;align-items:center}
+.sup-stat-icon{grid-row:span 2;font-size:24px}
+.sup-stat strong{font-size:25px;line-height:1.05;font-weight:850}
+.sup-stat>span:last-child{font-size:12px;color:var(--muted);margin-top:3px}
+.sup-dashboard .card{border-radius:20px;padding:17px}
+.sup-section-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:13px}
+.sup-section-head h2{font-size:19px;margin:0;line-height:1.2}
+.sup-section-icon{font-size:24px;background:var(--soft);width:42px;height:42px;border-radius:14px;display:grid;place-items:center}
+.sup-count{display:inline-grid;place-items:center;min-width:25px;height:25px;padding:0 7px;margin-left:4px;border-radius:999px;background:var(--soft);font-size:13px;vertical-align:2px}
+.sup-code-intro{margin:0 0 14px;line-height:1.5}
+.sup-code-reveal{background:var(--soft);border:1px dashed var(--pri);border-radius:15px;padding:14px;text-align:center;margin:2px 0 13px}
+.sup-code-reveal>span{display:block;font-size:10px;font-weight:850;letter-spacing:1.2px;color:var(--muted)}
+.sup-code-reveal strong{display:block;font-size:clamp(25px,7vw,32px);letter-spacing:3px;overflow-wrap:anywhere;margin:5px 0}
+.sup-code-reveal p{font-size:12px;color:var(--muted);margin:0}
+.sup-main-action{min-height:46px}
+.sup-request-list,.sup-kid-list{display:flex;flex-direction:column;gap:0}
+.sup-request,.sup-kid{display:flex;align-items:center;gap:11px;padding:13px 0;border-top:1px solid var(--line)}
+.sup-request:first-child,.sup-kid:first-child{border-top:0;padding-top:2px}
+.sup-person{display:flex;align-items:center;gap:10px;min-width:0;flex:1}
+.sup-avatar{width:42px;height:42px;flex:none;border-radius:14px;background:var(--soft);display:grid;place-items:center;font-size:22px}
+.sup-person b,.sup-kid-info b{font-size:15px;overflow-wrap:anywhere}
+.sup-person p,.sup-kid-info p{font-size:12px;color:var(--muted);margin:3px 0 0;line-height:1.35}
+.sup-request-actions{display:flex;gap:7px;flex:none}
+.sup-request-actions .btn{padding:8px 12px;min-width:68px}
+.sup-kid-info{min-width:0;flex:1}
+.sup-status-wait{font-size:11px;color:var(--muted);background:var(--soft);border-radius:999px;padding:6px 9px;white-space:nowrap}
+.sup-empty{display:flex;flex-direction:column;align-items:center;text-align:center;padding:18px 12px 14px}
+.sup-empty>span{font-size:29px;margin-bottom:7px}
+.sup-empty b{font-size:15px}
+.sup-empty p{max-width:300px;font-size:12px;line-height:1.5;color:var(--muted);margin:5px 0 0}
+.sup-account-actions{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:2px 2px 8px}
+.sup-account-actions .btn{font-size:12px}
+@media(max-width:420px){
+ .sup-dash-head{gap:9px}.sup-dash-mark{width:46px;height:46px;border-radius:15px;font-size:23px}
+ .sup-dash-heading h1{font-size:21px}.sup-dash-heading>p:last-child{font-size:11px}
+ .sup-refresh{font-size:11px;padding:7px 8px}
+ .sup-dashboard .card{padding:14px;border-radius:17px}
+ .sup-request{align-items:flex-start;flex-wrap:wrap}
+ .sup-person{width:100%}
+ .sup-request-actions{width:100%;padding-left:52px}
+ .sup-request-actions .btn{flex:1}
+ .sup-kid{gap:8px}.sup-avatar{width:37px;height:37px;border-radius:12px;font-size:20px}
+ .sup-kid .btn{font-size:11px;padding:7px 8px}
+ .sup-account-actions{flex-wrap:wrap}.sup-account-actions .btn{flex:1}
+}
