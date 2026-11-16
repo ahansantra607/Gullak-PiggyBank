@@ -40,6 +40,7 @@ const screensAskSource = readFileSync('js/screens-ask.js', 'utf8');
 if (!cloudUiSource.includes("data-act=\"individual-role\"") || !cloudUiSource.includes("registerRole === 'kid'") || !cloudUiSource.includes("G.cloud.registerIndividual")) throw new Error('Individual registration does not offer Supervisor and Kid account types.');
 if (!cloudUiSource.includes("G.screens['individual-supervision']") || !cloudUiSource.includes("individual-decision") || !cloudUiSource.includes("individual-add-supervisor")) throw new Error('Individual Supervisor dashboard or Kid multiple-Supervisor management is missing.');
 if (!cloudUiSource.includes('class="sup-dashboard"') || !cloudUiSource.includes('class="sup-stat-grid"') || !cloudUiSource.includes('class="sup-request-list"') || !cloudUiSource.includes('class="sup-kid-list"')) throw new Error('Individual Supervisor dashboard must use the structured responsive dashboard layout.');
+if (!cloudUiSource.includes("if (authMode === 'register' && usernameInput && usernameStatus)")) throw new Error('Username availability ticks must be limited to the registration page, not login.');
 if (!cloudUiSource.includes("authMode === 'register' && registerRole === 'kid'") || !cloudUiSource.includes("cloudUser.role === 'supervisor'")) throw new Error('Supervisor account creation still requires a Kid diary or is not independently unlocked.');
 if (!cloudOnlySource.includes("G.cloudAccount.user.role === 'supervisor'")) throw new Error('Supervisor accounts are not routed to their dedicated dashboard.');
 
