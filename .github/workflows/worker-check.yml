@@ -63,6 +63,7 @@ jobs:
               "individual_supervisor_links",
               "individual_supervisor_keys",
               "individual_kid_key_shares",
+              "individual_kid_rules",
           }
           actual = {row[0] for row in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
           missing = expected - actual
