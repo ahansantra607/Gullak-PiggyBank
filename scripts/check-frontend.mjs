@@ -77,8 +77,11 @@ if (!readFileSync('scripts/smoke-live.mjs', 'utf8').includes('Supervisor account
 if (!serverSource.includes("status = 'pending' WHERE user_id = ? AND role = 'kid' AND NOT EXISTS") || !serverSource.includes("DELETE FROM sessions WHERE user_id = ? AND NOT EXISTS") || !readFileSync('scripts/smoke-live.mjs', 'utf8').includes("Last Supervisor deletion revokes the Kid's active session")) throw new Error('Deleting a Kid\'s last Supervisor does not re-lock the Kid account and revoke its session.');
 
 if (!cloudUiSource.includes('accountPending') || !cloudUiSource.includes('individual-refresh') || !cloudUiSource.includes('individual-logout')) throw new Error('Pending Kid accounts cannot check approval or log out.');
-if (!cloudUiSource.includes('class="kid-pending"') || !cloudUiSource.includes('Waiting for a Supervisor') || !cloudUiSource.includes(`: accountPending\n          ? ''\n          : '<header class="page-h"><button class="back"`)) throw new Error('Pending Kid account must use its dedicated waiting screen without a Back button.');
-if (!readFileSync('css/style.css', 'utf8').includes('.kid-pending-hero') || !readFileSync('css/style.css', 'utf8').includes('.kid-pending-row')) throw new Error('Pending Kid approval screen styling is missing.');
+if (!cloudUiSource.includes('class="kid-pending"') || !cloudUiSource.includes('Create your Gullak') || !cloudUiSource.includes('disabled aria-disabled="true"') || !cloudUiSource.includes("latest.status !== 'active'")) throw new Error('Kid approval window must keep Create your Gullak disabled until a Supervisor accepts.');
+if (cloudUiSource.includes('kid-pending-row') || cloudUiSource.includes('Supervisor connections')) throw new Error('The old pending Kid request-list layout must be removed.');
+const supervisionScreen = cloudUiSource.slice(cloudUiSource.indexOf("G.screens['individual-supervision']"), cloudUiSource.indexOf("G.screens['supervised-kid']"));
+if (!supervisionScreen.includes('Supervisor dashboard') || supervisionScreen.includes('class="back"')) throw new Error('Supervisor dashboard must not show a useless Back button.');
+if (!readFileSync('css/style.css', 'utf8').includes('.kid-pending-hero')) throw new Error('Kid approval screen styling is missing.');
 
 if (!readFileSync('scripts/smoke-live.mjs', 'utf8').includes('Pending Kid can sign in to manage Supervisor requests')) throw new Error('Live smoke tests do not cover the restricted pending Kid state.');
 
