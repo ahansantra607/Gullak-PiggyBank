@@ -538,3 +538,15 @@ select.input { appearance: auto; }
  .kid-pending-row{gap:8px}
  .kid-pending-tag{font-size:9px;padding:5px 7px}
 }
+
+
+/* Simple activation gate for Kid accounts */
+.kid-pending{max-width:540px;gap:16px;padding:10px 0 18px}
+.kid-pending-hero{padding:clamp(24px,6vw,38px) 20px;text-align:center}
+.kid-pending-art{width:88px;height:88px;border-radius:28px;background:var(--soft)}
+.kid-pending-status.is-ready{background:var(--green-l);color:var(--green)}
+.kid-create-button{min-height:50px;margin-top:4px;font-size:16px;font-weight:800;border-radius:15px}
+.kid-create-button:disabled{opacity:.52;filter:saturate(.55);cursor:not-allowed;box-shadow:none}
+.kid-pending-add{padding:16px;border:1px solid var(--line);border-radius:18px;background:var(--card)}
+.kid-pending-add>p{margin:0 0 10px}
+.kid-pending-logout{margin-top:0}
