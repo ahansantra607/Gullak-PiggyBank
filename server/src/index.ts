@@ -694,7 +694,8 @@ export default {
           return json({ authenticated: false }, 401);
         }
 
-        return json({ authenticated: true, user });
+        const individual = user.account_type === "individual" ? await individualRole(env, user.user_id) : null;
+        return json({ authenticated: true, user: { ...user, ...(individual ? { role: individual.role, status: individual.status } : {}) } });
       } catch {
         return json({ error: "Could not check session." }, 500);
       }
