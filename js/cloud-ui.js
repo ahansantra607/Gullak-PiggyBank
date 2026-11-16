@@ -240,7 +240,7 @@
         <input class="input" id="cloud-username" maxlength="24" autocomplete="username" ${authMode === 'register' ? 'placeholder="3–24 letters, numbers or _"' : ''}>
         <label class="label" for="cloud-password">Account password</label>
         <input class="input" id="cloud-password" type="password" maxlength="128" autocomplete="${authMode === 'register' ? 'new-password' : 'current-password'}" ${authMode === 'register' ? 'placeholder="8+ chars: upper, lower, number & symbol"' : ''}>
-        ${authMode === 'register' ? '<label class="label" for="cloud-password-confirm">Re-enter account password</label><input class="input" id="cloud-password-confirm" type="password" maxlength="128" autocomplete="new-password" placeholder="Type the account password again">' : ''}
+        ${authMode === 'register' ? '<label class="label" for="cloud-password-confirm">Re-enter account password</label><div class="input-wrap"><input class="input" id="cloud-password-confirm" type="password" maxlength="128" autocomplete="new-password" placeholder="Type the account password again"><span id="cloud-password-match" class="password-match" aria-live="polite"></span></div>' : ''}
         ${authMode === 'register' && registerRole === 'kid' ? '<label class="label" for="individual-supervisor-codes">Supervisor code(s)</label><input class="input" id="individual-supervisor-codes" maxlength="80" placeholder="Enter one or more codes, separated by commas"><p class="hint">Ask each Supervisor for their 10-character code. You can add more Supervisors later in Settings.</p>' : ''}
         ${authMode === 'register' ? '<div id="cloud-password-rules" class="password-rules" hidden aria-live="polite"><div class="password-rules-title">Password strength checklist</div><div data-rule="length"><span>○</span> At least 8 characters</div><div data-rule="upper"><span>○</span> One uppercase letter</div><div data-rule="lower"><span>○</span> One lowercase letter</div><div data-rule="number"><span>○</span> One number</div><div data-rule="special"><span>○</span> One special character</div></div>' : ''}
         ${authMode === 'register' && registerRole === 'kid' ? '<label class="label" for="cloud-secret">Separate encryption passphrase</label><input class="input" id="cloud-secret" type="password" maxlength="256" autocomplete="new-password" placeholder="Choose a different passphrase"><label class="label" for="cloud-secret-confirm">Confirm encryption passphrase</label><input class="input" id="cloud-secret-confirm" type="password" maxlength="256" autocomplete="new-password" placeholder="Type it again"><p class="hint">This protects the Kid diary. It is encrypted with the account password so login can unlock the diary without asking again.</p>' : ''}
@@ -577,12 +577,26 @@
 
   G.screens['cloud-account'].after = root => {
     const input = G.$('#cloud-password', root), panel = G.$('#cloud-password-rules', root);
-    if (!input || !panel) return;
-    const rules = { length: v => v.length >= 8, upper: v => /[A-Z]/.test(v), lower: v => /[a-z]/.test(v), number: v => /[0-9]/.test(v), special: v => /[^A-Za-z0-9\s]/.test(v) };
-    const update = () => Object.entries(rules).forEach(([key, test]) => { const row = panel.querySelector('[data-rule="' + key + '"]'); if (!row) return; const good = test(input.value); row.classList.toggle('passed', good); row.querySelector('span').textContent = good ? '✓' : '○'; });
-    input.addEventListener('focus', () => { panel.hidden = false; update(); });
-    input.addEventListener('input', update);
-    input.addEventListener('blur', () => { panel.hidden = true; });
+    const confirmation = G.$('#cloud-password-confirm', root), match = G.$('#cloud-password-match', root);
+    if (input && panel) {
+      const rules = { length: v => v.length >= 8, upper: v => /[A-Z]/.test(v), lower: v => /[a-z]/.test(v), number: v => /[0-9]/.test(v), special: v => /[^A-Za-z0-9\s]/.test(v) };
+      const update = () => Object.entries(rules).forEach(([key, test]) => { const row = panel.querySelector('[data-rule="' + key + '"]'); if (!row) return; const good = test(input.value); row.classList.toggle('passed', good); row.querySelector('span').textContent = good ? '✓' : '○'; });
+      input.addEventListener('focus', () => { panel.hidden = false; update(); });
+      input.addEventListener('input', update);
+      input.addEventListener('blur', () => { panel.hidden = true; });
+    }
+    if (confirmation && match) {
+      const updateMatch = () => {
+        const value = confirmation.value;
+        const matches = value.length > 0 && value === (input?.value || '');
+        match.textContent = value.length ? (matches ? '✓' : '✕') : '';
+        match.style.color = value.length ? (matches ? 'var(--green)' : 'var(--red)') : '';
+        match.setAttribute('aria-label', value.length ? (matches ? 'Passwords match' : 'Passwords do not match') : '');
+      };
+      confirmation.addEventListener('input', updateMatch);
+      input?.addEventListener('input', updateMatch);
+      updateMatch();
+    }
   };
 
   G.cloudBackup = {
