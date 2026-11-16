@@ -614,9 +614,9 @@
       },
       'individual-refresh': async button => {
         if (cloudUser?.role !== 'kid') return;
-        const label = button.textContent;
+        const label = button.innerHTML;
         button.disabled = true;
-        button.textContent = 'Checking…';
+        button.innerHTML = '<span class="kid-refresh-spinner" aria-hidden="true">↻</span> Checking…';
         try {
           const latest = await G.cloud.individualSupervision();
           supervisionData = latest;
@@ -627,7 +627,7 @@
         } catch (error) {
           G.toast(error.message || 'Could not check approval status. Please try again.');
           button.disabled = false;
-          button.textContent = label;
+          button.innerHTML = label;
         }
       },
       'individual-logout': signOutFlow,
