@@ -78,7 +78,8 @@ if (!serverSource.includes("status = 'pending' WHERE user_id = ? AND role = 'kid
 
 if (!cloudUiSource.includes('accountPending') || !cloudUiSource.includes('individual-refresh') || !cloudUiSource.includes('individual-logout')) throw new Error('Pending Kid accounts cannot check approval or log out.');
 if (!cloudUiSource.includes('class="kid-pending"') || !cloudUiSource.includes('Create your Gullak') || !cloudUiSource.includes('disabled aria-disabled="true"') || !cloudUiSource.includes("latest.status !== 'active'")) throw new Error('Kid approval window must keep Create your Gullak disabled until a Supervisor accepts.');
-if (cloudUiSource.includes('kid-pending-row') || cloudUiSource.includes('Supervisor connections')) throw new Error('The old pending Kid request-list layout must be removed.');
+if (!cloudUiSource.includes('Supervisor requests') || !cloudUiSource.includes('kid-pending-row') || !cloudUiSource.includes('Accepted') || !cloudUiSource.includes('Pending') || !cloudUiSource.includes('Declined')) throw new Error('Pending Kid page must show the requested Supervisor list and each request status.');
+if (cloudUiSource.includes('btn ghost block kid-pending-logout') || cloudUiSource.includes('btn ghost" data-act="individual-logout"')) throw new Error('Log out buttons should use the standard Gullak button style.');
 const supervisionScreen = cloudUiSource.slice(cloudUiSource.indexOf("G.screens['individual-supervision']"), cloudUiSource.indexOf("G.screens['supervised-kid']"));
 if (!supervisionScreen.includes('Supervisor dashboard') || supervisionScreen.includes('class="back"')) throw new Error('Supervisor dashboard must not show a useless Back button.');
 if (supervisionScreen.includes('data-to="settings"') || supervisionScreen.includes('class="back"')) throw new Error('Neither Supervisor dashboard nor the active Kid Manage Supervisors page should show a Back button.');
