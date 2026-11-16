@@ -7,6 +7,7 @@
   let lastSupervisorCode = '';
   let supervisionData = null;
   let supervisionLoading = false;
+  let pendingRuleSetup = null;
   let cloudSecret = '';
   let cloudUser = null;
   let supervisorPrivateKey = null;
@@ -425,6 +426,10 @@
             }
           } else {
             G.S = G.fresh();
+            if (cloudUser?.role === 'kid') {
+              const initialSupervision = await G.cloud.individualSupervision();
+              if (initialSupervision.rules && G.S?.settings) Object.assign(G.S.settings, initialSupervision.rules);
+            }
             if (G.mode) G.setMode('individual');
             G.go(returnAfterLogin || 'welcome');
             G.toast('Account ready. Set up your Gullak profile.');
@@ -464,6 +469,22 @@
         : accountPending
           ? ''
           : '<header class="page-h"><h1>🛡️ Supervisors</h1></header>';
+      if (role === 'supervisor' && pendingRuleSetup) {
+        const groups = [
+          { key: 'loanInterest', title: '🏦 Interest when they borrow from Future Me', options: [[0, 'None'], [5, '5%'], [10, '10%'], [20, '20%']] },
+          { key: 'matchPct', title: '🤝 Your bonus when they save (savings match)', options: [[0, 'Off'], [5, '5%'], [10, '10%'], [25, '25%'], [50, '50%']] },
+          { key: 'coolHours', title: '🧊 Cool-down wait for big wants', options: [[1 / 60, '1 min (demo)'], [1, '1 hour'], [24, '24 hours'], [48, '2 days']] },
+          { key: 'coolMin', title: '🧊 Suggest cool-down for wants above', options: [[100, '₹100'], [200, '₹200'], [500, '₹500'], [1000, '₹1,000']] },
+          { key: 'reviewHours', title: '😍 Ask “Was it worth it?” after', options: [[1 / 60, '1 min (demo)'], [3, '3 hours'], [12, '12 hours'], [24, '1 day']] }
+        ];
+        return `<main class="sup-rule-setup">
+          <header class="page-h"><button class="back" data-act="individual-rule-back" aria-label="Back to requests">←</button><h1>📋 Grown-up Rules</h1></header>
+          <section class="card"><h2>Set the rules for ${esc(pendingRuleSetup.kidName)}’s Gullak</h2><p class="muted">Choose the house rules before approving this account. You can change them later from the Kid’s Grown-up settings.</p>
+          ${groups.map(group => `<div class="label">${group.title}</div><div class="chips">${group.options.map(([value, label]) => `<button class="chip ${Math.abs(pendingRuleSetup.rules[group.key] - value) < 1e-6 ? 'on' : ''}" data-act="individual-rule-option" data-key="${group.key}" data-value="${value}">${label}</button>`).join('')}</div>`).join('')}
+          <button class="btn primary block big mt" data-act="individual-rule-accept">Save rules &amp; approve</button>
+          <button class="btn ghost block" data-act="individual-rule-back">Cancel</button></section>
+        </main>`;
+      }
       if (role === 'supervisor') return `
         <div class="sup-dashboard">
           <header class="sup-dash-head">
@@ -482,7 +503,7 @@
           </section>
           <section class="card sup-section">
             <div class="sup-section-head"><div><p class="sup-eyebrow">NEEDS YOUR ATTENTION</p><h2>Requests <span class="sup-count">${pending.length}</span></h2></div></div>
-            ${pending.length ? '<div class="sup-request-list">' + pending.map(x => `<article class="sup-request"><div class="sup-person"><span class="sup-avatar">🧒</span><div><b>${esc(x.other_username)}</b><p>Wants you to become their Supervisor</p></div></div><div class="sup-request-actions"><button class="btn good" data-act="individual-decision" data-id="${esc(x.link_id)}" data-v="accept">Accept</button><button class="btn ghost" data-act="individual-decision" data-id="${esc(x.link_id)}" data-v="reject">Decline</button></div></article>`).join('') + '</div>' : '<div class="sup-empty"><span>📭</span><b>All caught up</b><p>New Kid requests will appear here. You can share your code to invite a Kid.</p></div>'}
+            ${pending.length ? '<div class="sup-request-list">' + pending.map(x => `<article class="sup-request"><div class="sup-person"><span class="sup-avatar">🧒</span><div><b>${esc(x.other_username)}</b><p>Wants you to become their Supervisor</p></div></div><div class="sup-request-actions"><button class="btn good" data-act="individual-decision" data-id="${esc(x.link_id)}" data-v="accept" data-kidstatus="${esc(x.kid_status || '')}" data-kidname="${esc(x.other_username)}">Accept</button><button class="btn ghost" data-act="individual-decision" data-id="${esc(x.link_id)}" data-v="reject">Decline</button></div></article>`).join('') + '</div>' : '<div class="sup-empty"><span>📭</span><b>All caught up</b><p>New Kid requests will appear here. You can share your code to invite a Kid.</p></div>'}
           </section>
           <section class="card sup-section">
             <div class="sup-section-head"><div><p class="sup-eyebrow">YOUR CONNECTIONS</p><h2>Kids you supervise <span class="sup-count">${accepted.length}</span></h2></div></div>
@@ -601,7 +622,32 @@
         try { const result = await G.cloud.createSupervisorCode(); lastSupervisorCode = result.code; supervisionData = null; G.render({ keepScroll: true }); }
         catch (error) { G.toast(error.message || 'Could not generate a code.'); button.disabled = false; }
       },
+      'individual-rule-option': el => {
+        if (!pendingRuleSetup) return;
+        pendingRuleSetup.rules[el.dataset.key] = Number(el.dataset.value);
+        G.render({ keepScroll: true });
+      },
+      'individual-rule-back': () => { pendingRuleSetup = null; G.render({ keepScroll: true }); },
+      'individual-rule-accept': async button => {
+        if (!pendingRuleSetup) return;
+        button.disabled = true;
+        try {
+          await G.cloud.decideSupervisorRequest(pendingRuleSetup.linkId, 'accept', pendingRuleSetup.rules);
+          pendingRuleSetup = null; supervisionData = null;
+          G.toast('Grown-up Rules saved. You are now a Supervisor for this Kid.');
+          G.render({ keepScroll: true });
+        } catch (error) { button.disabled = false; G.toast(error.message || 'Could not save the rules and approve this Kid.'); }
+      },
       'individual-decision': async el => {
+        if (el.dataset.v === 'accept' && el.dataset.kidstatus === 'pending') {
+          pendingRuleSetup = {
+            linkId: el.dataset.id,
+            kidName: el.dataset.kidname || 'this Kid',
+            rules: Object.assign({}, G.RULE_DEFAULTS || { loanInterest: 0, matchPct: 0, coolHours: 24, coolMin: 200, reviewHours: 12 })
+          };
+          G.render({ keepScroll: true });
+          return;
+        }
         try { await G.cloud.decideSupervisorRequest(el.dataset.id, el.dataset.v); supervisionData = null; G.toast(el.dataset.v === 'accept' ? 'You are now a Supervisor for this Kid.' : 'Request declined.'); G.render({ keepScroll: true }); }
         catch (error) { G.toast(error.message || 'Could not update the request.'); }
       },
@@ -657,6 +703,10 @@
             G.render({ keepScroll: true });
             G.toast('Your Gullak will unlock as soon as a Supervisor accepts.');
             return;
+          }
+          if (!G.S?.profile) {
+            if (!G.S) G.S = G.fresh();
+            if (latest.rules && G.S.settings) Object.assign(G.S.settings, latest.rules);
           }
           if (window.GullakNative && typeof window.GullakNative.onCloudReady === 'function') window.GullakNative.onCloudReady();
           G.go(G.S?.profile ? 'home' : 'welcome');
