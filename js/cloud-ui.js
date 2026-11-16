@@ -682,7 +682,21 @@
         const code = (G.$('#individual-add-supervisor')?.value || '').trim();
         if (!code) return G.toast('Enter a Supervisor code.');
         button.disabled = true;
-        try { await G.cloud.requestSupervisor(code); supervisionData = null; G.toast('Request sent. The Supervisor must accept it.'); G.render({ keepScroll: true }); }
+        try {
+          const session = await G.cloud.currentUser();
+          const actual = session?.user;
+          if (!actual || actual.account_type !== 'individual' || actual.role !== 'kid') {
+            if (actual) { cloudUser = actual; supervisionData = null; G.render({ keepScroll: true }); }
+            throw new Error(actual?.role === 'supervisor'
+              ? 'This device is signed into a Supervisor account, not the pending Kid account. Log out and sign in with the Kid account to add another Supervisor.'
+              : 'Your signed-in account could not be verified as a Kid account. Please log out and sign in again.');
+          }
+          cloudUser = actual;
+          await G.cloud.requestSupervisor(code);
+          supervisionData = null;
+          G.toast('Request sent. The Supervisor must accept it.');
+          G.render({ keepScroll: true });
+        }
         catch (error) { G.toast(error.message || 'Could not send the request.'); button.disabled = false; }
       },
       'individual-refresh': async button => {
