@@ -35,7 +35,7 @@
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error || new Error('Device session storage unavailable.'));
   });
-  async function rememberDevice(secret) {
+  async function writeDeviceSecret(recordName, secret) {
     const db = await rememberDb();
     try {
       const key = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
@@ -43,17 +43,17 @@
       const encrypted = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, encoder.encode(secret));
       await new Promise((resolve, reject) => {
         const tx = db.transaction('session', 'readwrite');
-        tx.objectStore('session').put({ key, iv: Array.from(iv), ciphertext: Array.from(new Uint8Array(encrypted)) }, 'remembered');
+        tx.objectStore('session').put({ key, iv: Array.from(iv), ciphertext: Array.from(new Uint8Array(encrypted)) }, recordName);
         tx.oncomplete = resolve; tx.onerror = () => reject(tx.error);
       });
     } finally { db.close(); }
   }
-  async function readRememberedDevice() {
+  async function readDeviceSecret(recordName) {
     const db = await rememberDb();
     try {
       const record = await new Promise((resolve, reject) => {
         const tx = db.transaction('session', 'readonly');
-        const req = tx.objectStore('session').get('remembered');
+        const req = tx.objectStore('session').get(recordName);
         req.onsuccess = () => resolve(req.result || null); req.onerror = () => reject(req.error);
       });
       if (!record || !record.key || !record.iv || !record.ciphertext) return null;
@@ -61,12 +61,27 @@
       return new TextDecoder().decode(plain);
     } finally { db.close(); }
   }
+  async function rememberDevice(secret) { return writeDeviceSecret('remembered', secret); }
+  async function rememberSessionDevice(secret) {
+    await writeDeviceSecret('session-only', secret);
+    try { window.sessionStorage.setItem('gullak-session-only', '1'); } catch (_) {}
+  }
+  async function readRememberedDevice() {
+    const persistent = await readDeviceSecret('remembered');
+    if (persistent !== null) return persistent;
+    let isCurrentTab = false;
+    try { isCurrentTab = window.sessionStorage.getItem('gullak-session-only') === '1'; } catch (_) {}
+    return isCurrentTab ? readDeviceSecret('session-only') : null;
+  }
   async function clearRememberedDevice() {
     if (!('indexedDB' in window)) return;
+    try { window.sessionStorage.removeItem('gullak-session-only'); } catch (_) {}
     const db = await rememberDb();
     try {
       await new Promise((resolve, reject) => {
-        const tx = db.transaction('session', 'readwrite'); tx.objectStore('session').delete('remembered');
+        const tx = db.transaction('session', 'readwrite');
+        tx.objectStore('session').delete('remembered');
+        tx.objectStore('session').delete('session-only');
         tx.oncomplete = resolve; tx.onerror = () => reject(tx.error);
       });
     } finally { db.close(); }
@@ -117,8 +132,9 @@
     checkUsername: username => request('/api/username/check', {
       method: 'POST', body: JSON.stringify({ username })
     }),
-    login: (username, password) => request('/api/login', {
-      method: 'POST', body: JSON.stringify({ username, password })
+    login: (username, password, sessionOnly = false) => request('/api/login', {
+      method: 'POST', body: JSON.stringify({ username, password }),
+      ...(sessionOnly && !window.GullakNative ? { headers: { 'X-Gullak-Session-Only': '1' } } : {})
     }),
     registerFamilyAccount: (username, password) => request('/api/family/register', {
       method: 'POST', body: JSON.stringify({ username, password })
@@ -131,6 +147,7 @@
     setupMobilePin: pin => request('/api/mobile-pin/setup', { method: 'POST', body: JSON.stringify({ pin }) }),
     verifyMobilePin: pin => request('/api/mobile-pin/verify', { method: 'POST', body: JSON.stringify({ pin }) }),
     rememberDevice,
+    rememberSessionDevice,
     readRememberedDevice,
     clearRememberedDevice,
     async restoreRemembered() {
