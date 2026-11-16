@@ -688,7 +688,7 @@
         match.setAttribute('aria-expanded', String(!matchHelp.hidden));
       });
       confirmation.addEventListener('input', () => { if (matchHelp) matchHelp.hidden = true; updateMatch(); });
-      input?.addEventListener('input', () => { if (matchHelp) matchHelp.hidden = true; updateMatch(); updateSecretIfPresent(); });
+      input?.addEventListener('input', () => { if (matchHelp) matchHelp.hidden = true; updateMatch(); });
       updateMatch();
     }
     const secretInput = G.$('#cloud-secret', root);
