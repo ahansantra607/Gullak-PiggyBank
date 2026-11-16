@@ -612,3 +612,13 @@ select.input { appearance: auto; }
 /* Animate only the refresh symbol while the Kid checks approval status */
 .kid-supervision-refresh .kid-refresh-spinner,.kid-pending-refresh .kid-refresh-spinner{display:inline-block;transform-origin:50% 50%;animation:kidRefreshSpin .8s linear infinite}
 @keyframes kidRefreshSpin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+
+
+/* Accessible show/hide control for every password and PIN field */
+.gullak-password-eye-wrap{display:block;position:relative;width:100%;max-width:100%}
+.gullak-password-eye-wrap>input{box-sizing:border-box;max-width:100%}
+.gullak-password-eye{position:absolute;z-index:2;right:5px;top:50%;transform:translateY(-50%);display:flex;align-items:center;justify-content:center;width:34px;height:34px;padding:6px;border:0;border-radius:9px;background:transparent;color:var(--muted);cursor:pointer}
+.gullak-password-eye:focus-visible{outline:2px solid var(--pri);outline-offset:1px}
+.gullak-password-eye svg{width:21px;height:21px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.gullak-password-eye .eye-slash{display:block}
+.gullak-password-eye.is-visible .eye-slash{display:none}
