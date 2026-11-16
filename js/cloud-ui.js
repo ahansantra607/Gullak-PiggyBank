@@ -241,9 +241,9 @@
         <label class="label" for="cloud-password">Account password</label>
         <div style="position:relative;width:100%"><input class="input" style="width:100%;box-sizing:border-box;padding-right:44px" id="cloud-password" type="password" maxlength="128" autocomplete="${authMode === 'register' ? 'new-password' : 'current-password'}" ${authMode === 'register' ? 'placeholder="8+ chars: upper, lower, number & symbol"' : ''}><span id="cloud-password-status" aria-live="polite" style="display:none;position:absolute;right:12px;top:50%;transform:translateY(-50%);pointer-events:none;font-size:22px;font-weight:700"></span></div>
         ${authMode === 'register' ? '<div id="cloud-password-rules" class="password-rules" aria-live="polite"><div class="password-rules-title">Password strength checklist</div><div data-rule="length"><span>○</span> At least 8 characters</div><div data-rule="upper"><span>○</span> One uppercase letter</div><div data-rule="lower"><span>○</span> One lowercase letter</div><div data-rule="number"><span>○</span> One number</div><div data-rule="special"><span>○</span> One special character</div></div>' : ''}
-        ${authMode === 'register' ? '<label class="label" for="cloud-password-confirm">Re-enter account password</label><div style="position:relative;width:100%"><input class="input" style="width:100%;box-sizing:border-box;' + (registerRole === 'supervisor' ? 'padding-right:44px;' : '') + '" id="cloud-password-confirm" type="password" maxlength="128" autocomplete="new-password" placeholder="Type the account password again">' + (registerRole === 'supervisor' ? '<button type="button" id="cloud-password-match" aria-label="Password confirmation status" aria-expanded="false" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);border:0;background:transparent;padding:4px;font-size:22px;font-weight:700;cursor:pointer"></button>' : '') + '</div><p id="cloud-password-match-help" class="hint" hidden></p>' : ''}
+        ${authMode === 'register' ? '<label class="label" for="cloud-password-confirm">Re-enter account password</label><div style="position:relative;width:100%"><input class="input" style="width:100%;box-sizing:border-box;padding-right:44px" id="cloud-password-confirm" type="password" maxlength="128" autocomplete="new-password" placeholder="Type the account password again"><button type="button" id="cloud-password-match" aria-label="Password confirmation status" aria-expanded="false" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);border:0;background:transparent;padding:4px;font-size:22px;font-weight:700;cursor:pointer"></button></div><p id="cloud-password-match-help" class="hint" hidden></p>' : ''}
         ${authMode === 'register' && registerRole === 'kid' ? '<label class="label" for="individual-supervisor-codes">Supervisor code(s)</label><input class="input" id="individual-supervisor-codes" maxlength="80" placeholder="Enter one or more codes, separated by commas"><p class="hint">Ask each Supervisor for their 10-character code. You can add more Supervisors later in Settings.</p>' : ''}
-        ${authMode === 'register' && registerRole === 'kid' ? '<label class="label" for="cloud-secret">Separate encryption passphrase</label><input class="input" id="cloud-secret" type="password" maxlength="256" autocomplete="new-password" placeholder="Choose a different passphrase"><label class="label" for="cloud-secret-confirm">Confirm encryption passphrase</label><input class="input" id="cloud-secret-confirm" type="password" maxlength="256" autocomplete="new-password" placeholder="Type it again"><p class="hint">This protects the Kid diary. It is encrypted with the account password so login can unlock the diary without asking again.</p>' : ''}
+        ${authMode === 'register' && registerRole === 'kid' ? '<label class="label" for="cloud-secret">Separate encryption passphrase</label><div style="position:relative;width:100%"><input class="input" style="width:100%;box-sizing:border-box;padding-right:44px" id="cloud-secret" type="password" maxlength="256" autocomplete="new-password" placeholder="Choose a different passphrase"><span id="cloud-secret-status" aria-live="polite" style="display:none;position:absolute;right:12px;top:50%;transform:translateY(-50%);pointer-events:none;font-size:22px;font-weight:700"></span></div><div id="cloud-secret-rules" class="password-rules" aria-live="polite"><div class="password-rules-title">Encryption passphrase check</div><div data-rule="secret-length"><span>○</span> At least 10 characters</div></div><label class="label" for="cloud-secret-confirm">Re-enter encryption passphrase</label><div style="position:relative;width:100%"><input class="input" style="width:100%;box-sizing:border-box;padding-right:44px" id="cloud-secret-confirm" type="password" maxlength="256" autocomplete="new-password" placeholder="Type it again"><span id="cloud-secret-match-status" aria-live="polite" style="display:none;position:absolute;right:12px;top:50%;transform:translateY(-50%);pointer-events:none;font-size:22px;font-weight:700"></span></div><p class="hint">This protects the Kid diary. Use at least 10 characters and make it different from your account password. The encrypted diary is unlocked automatically after login.</p>' : ''}
         ${authMode === 'login' && !(window.GullakNative && typeof window.GullakNative.onCloudReady === 'function') ? '<label class="check-row mt"><input id="cloud-stay-logged-in" type="checkbox"> <span>Stay logged in on this device</span></label><p class="hint">Keeps this device signed in while your secure 7-day cloud session is valid. You can still log out from Settings.</p>' : ''}
         <button class="btn primary block big" data-act="cloud-connect">${authMode === 'register' ? (registerRole === 'supervisor' ? 'Create Supervisor account' : 'Create Kid account') : 'Log in to Gullak'}</button>
         <button class="btn ghost block" data-act="cloud-mode">${authMode === 'register' ? 'I already have an account · Log in' : 'New here? · Create an account'}</button>
@@ -689,6 +689,37 @@
       confirmation.addEventListener('input', () => { if (matchHelp) matchHelp.hidden = true; updateMatch(); });
       input?.addEventListener('input', () => { if (matchHelp) matchHelp.hidden = true; updateMatch(); });
       updateMatch();
+    }
+    const secretInput = G.$('#cloud-secret', root);
+    const secretStatus = G.$('#cloud-secret-status', root);
+    const secretRules = G.$('#cloud-secret-rules', root);
+    const secretConfirmation = G.$('#cloud-secret-confirm', root);
+    const secretMatchStatus = G.$('#cloud-secret-match-status', root);
+    const updateSecretMatch = () => {
+      if (!secretConfirmation || !secretMatchStatus || !secretInput) return;
+      const value = secretConfirmation.value;
+      const matches = value.length > 0 && value === secretInput.value && secretInput.value.length >= 10;
+      secretMatchStatus.style.display = value.length ? 'block' : 'none';
+      secretMatchStatus.textContent = value.length ? (matches ? '✓' : '✕') : '';
+      secretMatchStatus.style.color = value.length ? (matches ? 'var(--green)' : 'var(--red)') : '';
+      secretMatchStatus.setAttribute('aria-label', value.length ? (matches ? 'Encryption passphrases match' : 'Encryption passphrases do not match or are too short') : '');
+    };
+    if (secretInput && secretStatus && secretRules) {
+      const updateSecret = () => {
+        const value = secretInput.value;
+        const valid = value.length >= 10;
+        const hasValue = value.length > 0;
+        const row = secretRules.querySelector('[data-rule="secret-length"]');
+        if (row) { row.classList.toggle('passed', valid); row.querySelector('span').textContent = valid ? '✓' : '○'; }
+        secretStatus.style.display = hasValue ? 'block' : 'none';
+        secretStatus.textContent = hasValue ? (valid ? '✓' : '✕') : '';
+        secretStatus.style.color = hasValue ? (valid ? 'var(--green)' : 'var(--red)') : '';
+        secretStatus.setAttribute('aria-label', valid ? 'Encryption passphrase meets the minimum length' : 'Encryption passphrase must be at least 10 characters');
+        updateSecretMatch();
+      };
+      secretInput.addEventListener('input', updateSecret);
+      secretConfirmation?.addEventListener('input', updateSecretMatch);
+      updateSecret();
     }
   };
 
