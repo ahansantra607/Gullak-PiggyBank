@@ -616,9 +616,15 @@
         if (cloudUser?.role !== 'kid') return;
         const label = button.innerHTML;
         button.disabled = true;
-        button.innerHTML = button.classList.contains('kid-supervision-refresh')
-          ? '<span class="kid-refresh-spinner" aria-hidden="true">↻</span>'
-          : '<span class="kid-refresh-spinner" aria-hidden="true">↻</span> Check approval status';
+        if (button.classList.contains('kid-supervision-refresh')) {
+          const spinner = document.createElement('span');
+          spinner.className = 'kid-refresh-spinner';
+          spinner.setAttribute('aria-hidden', 'true');
+          spinner.textContent = '↻';
+          button.replaceChildren(spinner);
+        } else {
+          button.innerHTML = '<span class="kid-refresh-spinner" aria-hidden="true">↻</span> Check approval status';
+        }
         try {
           const latest = await G.cloud.individualSupervision();
           supervisionData = latest;
