@@ -45,6 +45,26 @@
   <script>
     (function () {
       const $ = id => document.getElementById(id);
+      const pinInput = $('pin');
+      const pinWrap = document.createElement('span');
+      pinWrap.className = 'gullak-password-eye-wrap';
+      pinInput.parentNode.insertBefore(pinWrap, pinInput);
+      pinWrap.appendChild(pinInput);
+      pinInput.style.paddingRight = '48px';
+      const pinEye = document.createElement('button');
+      pinEye.type = 'button'; pinEye.className = 'gullak-password-eye';
+      pinEye.setAttribute('aria-label', 'Show PIN'); pinEye.setAttribute('aria-pressed', 'false');
+      pinEye.title = 'Show PIN';
+      pinEye.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/><path class="eye-slash" d="M4 4 20 20"/></svg>';
+      pinWrap.appendChild(pinEye);
+      pinEye.addEventListener('click', () => {
+        const visible = pinInput.type === 'password';
+        pinInput.type = visible ? 'text' : 'password';
+        pinEye.classList.toggle('is-visible', visible);
+        pinEye.setAttribute('aria-label', visible ? 'Hide PIN' : 'Show PIN');
+        pinEye.setAttribute('aria-pressed', String(visible));
+        pinEye.title = visible ? 'Hide PIN' : 'Show PIN';
+      });
       let mode = 'setup', firstPin = '', confirming = false, busy = false;
       function showSetup() {
         mode = 'setup'; firstPin = ''; confirming = false;
