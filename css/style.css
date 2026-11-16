@@ -578,3 +578,33 @@ select.input { appearance: auto; }
 
 /* Keep the inactive Kid timer badge in the lower-right corner of the piggy tile */
 .kid-pending-art>i{right:-5px;bottom:-5px;transform:none}
+
+
+/* Active Individual Kid — Manage Supervisors */
+.kid-supervision-active{max-width:620px;gap:14px;padding:4px 0 18px}
+.kid-supervision-page-head{display:flex;align-items:center;gap:10px;margin:0;padding:2px 0 4px}
+.kid-supervision-page-head h1{flex:1;min-width:0;font-size:clamp(20px,5vw,26px);margin:0;line-height:1.2}
+.kid-supervision-refresh{width:40px;height:40px;flex:none;padding:0;font-size:20px}
+.kid-supervision-hero{padding:20px 17px 17px}
+.kid-supervision-hero .kid-pending-art{width:88px;height:88px;border-radius:24px;background:var(--soft)}
+.kid-supervision-hero .kid-pending-art>.piggy{width:76px}
+.kid-supervision-hero .kid-pending-status.is-ready{background:var(--green-l);color:var(--green)}
+.kid-supervision-hero .kid-pending-status.is-ready>span{background:var(--green)}
+.kid-supervision-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:5px}
+.kid-supervision-stats>div{display:flex;flex-direction:column;align-items:center;gap:3px;padding:10px 5px;border:1px solid var(--line);border-radius:14px;background:rgba(255,255,255,.7)}
+.kid-supervision-stats strong{font-size:21px;line-height:1.1}
+.kid-supervision-stats span{font-size:10px;color:var(--muted);font-weight:750}
+.kid-supervision-count{display:inline-grid;place-items:center;min-width:26px;height:26px;padding:0 7px;border-radius:999px;background:var(--soft);font-size:12px;font-weight:850}
+.kid-supervision-add{padding:16px;border:1px solid var(--line);border-radius:20px;background:var(--card,var(--surface,#fff))}
+.kid-supervision-add .kid-pending-title{margin-bottom:7px}
+.kid-supervision-add .kid-pending-title>span{display:grid;place-items:center;width:30px;height:30px;border-radius:10px;background:var(--soft);font-size:20px;font-weight:800}
+.kid-supervision-add>p{font-size:12px;line-height:1.5;color:var(--muted);margin:0 0 12px}
+.kid-supervision-add .input{width:100%;min-height:46px}
+.kid-supervision-add .btn{min-height:44px}
+@media(max-width:420px){
+ .kid-supervision-active{gap:11px}
+ .kid-supervision-page-head h1{font-size:20px}
+ .kid-supervision-hero{padding:18px 13px 15px}
+ .kid-supervision-stats{gap:6px}
+ .kid-supervision-stats>div{padding:9px 3px}
+}
