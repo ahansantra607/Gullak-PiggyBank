@@ -302,5 +302,6 @@ if (!androidWorkerSource.includes('request.headers.get("X-Gullak-Android") === "
 if (!androidActivitySource.includes('CookieManager.getInstance().setAcceptThirdPartyCookies(webView, true)') || !androidActivitySource.includes('CookieManager.getInstance().flush()')) throw new Error('Android WebView does not persist its cross-site cloud session cookie.');
 if (!androidPinHtml.includes('aria-label="Gullak the piggy bank"') || androidPinHtml.includes('>🐷</div>')) throw new Error('Android PIN page does not use Gullak intro piggy artwork.');
 console.log('Frontend syntax, script order, Web Crypto, verified migration and cloud-only Individual saves passed.');
-const activeKidStyle = readFileSync('css/style.css', 'utf8');
-if (!activeKidStyle.includes('.view:has(.kid-supervision-active){animation:none}') || !activeKidStyle.includes('.kid-supervision-active,.kid-supervision-active *{animation:none!important;transition:none!important}') || !activeKidStyle.includes('.kid-supervision-active .kid-supervision-hero h1{font-size:20px;line-height:1.25}')) throw new Error('Active Kid My Supervisors page must use calm motion-free styling and compact typography without global changes.');
+const refreshOnlyStyle = readFileSync('css/style.css', 'utf8');
+const cloudUiRefresh = readFileSync('js/cloud-ui.js', 'utf8');
+if (!refreshOnlyStyle.includes('.kid-pending-refresh .kid-refresh-spinner') || !cloudUiRefresh.includes('kid-refresh-spinner') || !cloudUiRefresh.includes("button.innerHTML = label;")) throw new Error('Kid approval checking should animate only the refresh icon and restore its original label on error.');
