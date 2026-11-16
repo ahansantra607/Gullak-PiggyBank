@@ -574,3 +574,7 @@ select.input { appearance: auto; }
  .kid-pending-art>.piggy{width:76px}
  .kid-pending-row{gap:8px}
 }
+
+
+/* Keep the inactive Kid timer badge in the lower-right corner of the piggy tile */
+.kid-pending-art>i{right:-5px;bottom:-5px;transform:none}
