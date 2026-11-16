@@ -19,6 +19,22 @@
   let selectedFamily = null;
   let returnAfterLogin = null;
 
+  const supervisorCodeStorageKey = userId => 'gullak:supervisor-code:' + String(userId || '');
+  function rememberSupervisorCode(code, userId = cloudUser?.user_id) {
+    lastSupervisorCode = String(code || '');
+    if (!userId) return;
+    try {
+      const key = supervisorCodeStorageKey(userId);
+      if (lastSupervisorCode) sessionStorage.setItem(key, lastSupervisorCode);
+      else sessionStorage.removeItem(key);
+    } catch (_) {}
+  }
+  function restoreSupervisorCode(user = cloudUser) {
+    if (user?.role !== 'supervisor' || !user?.user_id) { lastSupervisorCode = ''; return; }
+    try { lastSupervisorCode = sessionStorage.getItem(supervisorCodeStorageKey(user.user_id)) || ''; }
+    catch (_) { lastSupervisorCode = ''; }
+  }
+
   G.cloudAccount = {
     setAuthMode(mode) { authMode = mode === 'register' ? 'register' : 'login'; G.render(); },
     get user() { return cloudUser; },
@@ -55,7 +71,7 @@
           await G.cloud.logout().catch(() => {});
           return false;
         }
-        cloudUser = remembered.user; cloudSecret = remembered.secret || ''; syncError = null;
+        cloudUser = remembered.user; cloudSecret = remembered.secret || ''; syncError = null; restoreSupervisorCode(cloudUser);
         if (remembered.user?.role === 'kid' && remembered.user?.status === 'pending') {
           if (G.setMode) G.setMode('individual');
           if (window.GullakNative && typeof window.GullakNative.onCloudReady === 'function') window.GullakNative.onCloudReady();
@@ -303,7 +319,7 @@
           }
           cloudUser = auth.user;
           if (authMode === 'register') {
-            lastSupervisorCode = auth.supervisor_code || '';
+            rememberSupervisorCode(auth.supervisor_code || '', cloudUser?.user_id);
             authMode = 'login';
             if (G.setMode) G.setMode('individual');
             if (role === 'supervisor') {
@@ -318,6 +334,7 @@
             cloudSecret = secret;
             await G.cloud.saveKeyWrap(cloudSecret, password);
           } else if (auth.user?.role === 'supervisor') {
+            restoreSupervisorCode(cloudUser);
             cloudSecret = '';
             let keyResult = await G.cloud.loadSupervisorKey();
             if (!keyResult.exists || !keyResult.key_bundle) {
@@ -629,7 +646,7 @@
       'individual-copy-code': () => { if (!lastSupervisorCode) return; G.copy(lastSupervisorCode); },
       'individual-new-code': async button => {
         button.disabled = true;
-        try { const result = await G.cloud.createSupervisorCode(); lastSupervisorCode = result.code; supervisionData = null; G.render({ keepScroll: true }); }
+        try { const result = await G.cloud.createSupervisorCode(); rememberSupervisorCode(result.code); supervisionData = null; G.render({ keepScroll: true }); }
         catch (error) { G.toast(error.message || 'Could not generate a code.'); button.disabled = false; }
       },
       'individual-rule-option': el => {
