@@ -91,8 +91,8 @@
     register: (username, password) => request('/api/register', {
       method: 'POST', body: JSON.stringify({ username, password })
     }),
-    async registerIndividual(username, password, role, supervisorCodes, secret, supervisorKey, sessionOnly = false) {
-      const body = { username, password, role, supervisor_codes: supervisorCodes || [] };
+    async registerIndividual(username, password, role, supervisorCodes, secret, supervisorKey, sessionOnly = false, realName = '') {
+      const body = { username, password, role, real_name: realName, supervisor_codes: supervisorCodes || [] };
       if (role === 'supervisor' && supervisorKey) body.supervisor_key = supervisorKey;
       if (role === 'kid') {
         const salt = C.salt();
