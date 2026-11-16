@@ -60,3 +60,13 @@ CREATE TABLE IF NOT EXISTS individual_kid_key_shares (
   updated_at TEXT NOT NULL,
   PRIMARY KEY (kid_user_id, supervisor_user_id)
 );
+
+
+-- House rules selected by the first Supervisor who approves an Individual Kid.
+CREATE TABLE IF NOT EXISTS individual_kid_rules (
+  kid_user_id TEXT PRIMARY KEY REFERENCES users(user_id) ON DELETE CASCADE,
+  rules_json TEXT NOT NULL,
+  set_by_supervisor_user_id TEXT NOT NULL REFERENCES users(user_id),
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
