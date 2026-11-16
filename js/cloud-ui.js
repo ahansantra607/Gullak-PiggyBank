@@ -614,6 +614,7 @@
       },
       'individual-refresh': async button => {
         if (cloudUser?.role !== 'kid') return;
+        const quietRefresh = button.classList.contains('kid-supervision-refresh');
         const label = button.innerHTML;
         button.disabled = true;
         if (button.classList.contains('kid-supervision-refresh')) {
@@ -630,10 +631,12 @@
           supervisionData = latest;
           if (latest.status) cloudUser.status = latest.status;
           G.render({ keepScroll: true });
-          if (latest.status === 'active') G.toast('Your Supervisor approved your account. Your Gullak is ready to create.');
-          else G.toast('Still waiting for a Supervisor to accept your request.');
+          if (!quietRefresh) {
+            if (latest.status === 'active') G.toast('Your Supervisor approved your account. Your Gullak is ready to create.');
+            else G.toast('Still waiting for a Supervisor to accept your request.');
+          }
         } catch (error) {
-          G.toast(error.message || 'Could not check approval status. Please try again.');
+          if (!quietRefresh) G.toast(error.message || 'Could not check approval status. Please try again.');
           button.disabled = false;
           button.innerHTML = label;
         }
