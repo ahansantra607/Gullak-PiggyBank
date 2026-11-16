@@ -81,6 +81,10 @@ if (!cloudOnlySource.includes('familyKey: C.b64(F.fkRaw)')) throw new Error('New
 if (!cloudSource.includes('passwordOrRole')) throw new Error('Supervisor-created member accounts are not supported by the cloud client.');
 if (!serverSource.includes('Family PIN must be 4–6 digits.')) throw new Error('The server does not enforce the shared Family PIN format.');
 
+if (!cloudUiSource.includes('id="cloud-username-status"') || !cloudUiSource.includes("result.available") || !cloudUiSource.includes("result.exists") || !cloudUiSource.includes("Username already used") || !cloudUiSource.includes("Username not found")) throw new Error('Username field must show a live availability/existence tick or cross.');
+if (!cloudSource.includes("checkUsername: username => request('/api/username/check'")) throw new Error('Username validation is not checked against the cloud server.');
+if (!serverSource.includes('path === "/api/username/check"') || !serverSource.includes('SELECT 1 AS found FROM users WHERE username = ? LIMIT 1')) throw new Error('Cloud username availability endpoint is missing.');
+
 if (!cloudUiSource.includes("authMode === 'register' ? 'placeholder=\"3–24 letters, numbers or _\"' : ''")) throw new Error('Individual username hint should appear only during registration.');
 if (!cloudUiSource.includes("authMode === 'register' ? 'placeholder=\"8+ chars: upper, lower, number & symbol\"' : ''")) throw new Error('Individual password hint should appear only during registration.');
 if (!cloudSource.includes("registerFamilyAccount") || !cloudSource.includes("loginFamilyAccount")) throw new Error('Family accounts do not use dedicated authentication endpoints.');
