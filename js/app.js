@@ -12,6 +12,7 @@
 
   G.go = (name, q) => {
     const h = '#/' + name + (q ? '?' + new URLSearchParams(q).toString() : '');
+    G._forceScrollTop = true;
     if (location.hash === h) G.render(); else location.hash = h;
   };
 
@@ -24,6 +25,7 @@
     else { H.push(h); if (H.length > 40) H.shift(); }
   };
   G.back = (fallback = 'home') => {
+    G._forceScrollTop = true;
     if (H.length > 1) { H.pop(); location.hash = H[H.length - 1]; }
     else G.go(fallback);
   };
@@ -60,11 +62,14 @@
       nav.innerHTML = NAV.map(([k, e, n]) => `<button class="nav-b ${k === active ? 'on' : ''}" data-act="go" data-to="${k}" aria-label="${n}">
         <span>${e}</span><small>${n}</small>${k === 'ask' && pend ? `<i class="dot">${pend}</i>` : ''}</button>`).join('');
     }
-    if (opt.keepScroll) window.scrollTo(0, y); else if (G._last !== name || JSON.stringify(q) !== G._lastQ) window.scrollTo(0, 0);
+    if (G._forceScrollTop) { window.scrollTo(0, 0); G._forceScrollTop = false; }
+    else if (opt.keepScroll) window.scrollTo(0, y);
+    else if (G._last !== name || JSON.stringify(q) !== G._lastQ) window.scrollTo(0, 0);
     G._last = name; G._lastQ = JSON.stringify(q);
   };
 
   window.addEventListener('hashchange', () => {
+    G._forceScrollTop = true;
     const target = parse().name;
     if (G.handleFamilyCreationNavigation) G.handleFamilyCreationNavigation(G._last || '', target);
     G.closeAllModals(); G.render();
