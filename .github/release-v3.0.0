@@ -1,0 +1,7 @@
+Gullak v3.0.0 — Major update
+
+- Individual account creation now collects a real name for both Supervisor and Kid accounts.
+- Supervisors see a Kid's real name on incoming supervision requests.
+- Kids see a Supervisor's real name only after that Supervisor accepts the request.
+- Real-name visibility is enforced by the cloud API; pending requests do not expose a Supervisor's real name to the Kid.
+- Family mode remains unchanged.
