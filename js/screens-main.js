@@ -276,7 +276,7 @@
       coolReady.forEach(r => banners.push(`<div class="banner info">🧊 Cool-down over for <b>${esc(r.item)}</b>. Do you still want it? <button class="btn small primary" data-act="open-ask">Decide</button></div>`));
       return `<header class="top">
           <div class="me"><span class="avatar">${p.avatar}</span><div><small>Hi,</small><b>${esc(p.nickname)}!</b></div></div>
-          <div class="row"><button class="icon-btn" data-act="go" data-to="grownup" aria-label="Grown-up mode">🔒</button>
+          <div class="row"><button class="icon-btn" data-act="go" data-to="${G.cloudAccount?.user?.role === 'kid' && G.mode?.() !== 'family' ? 'individual-supervision' : 'grownup'}" aria-label="${G.cloudAccount?.user?.role === 'kid' && G.mode?.() !== 'family' ? 'Supervisors' : 'Grown-up mode'}">${G.cloudAccount?.user?.role === 'kid' && G.mode?.() !== 'family' ? '🛡️' : '🔒'}</button>
           <button class="icon-btn" data-act="go" data-to="settings" aria-label="Settings">⚙️</button></div></header>
         ${banners.join('')}
         <section class="pig-card">
