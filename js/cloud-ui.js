@@ -463,7 +463,7 @@
         ? '<header class="page-h"><h1>🛡️ Supervisor account</h1></header>'
         : accountPending
           ? ''
-          : '<header class="page-h"><button class="back" data-act="go" data-to="settings">←</button><h1>🛡️ Supervisors</h1></header>';
+          : '<header class="page-h"><h1>🛡️ Supervisors</h1></header>';
       if (role === 'supervisor') return `
         <div class="sup-dashboard">
           <header class="sup-dash-head">
