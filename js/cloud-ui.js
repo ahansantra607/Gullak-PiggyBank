@@ -658,6 +658,21 @@
     });
   }
 
+  // Individual Kid accounts must use the new Supervisor relationship screen.
+  // The legacy home-page lock button still points to the old grown-up/PIN page,
+  // which is incomplete for cloud Kid accounts.
+  const homeRenderBeforeKidSupervisors = G.screens.home?.render;
+  if (G.screens.home && homeRenderBeforeKidSupervisors) {
+    G.screens.home.render = q => {
+      let html = homeRenderBeforeKidSupervisors(q);
+      if (G.mode?.() === 'family' || cloudUser?.account_type !== 'individual' || cloudUser?.role !== 'kid') return html;
+      return html.replace(
+        '<button class="icon-btn" data-act="go" data-to="grownup" aria-label="Grown-up mode">🔒</button>',
+        '<button class="icon-btn" data-act="go" data-to="individual-supervision" aria-label="Supervisors">🛡️</button>'
+      );
+    };
+  }
+
   G.screens['cloud-account'].after = root => {
     const usernameInput = G.$('#cloud-username', root), usernameStatus = G.$('#cloud-username-status', root);
     if (authMode !== 'register' && usernameStatus) {
