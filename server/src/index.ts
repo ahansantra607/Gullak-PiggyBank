@@ -653,7 +653,7 @@ export default {
         if (user.account_type !== "individual") return json({ error: "This feature is only for Individual accounts." }, 403);
         const role = await individualRole(env, user.user_id);
         if (!role || role.role !== "supervisor" || role.status !== "active") return json({ error: "Only an active Supervisor can respond." }, 403);
-        const body = await request.json() as { decision?: string };
+        const body = await request.json() as { decision?: string; rules?: Record<string, unknown> };
         if (body.decision !== "accept" && body.decision !== "reject") return json({ error: "Choose accept or reject." }, 400);
         const linkId = supervisionDecision[1];
         const link = await env.gullak_db.prepare("SELECT l.kid_user_id, l.status, r.status AS kid_status FROM individual_supervisor_links l JOIN individual_account_roles r ON r.user_id = l.kid_user_id WHERE l.link_id = ? AND l.supervisor_user_id = ?").bind(linkId, user.user_id).first<{ kid_user_id: string; status: string; kid_status: string }>();
