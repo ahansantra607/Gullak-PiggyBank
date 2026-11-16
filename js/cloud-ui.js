@@ -488,7 +488,7 @@
             <div class="sup-section-head"><div><p class="sup-eyebrow">YOUR CONNECTIONS</p><h2>Kids you supervise <span class="sup-count">${accepted.length}</span></h2></div></div>
             ${accepted.length ? '<div class="sup-kid-list">' + accepted.map(x => `<article class="sup-kid"><span class="sup-avatar">🧒</span><div class="sup-kid-info"><b>${esc(x.other_username)}</b><p>${!x.has_key_share ? 'Waiting for diary access to be shared' : !x.has_diary ? 'Diary not created yet' : 'Diary ready'}</p></div>${!x.has_key_share || !x.has_diary ? '<span class="sup-status-wait">Waiting</span>' : `<button class="btn small primary" data-act="open-supervised-kid" data-id="${esc(x.other_user_id)}" data-name="${esc(x.other_username)}">Open diary →</button>`}</article>`).join('') + '</div>' : '<div class="sup-empty"><span>🌱</span><b>Your list starts here</b><p>Once you accept a Kid’s request, they’ll appear in this section.</p></div>'}
           </section>
-          <footer class="sup-account-actions"><button class="btn ghost" data-act="individual-logout">Log out</button><button class="btn danger" data-act="cloud-delete-account">Delete Supervisor account</button></footer>
+          <footer class="sup-account-actions"><button class="btn" data-act="individual-logout">Log out</button><button class="btn danger" data-act="cloud-delete-account">Delete Supervisor account</button></footer>
         </div>`;
       if (role === 'kid') return `
         <main class="kid-pending">
@@ -507,7 +507,16 @@
             <input class="input" id="individual-add-supervisor" maxlength="20" placeholder="Enter the 10-character code">
             <button class="btn ghost block mt" data-act="individual-add-supervisor">＋ Add another Supervisor</button>
           </section>` : ''}
-          <button class="btn ghost block kid-pending-logout" data-act="individual-logout">Log out</button>
+          ${accountPending ? `<section class="kid-pending-card">
+            <h2>Supervisor requests</h2>
+            <p class="small muted">Here you can see which Supervisors you have asked and whether they have accepted.</p>
+            ${links.length ? links.map(x => `<div class="kid-pending-row">
+              <span class="kid-pending-person" aria-hidden="true">🛡️</span>
+              <div><b>${esc(x.other_username || 'Supervisor')}</b><small>Supervisor request</small></div>
+              <span class="kid-pending-tag ${x.status === 'accepted' ? 'accepted' : x.status === 'rejected' ? 'declined' : ''}">${x.status === 'accepted' ? 'Accepted' : x.status === 'rejected' ? 'Declined' : 'Pending'}</span>
+            </div>`).join('') : '<div class="kid-pending-empty"><span>📭</span><b>No Supervisor requests yet</b><p>Add a Supervisor code above to send your first request.</p></div>'}
+          </section>` : ''}
+          <button class="btn block kid-pending-logout" data-act="individual-logout">Log out</button>
         </main>`;
       return head + `
         <section class="card"><h2>My Supervisors</h2>
