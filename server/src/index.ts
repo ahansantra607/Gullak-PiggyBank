@@ -9,7 +9,7 @@ const CORS_HEADERS = {
   "Access-Control-Allow-Origin": APP_ORIGIN,
   "Access-Control-Allow-Credentials": "true",
   "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, X-Gullak-Android",
+  "Access-Control-Allow-Headers": "Content-Type, X-Gullak-Android, X-Gullak-Session-Only",
   "Vary": "Origin"
 };
 
@@ -117,8 +117,11 @@ function getCookie(request: Request, name: string): string | null {
 function sessionCookie(token: string, request: Request): string {
   const secure = new URL(request.url).protocol === "https:" ? "; Secure" : "";
 
-  const sameSite = request.headers.get("X-Gullak-Android") === "1" ? "None" : "Strict";
-  return `gullak_session=${token}; HttpOnly${secure}; SameSite=${sameSite}; Path=/; Max-Age=${SESSION_DAYS * 86400}`;
+  const isAndroid = request.headers.get("X-Gullak-Android") === "1";
+  const sameSite = isAndroid ? "None" : "Strict";
+  const sessionOnly = !isAndroid && request.headers.get("X-Gullak-Session-Only") === "1";
+  const lifetime = sessionOnly ? "" : `; Max-Age=${SESSION_DAYS * 86400}`;
+  return `gullak_session=${token}; HttpOnly${secure}; SameSite=${sameSite}; Path=/${lifetime}`;
 }
 
 function clearSessionCookie(request: Request): string {
