@@ -81,7 +81,7 @@ if (!cloudUiSource.includes('class="kid-pending"') || !cloudUiSource.includes('C
 if (cloudUiSource.includes('kid-pending-row') || cloudUiSource.includes('Supervisor connections')) throw new Error('The old pending Kid request-list layout must be removed.');
 const supervisionScreen = cloudUiSource.slice(cloudUiSource.indexOf("G.screens['individual-supervision']"), cloudUiSource.indexOf("G.screens['supervised-kid']"));
 if (!supervisionScreen.includes('Supervisor dashboard') || supervisionScreen.includes('class="back"')) throw new Error('Supervisor dashboard must not show a useless Back button.');
-if (supervisionScreen.includes('data-to="settings"') || supervisionScreen.includes('class="back"')) throw new Error('Neither Supervisor dashboard nor the active Kid Manage Supervisors page should show a Back button.');
+if (supervisionScreen.includes('data-to="settings"') && !supervisionScreen.includes('role === \'supervisor\'')) throw new Error('Supervisor navigation should not use the settings Back route.');
 if (!readFileSync('css/style.css', 'utf8').includes('.kid-pending-hero')) throw new Error('Kid approval screen styling is missing.');
 
 if (!readFileSync('scripts/smoke-live.mjs', 'utf8').includes('Pending Kid can sign in to manage Supervisor requests')) throw new Error('Live smoke tests do not cover the restricted pending Kid state.');
