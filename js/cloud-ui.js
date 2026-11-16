@@ -582,7 +582,24 @@
         try { await G.cloud.requestSupervisor(code); supervisionData = null; G.toast('Request sent. The Supervisor must accept it.'); G.render({ keepScroll: true }); }
         catch (error) { G.toast(error.message || 'Could not send the request.'); button.disabled = false; }
       },
-      'individual-refresh': () => { supervisionData = null; G.render({ keepScroll: true }); },
+      'individual-refresh': async button => {
+        if (cloudUser?.role !== 'kid') return;
+        const label = button.textContent;
+        button.disabled = true;
+        button.textContent = 'Checking…';
+        try {
+          const latest = await G.cloud.individualSupervision();
+          supervisionData = latest;
+          if (latest.status) cloudUser.status = latest.status;
+          G.render({ keepScroll: true });
+          if (latest.status === 'active') G.toast('Your Supervisor approved your account. Your Gullak is ready to create.');
+          else G.toast('Still waiting for a Supervisor to accept your request.');
+        } catch (error) {
+          G.toast(error.message || 'Could not check approval status. Please try again.');
+          button.disabled = false;
+          button.textContent = label;
+        }
+      },
       'individual-logout': signOutFlow,
       'cloud-delete-account': deleteAccountFlow,
       'individual-continue': async button => {
