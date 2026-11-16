@@ -493,7 +493,7 @@
       if (role === 'kid') return `
         <main class="kid-pending">
           <section class="kid-pending-hero">
-            <div class="kid-pending-art" aria-hidden="true"><span>🐷</span><i>${kidActive ? '✓' : '⌛'}</i></div>
+            <div class="kid-pending-art" aria-hidden="true">${G.piggy('happy', 112)}<i>${kidActive ? '✓' : '⌛'}</i></div>
             <p class="sup-eyebrow">YOUR INDIVIDUAL GULLAK</p>
             <h1>${kidActive ? 'Your Gullak is ready!' : 'Your Gullak is almost ready'}</h1>
             <p>${kidActive ? 'A Supervisor has approved your account. You can now create and open your Gullak diary.' : 'Your account has been created. As soon as one Supervisor accepts your request, you can create and open your Gullak diary.'}</p>
