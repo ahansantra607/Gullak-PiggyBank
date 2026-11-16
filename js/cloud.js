@@ -91,7 +91,7 @@
     register: (username, password) => request('/api/register', {
       method: 'POST', body: JSON.stringify({ username, password })
     }),
-    async registerIndividual(username, password, role, supervisorCodes, secret, supervisorKey) {
+    async registerIndividual(username, password, role, supervisorCodes, secret, supervisorKey, sessionOnly = false) {
       const body = { username, password, role, supervisor_codes: supervisorCodes || [] };
       if (role === 'supervisor' && supervisorKey) body.supervisor_key = supervisorKey;
       if (role === 'kid') {
@@ -99,7 +99,10 @@
         const wrapped = await C.wrapWithSecret(password, salt, encoder.encode(secret), ITERATIONS);
         body.key_wrap = { wrapped_secret: wrapped, salt, iterations: ITERATIONS };
       }
-      return request('/api/register', { method: 'POST', body: JSON.stringify(body) });
+      return request('/api/register', {
+        method: 'POST', body: JSON.stringify(body),
+        ...(sessionOnly && !window.GullakNative ? { headers: { 'X-Gullak-Session-Only': '1' } } : {})
+      });
     },
     individualSupervision: () => request('/api/individual/supervision'),
     saveSupervisorKey: bundle => request('/api/individual/supervision/keys', { method: 'PUT', body: JSON.stringify(bundle) }),
