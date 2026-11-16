@@ -105,6 +105,7 @@ jobs:
           npx wrangler d1 execute gullak-db --remote --file=family-schema.sql --yes --config=wrangler.jsonc
           npx wrangler d1 execute gullak-db --remote --file=individual-supervision-schema.sql --yes --config=wrangler.jsonc
           npx wrangler d1 execute gullak-db --remote --file=cleanup-smoke-data.sql --yes --config=wrangler.jsonc
+          npx wrangler d1 execute gullak-db --remote --file=reset-individual-accounts-once.sql --yes --config=wrangler.jsonc
           npx wrangler deploy --config=wrangler.jsonc
       - name: Build and deploy latest static frontend Worker
         if: steps.credentials.outputs.available == 'true'
