@@ -44,6 +44,7 @@ if (!cloudOnlySource.includes("G.cloudAccount.user.role === 'supervisor'")) thro
 
 if (!cloudSource.includes("registerIndividual") || !cloudSource.includes("salt, iterations: ITERATIONS") || cloudSource.includes("salt: C.b64(salt)") || !cloudSource.includes("supervisor_codes")) throw new Error('Kid registration must send the original 16-byte base64 salt without double-encoding it.');
 if (!cloudUiSource.includes('id="cloud-password-confirm"') || !cloudUiSource.includes("password !== (G.$('#cloud-password-confirm')?.value || '')") || !cloudUiSource.includes('The account passwords do not match')) throw new Error('Individual account creation must require a matching re-entered account password.');
+if (!cloudUiSource.includes('id="cloud-password-match"') || !cloudUiSource.includes("matches ? '✓' : '✕'") || !cloudUiSource.includes("matches ? 'var(--green)' : 'var(--red)'") || !cloudUiSource.includes("registerRole === 'supervisor'")) throw new Error('Supervisor registration must show a live green tick for matching passwords and a red cross for a non-empty mismatch.');
 
 if (!cloudUiSource.includes("G.cloud.createSupervisorCode") || !cloudUiSource.includes("G.cloud.decideSupervisorRequest")) throw new Error('Supervisor code generation or approval actions are not wired to the cloud API.');
 if (!cloudOnlySource.includes("name === 'me-pin'") || !cloudOnlySource.includes("name === 'grownup'") || !cloudOnlySource.includes("ls.removeItem('gullak:v1')")) throw new Error('Legacy Individual PIN/Grown-up routes or local diary cleanup remain active.');
