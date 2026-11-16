@@ -494,3 +494,47 @@ select.input { appearance: auto; }
  .sup-kid .btn{font-size:11px;padding:7px 8px}
  .sup-account-actions{flex-wrap:wrap}.sup-account-actions .btn{flex:1}
 }
+
+
+/* Pending Individual Kid approval screen */
+.kid-pending{display:flex;flex-direction:column;gap:14px;max-width:620px;margin:0 auto;padding:4px 0 14px}
+.kid-pending-hero{position:relative;overflow:hidden;text-align:center;padding:22px 18px 19px;border:1px solid var(--line);border-radius:24px;background:linear-gradient(155deg,var(--soft),#fff 72%);box-shadow:var(--shadow)}
+.kid-pending-art{position:relative;width:82px;height:82px;margin:0 auto 14px;border-radius:26px;background:var(--blue-l);display:grid;place-items:center}
+.kid-pending-art>span{font-size:43px;line-height:1}
+.kid-pending-art>i{position:absolute;right:-5px;bottom:-5px;width:31px;height:31px;border:3px solid #fff;border-radius:50%;background:var(--yellow-l);display:grid;place-items:center;font-size:17px;font-style:normal}
+.kid-pending-hero .sup-eyebrow{margin-bottom:7px}
+.kid-pending-hero h1{font-size:clamp(23px,6vw,30px);line-height:1.15;margin:0 0 9px}
+.kid-pending-hero>p:not(.sup-eyebrow){max-width:430px;margin:0 auto;color:var(--muted);font-size:13px;line-height:1.55}
+.kid-pending-status{display:inline-flex;align-items:center;gap:7px;margin:15px auto 13px;padding:7px 11px;border-radius:999px;background:var(--yellow-l);color:var(--ink);font-size:11px;font-weight:750}
+.kid-pending-status>span{width:7px;height:7px;border-radius:50%;background:var(--warm)}
+.kid-pending-refresh{max-width:320px;min-height:45px;margin:0 auto}
+.kid-pending-card{border:1px solid var(--line);border-radius:20px;padding:16px}
+.kid-pending-title{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px}
+.kid-pending-title h2{font-size:18px;line-height:1.2;margin:0}
+.kid-pending-group{padding-top:12px;margin-top:10px;border-top:1px solid var(--line)}
+.kid-pending-group h3{font-size:12px;color:var(--muted);font-weight:800;margin:0 0 7px}
+.kid-pending-row{display:flex;align-items:center;gap:10px;padding:9px 0}
+.kid-pending-person{width:38px;height:38px;flex:none;border-radius:13px;background:var(--soft);display:grid;place-items:center;font-size:20px}
+.kid-pending-row>div{min-width:0;flex:1}
+.kid-pending-row b{display:block;font-size:14px;overflow-wrap:anywhere}
+.kid-pending-row small{display:block;color:var(--muted);font-size:11px;margin-top:2px}
+.kid-pending-tag{flex:none;padding:5px 8px;border-radius:999px;background:var(--soft);color:var(--muted);font-size:10px;font-weight:800}
+.kid-pending-tag.accepted{background:var(--green-l);color:var(--green)}
+.kid-pending-tag.declined{background:var(--red-l);color:var(--red)}
+.kid-pending-empty{display:flex;flex-direction:column;align-items:center;text-align:center;padding:13px 8px 8px}
+.kid-pending-empty>span{font-size:28px;margin-bottom:5px}
+.kid-pending-empty b{font-size:14px}
+.kid-pending-empty p{font-size:12px;color:var(--muted);margin:4px 0 0}
+.kid-pending-add>p{line-height:1.5;margin:0 0 12px}
+.kid-pending-add .label{display:block;margin-bottom:6px}
+.kid-pending-add .input{width:100%;min-height:46px}
+.kid-pending-add .btn{min-height:44px}
+.kid-pending-logout{max-width:260px;margin:0 auto}
+@media(max-width:420px){
+ .kid-pending{gap:11px}
+ .kid-pending-hero{padding:19px 14px 16px;border-radius:20px}
+ .kid-pending-art{width:72px;height:72px;border-radius:23px}
+ .kid-pending-card{padding:14px;border-radius:17px}
+ .kid-pending-row{gap:8px}
+ .kid-pending-tag{font-size:9px;padding:5px 7px}
+}
