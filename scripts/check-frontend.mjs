@@ -304,4 +304,4 @@ if (!androidPinHtml.includes('aria-label="Gullak the piggy bank"') || androidPin
 console.log('Frontend syntax, script order, Web Crypto, verified migration and cloud-only Individual saves passed.');
 const refreshOnlyStyle = readFileSync('css/style.css', 'utf8');
 const cloudUiRefresh = readFileSync('js/cloud-ui.js', 'utf8');
-if (!refreshOnlyStyle.includes('.kid-supervision-refresh .kid-refresh-spinner') || !cloudUiRefresh.includes('kid-refresh-spinner') || !cloudUiRefresh.includes("button.innerHTML = label;")) throw new Error('Kid approval checking should animate only the refresh icon and restore its original label on error.');
+if (!refreshOnlyStyle.includes('.kid-supervision-refresh .kid-refresh-spinner') || !refreshOnlyStyle.includes('.kid-pending-refresh .kid-refresh-spinner') || !cloudUiRefresh.includes("button.classList.contains('kid-supervision-refresh')") || !cloudUiRefresh.includes("button.innerHTML = label;")) throw new Error('Kid approval checking should animate only the refresh icon and restore its original label on error.');
