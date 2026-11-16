@@ -237,7 +237,7 @@
         <p class="small muted">${authMode === 'register' ? 'Create a Supervisor account or a Kid account. Kid accounts become active only after a Supervisor accepts.' : 'Your account password signs you in and unlocks your encrypted diary. Your separate encryption passphrase is not requested again.'}</p>
         ${authMode === 'register' ? `<div class="seg"><button class="seg-b ${registerRole === 'supervisor' ? 'on' : ''}" data-act="individual-role" data-v="supervisor">🛡️ Supervisor</button><button class="seg-b ${registerRole === 'kid' ? 'on' : ''}" data-act="individual-role" data-v="kid">🧒 Kid</button></div><p class="hint">${registerRole === 'supervisor' ? 'Create your own account and receive a code that a Kid can use to request you as their Supervisor.' : 'Enter at least one Supervisor code. Each Supervisor must accept before your account can be used.'}</p>` : ''}
         <label class="label" for="cloud-username">Username</label>
-        <input class="input" id="cloud-username" maxlength="24" autocomplete="username" ${authMode === 'register' ? 'placeholder="3–24 letters, numbers or _"' : ''}>
+        <div style="position:relative;width:100%"><input class="input" style="width:100%;box-sizing:border-box;padding-right:44px" id="cloud-username" maxlength="24" autocomplete="username" ${authMode === 'register' ? 'placeholder="3–24 letters, numbers or _"' : ''}><span id="cloud-username-status" aria-live="polite" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);pointer-events:none;font-size:22px;font-weight:700"></span></div>
         <label class="label" for="cloud-password">Account password</label>
         <input class="input" id="cloud-password" type="password" maxlength="128" autocomplete="${authMode === 'register' ? 'new-password' : 'current-password'}" ${authMode === 'register' ? 'placeholder="8+ chars: upper, lower, number & symbol"' : ''}>
         ${authMode === 'register' ? '<label class="label" for="cloud-password-confirm">Re-enter account password</label><div style="position:relative;width:100%"><input class="input" style="width:100%;box-sizing:border-box;' + (registerRole === 'supervisor' ? 'padding-right:44px;' : '') + '" id="cloud-password-confirm" type="password" maxlength="128" autocomplete="new-password" placeholder="Type the account password again">' + (registerRole === 'supervisor' ? '<span id="cloud-password-match" aria-live="polite" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);pointer-events:none;font-size:22px;font-weight:700"></span>' : '') + '</div>' : ''}
@@ -576,6 +576,42 @@
   }
 
   G.screens['cloud-account'].after = root => {
+    const usernameInput = G.$('#cloud-username', root), usernameStatus = G.$('#cloud-username-status', root);
+    if (usernameInput && usernameStatus) {
+      let checkTimer = null, checkSequence = 0;
+      const updateUsername = () => {
+        const value = usernameInput.value.trim();
+        const sequence = ++checkSequence;
+        if (checkTimer) clearTimeout(checkTimer);
+        usernameStatus.textContent = '';
+        usernameStatus.style.color = '';
+        if (!value) return;
+        if (!/^[a-z0-9_]{3,24}$/i.test(value)) {
+          usernameStatus.textContent = '✕';
+          usernameStatus.style.color = 'var(--red)';
+          return;
+        }
+        checkTimer = setTimeout(async () => {
+          try {
+            const result = await G.cloud.checkUsername(value);
+            if (sequence !== checkSequence || usernameInput.value.trim() !== value) return;
+            const good = authMode === 'register' ? result.available : result.exists;
+            usernameStatus.textContent = good ? '✓' : '✕';
+            usernameStatus.style.color = good ? 'var(--green)' : 'var(--red)';
+            usernameStatus.setAttribute('aria-label', good
+              ? (authMode === 'register' ? 'Username available' : 'Username found')
+              : (authMode === 'register' ? 'Username already used' : 'Username not found'));
+          } catch (_) {
+            if (sequence === checkSequence) {
+              usernameStatus.textContent = '';
+              usernameStatus.style.color = '';
+            }
+          }
+        }, 350);
+      };
+      usernameInput.addEventListener('input', updateUsername);
+      updateUsername();
+    }
     const input = G.$('#cloud-password', root), panel = G.$('#cloud-password-rules', root);
     const confirmation = G.$('#cloud-password-confirm', root), match = G.$('#cloud-password-match', root);
     if (input && panel) {
