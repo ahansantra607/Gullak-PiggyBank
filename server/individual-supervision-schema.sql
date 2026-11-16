@@ -70,3 +70,20 @@ CREATE TABLE IF NOT EXISTS individual_kid_rules (
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
+
+
+-- Keep the selected rules if the Supervisor who first set them later deletes
+-- their account. The attribution is historical metadata, not a live dependency.
+CREATE TABLE IF NOT EXISTS individual_kid_rules_v2 (
+  kid_user_id TEXT PRIMARY KEY REFERENCES users(user_id) ON DELETE CASCADE,
+  rules_json TEXT NOT NULL,
+  set_by_supervisor_user_id TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+INSERT OR IGNORE INTO individual_kid_rules_v2
+  (kid_user_id, rules_json, set_by_supervisor_user_id, created_at, updated_at)
+SELECT kid_user_id, rules_json, set_by_supervisor_user_id, created_at, updated_at
+FROM individual_kid_rules;
+DROP TABLE individual_kid_rules;
+ALTER TABLE individual_kid_rules_v2 RENAME TO individual_kid_rules;
