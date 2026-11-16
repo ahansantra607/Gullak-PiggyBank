@@ -623,7 +623,36 @@ select.input { appearance: auto; }
 .gullak-password-eye .eye-slash{display:block}
 .gullak-password-eye.is-visible .eye-slash{display:none}
 
-/* Give the Supervisor code copy action a clear, visible boundary */
-.sup-code-reveal button[data-act="individual-copy-code"]{border:1px solid var(--pri);background:var(--card);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.06)}
-.sup-code-reveal button[data-act="individual-copy-code"]:hover{background:var(--soft);border-color:var(--pri)}
-.sup-code-reveal button[data-act="individual-copy-code"]:focus-visible{outline:2px solid var(--pri);outline-offset:2px}
+/* Keep the Supervisor code copy action in the normal Gullak button style,
+   while retaining its white face in hover, focus and pressed states. */
+.sup-code-reveal button[data-act="individual-copy-code"]{
+  box-sizing:border-box;
+  border:1px solid var(--line);
+  border-radius:16px;
+  background:#fff;
+  color:var(--ink);
+  min-height:48px;
+  padding:12px 16px;
+  font-size:17px;
+  font-weight:700;
+  box-shadow:0 4px 0 rgba(0,0,0,.08);
+  -webkit-tap-highlight-color:transparent;
+}
+.sup-code-reveal button[data-act="individual-copy-code"]:hover,
+.sup-code-reveal button[data-act="individual-copy-code"]:focus,
+.sup-code-reveal button[data-act="individual-copy-code"]:focus-visible{
+  background:#fff;
+  color:var(--ink);
+  border-color:var(--line);
+}
+.sup-code-reveal button[data-act="individual-copy-code"]:focus-visible{
+  outline:2px solid var(--line);
+  outline-offset:2px;
+}
+.sup-code-reveal button[data-act="individual-copy-code"]:active{
+  background:#fff;
+  color:var(--ink);
+  border-color:var(--line);
+  transform:translateY(3px);
+  box-shadow:0 1px 0 rgba(0,0,0,.08);
+}
