@@ -608,3 +608,13 @@ select.input { appearance: auto; }
  .kid-supervision-stats{gap:6px}
  .kid-supervision-stats>div{padding:9px 3px}
 }
+
+/* Keep the active Kid's My Supervisors page calm and compact without changing other pages */
+.view:has(.kid-supervision-active){animation:none}
+.kid-supervision-active,.kid-supervision-active *{animation:none!important;transition:none!important}
+.kid-supervision-active .kid-supervision-hero h1{font-size:20px;line-height:1.25}
+.kid-supervision-active .kid-supervision-hero>p:not(.sup-eyebrow){font-size:13px;line-height:1.45}
+.kid-supervision-active .kid-pending-card h2,.kid-supervision-active .kid-pending-title h2{font-size:16px;line-height:1.3}
+.kid-supervision-active .kid-pending-row b{font-size:14px}
+.kid-supervision-active .kid-pending-row small{font-size:11px}
+.kid-supervision-active .kid-supervision-stats strong{font-size:18px}
