@@ -239,7 +239,7 @@
         <label class="label" for="cloud-username">Username</label>
         <div style="position:relative;width:100%"><input class="input" style="width:100%;box-sizing:border-box;padding-right:44px" id="cloud-username" maxlength="24" autocomplete="username" ${authMode === 'register' ? 'placeholder="3–24 letters, numbers or _"' : ''}><span id="cloud-username-status" aria-live="polite" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);pointer-events:none;font-size:22px;font-weight:700"></span></div>
         <label class="label" for="cloud-password">Account password</label>
-        <input class="input" id="cloud-password" type="password" maxlength="128" autocomplete="${authMode === 'register' ? 'new-password' : 'current-password'}" ${authMode === 'register' ? 'placeholder="8+ chars: upper, lower, number & symbol"' : ''}>
+        <div style="position:relative;width:100%"><input class="input" style="width:100%;box-sizing:border-box;padding-right:44px" id="cloud-password" type="password" maxlength="128" autocomplete="${authMode === 'register' ? 'new-password' : 'current-password'}" ${authMode === 'register' ? 'placeholder="8+ chars: upper, lower, number & symbol"' : ''}><button type="button" id="cloud-password-status" aria-label="Password requirements" aria-expanded="false" style="display:none;position:absolute;right:8px;top:50%;transform:translateY(-50%);border:0;background:transparent;padding:4px;font-size:22px;font-weight:700;cursor:pointer"></button></div>
         ${authMode === 'register' ? '<label class="label" for="cloud-password-confirm">Re-enter account password</label><div style="position:relative;width:100%"><input class="input" style="width:100%;box-sizing:border-box;' + (registerRole === 'supervisor' ? 'padding-right:44px;' : '') + '" id="cloud-password-confirm" type="password" maxlength="128" autocomplete="new-password" placeholder="Type the account password again">' + (registerRole === 'supervisor' ? '<span id="cloud-password-match" aria-live="polite" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);pointer-events:none;font-size:22px;font-weight:700"></span>' : '') + '</div>' : ''}
         ${authMode === 'register' && registerRole === 'kid' ? '<label class="label" for="individual-supervisor-codes">Supervisor code(s)</label><input class="input" id="individual-supervisor-codes" maxlength="80" placeholder="Enter one or more codes, separated by commas"><p class="hint">Ask each Supervisor for their 10-character code. You can add more Supervisors later in Settings.</p>' : ''}
         ${authMode === 'register' ? '<div id="cloud-password-rules" class="password-rules" hidden aria-live="polite"><div class="password-rules-title">Password strength checklist</div><div data-rule="length"><span>○</span> At least 8 characters</div><div data-rule="upper"><span>○</span> One uppercase letter</div><div data-rule="lower"><span>○</span> One lowercase letter</div><div data-rule="number"><span>○</span> One number</div><div data-rule="special"><span>○</span> One special character</div></div>' : ''}
@@ -613,13 +613,31 @@
       updateUsername();
     }
     const input = G.$('#cloud-password', root), panel = G.$('#cloud-password-rules', root);
+    const passwordStatus = G.$('#cloud-password-status', root);
     const confirmation = G.$('#cloud-password-confirm', root), match = G.$('#cloud-password-match', root);
-    if (input && panel) {
-      const rules = { length: v => v.length >= 8, upper: v => /[A-Z]/.test(v), lower: v => /[a-z]/.test(v), number: v => /[0-9]/.test(v), special: v => /[^A-Za-z0-9\s]/.test(v) };
-      const update = () => Object.entries(rules).forEach(([key, test]) => { const row = panel.querySelector('[data-rule="' + key + '"]'); if (!row) return; const good = test(input.value); row.classList.toggle('passed', good); row.querySelector('span').textContent = good ? '✓' : '○'; });
-      input.addEventListener('focus', () => { panel.hidden = false; update(); });
+    if (input && panel && passwordStatus) {
+      const rules = { length: v => v.length >= 8, upper: v => /[A-Z]/.test(v), lower: v => /[a-z]/.test(v), number: v => /[0-9]/.test(v), special: v => /[^A-Za-z0-9\\s]/.test(v) };
+      const update = () => {
+        const checks = Object.entries(rules).map(([key, test]) => {
+          const good = test(input.value);
+          const row = panel.querySelector('[data-rule="' + key + '"]');
+          if (row) { row.classList.toggle('passed', good); row.querySelector('span').textContent = good ? '✓' : '○'; }
+          return good;
+        });
+        const hasValue = input.value.length > 0, valid = checks.every(Boolean);
+        passwordStatus.style.display = hasValue ? 'block' : 'none';
+        passwordStatus.textContent = hasValue ? (valid ? '✓' : '✕') : '';
+        passwordStatus.style.color = hasValue ? (valid ? 'var(--green)' : 'var(--red)') : '';
+        passwordStatus.setAttribute('aria-label', valid ? 'Password meets all requirements' : 'Password requirements not yet met. Tap to see what is missing.');
+        passwordStatus.title = valid ? 'Password meets all requirements' : 'Tap to see password requirements';
+      };
+      passwordStatus.addEventListener('click', () => {
+        if (passwordStatus.textContent !== '✕') return;
+        panel.hidden = !panel.hidden;
+        passwordStatus.setAttribute('aria-expanded', String(!panel.hidden));
+      });
       input.addEventListener('input', update);
-      input.addEventListener('blur', () => { panel.hidden = true; });
+      update();
     }
     if (confirmation && match) {
       const updateMatch = () => {
