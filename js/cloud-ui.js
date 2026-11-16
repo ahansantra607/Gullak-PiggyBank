@@ -83,7 +83,7 @@
         }
         return true;
       } catch (error) {
-        cloudSecret = ''; cloudUser = null;
+        cloudSecret = ''; cloudUser = null; supervisorPrivateKey = null; supervisorUnlockUsesRemaining = 0;
         if (error.status === 401) await G.cloud.clearRememberedDevice().catch(() => {});
         console.warn('Gullak remembered session could not be restored:', error);
         return false;
@@ -289,6 +289,8 @@
           const auth = authMode === 'register'
             ? await G.cloud.registerIndividual(username, password, role, supervisorCodes, secret, supervisorKeyBundle, !stayLoggedIn && !isAndroidApp)
             : await G.cloud.login(username, password, !stayLoggedIn && !isAndroidApp);
+          supervisorPrivateKey = null;
+          supervisorUnlockUsesRemaining = 0;
           if (authMode === 'register' && role === 'kid') {
             cloudUser = auth.user; cloudSecret = secret; authMode = 'login'; registerRole = 'supervisor';
             if (G.setMode) G.setMode('individual');
