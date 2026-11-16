@@ -237,12 +237,12 @@
         <p class="small muted">${authMode === 'register' ? 'Create a Supervisor account or a Kid account. Kid accounts become active only after a Supervisor accepts.' : 'Your account password signs you in and unlocks your encrypted diary. Your separate encryption passphrase is not requested again.'}</p>
         ${authMode === 'register' ? `<div class="seg"><button class="seg-b ${registerRole === 'supervisor' ? 'on' : ''}" data-act="individual-role" data-v="supervisor">🛡️ Supervisor</button><button class="seg-b ${registerRole === 'kid' ? 'on' : ''}" data-act="individual-role" data-v="kid">🧒 Kid</button></div><p class="hint">${registerRole === 'supervisor' ? 'Create your own account and receive a code that a Kid can use to request you as their Supervisor.' : 'Enter at least one Supervisor code. Each Supervisor must accept before your account can be used.'}</p>` : ''}
         <label class="label" for="cloud-username">Username</label>
-        <div style="position:relative;width:100%"><input class="input" style="width:100%;box-sizing:border-box;padding-right:44px" id="cloud-username" maxlength="24" autocomplete="username" ${authMode === 'register' ? 'placeholder="3–24 letters, numbers or _"' : ''}><span id="cloud-username-status" aria-live="polite" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);pointer-events:none;font-size:22px;font-weight:700"></span></div>
+        <div style="position:relative;width:100%"><input class="input" style="width:100%;box-sizing:border-box;padding-right:44px" id="cloud-username" maxlength="24" autocomplete="username" ${authMode === 'register' ? 'placeholder="3–24 letters, numbers or _"' : ''}><button type="button" id="cloud-username-status" aria-label="Username status" aria-expanded="false" style="display:none;position:absolute;right:8px;top:50%;transform:translateY(-50%);border:0;background:transparent;padding:4px;font-size:22px;font-weight:700;cursor:pointer"></button></div><p id="cloud-username-help" class="hint" hidden></p>
         <label class="label" for="cloud-password">Account password</label>
-        <div style="position:relative;width:100%"><input class="input" style="width:100%;box-sizing:border-box;padding-right:44px" id="cloud-password" type="password" maxlength="128" autocomplete="${authMode === 'register' ? 'new-password' : 'current-password'}" ${authMode === 'register' ? 'placeholder="8+ chars: upper, lower, number & symbol"' : ''}><button type="button" id="cloud-password-status" aria-label="Password requirements" aria-expanded="false" style="display:none;position:absolute;right:8px;top:50%;transform:translateY(-50%);border:0;background:transparent;padding:4px;font-size:22px;font-weight:700;cursor:pointer"></button></div>
-        ${authMode === 'register' ? '<label class="label" for="cloud-password-confirm">Re-enter account password</label><div style="position:relative;width:100%"><input class="input" style="width:100%;box-sizing:border-box;' + (registerRole === 'supervisor' ? 'padding-right:44px;' : '') + '" id="cloud-password-confirm" type="password" maxlength="128" autocomplete="new-password" placeholder="Type the account password again">' + (registerRole === 'supervisor' ? '<span id="cloud-password-match" aria-live="polite" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);pointer-events:none;font-size:22px;font-weight:700"></span>' : '') + '</div>' : ''}
+        <div style="position:relative;width:100%"><input class="input" style="width:100%;box-sizing:border-box;padding-right:44px" id="cloud-password" type="password" maxlength="128" autocomplete="${authMode === 'register' ? 'new-password' : 'current-password'}" ${authMode === 'register' ? 'placeholder="8+ chars: upper, lower, number & symbol"' : ''}><span id="cloud-password-status" aria-live="polite" style="display:none;position:absolute;right:12px;top:50%;transform:translateY(-50%);pointer-events:none;font-size:22px;font-weight:700"></span></div>
+        ${authMode === 'register' ? '<label class="label" for="cloud-password-confirm">Re-enter account password</label><div style="position:relative;width:100%"><input class="input" style="width:100%;box-sizing:border-box;' + (registerRole === 'supervisor' ? 'padding-right:44px;' : '') + '" id="cloud-password-confirm" type="password" maxlength="128" autocomplete="new-password" placeholder="Type the account password again">' + (registerRole === 'supervisor' ? '<button type="button" id="cloud-password-match" aria-label="Password confirmation status" aria-expanded="false" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);border:0;background:transparent;padding:4px;font-size:22px;font-weight:700;cursor:pointer"></button>' : '') + '</div><p id="cloud-password-match-help" class="hint" hidden></p>' : ''}
         ${authMode === 'register' && registerRole === 'kid' ? '<label class="label" for="individual-supervisor-codes">Supervisor code(s)</label><input class="input" id="individual-supervisor-codes" maxlength="80" placeholder="Enter one or more codes, separated by commas"><p class="hint">Ask each Supervisor for their 10-character code. You can add more Supervisors later in Settings.</p>' : ''}
-        ${authMode === 'register' ? '<div id="cloud-password-rules" class="password-rules" hidden aria-live="polite"><div class="password-rules-title">Password strength checklist</div><div data-rule="length"><span>○</span> At least 8 characters</div><div data-rule="upper"><span>○</span> One uppercase letter</div><div data-rule="lower"><span>○</span> One lowercase letter</div><div data-rule="number"><span>○</span> One number</div><div data-rule="special"><span>○</span> One special character</div></div>' : ''}
+        ${authMode === 'register' ? '<div id="cloud-password-rules" class="password-rules" aria-live="polite"><div class="password-rules-title">Password strength checklist</div><div data-rule="length"><span>○</span> At least 8 characters</div><div data-rule="upper"><span>○</span> One uppercase letter</div><div data-rule="lower"><span>○</span> One lowercase letter</div><div data-rule="number"><span>○</span> One number</div><div data-rule="special"><span>○</span> One special character</div></div>' : ''}
         ${authMode === 'register' && registerRole === 'kid' ? '<label class="label" for="cloud-secret">Separate encryption passphrase</label><input class="input" id="cloud-secret" type="password" maxlength="256" autocomplete="new-password" placeholder="Choose a different passphrase"><label class="label" for="cloud-secret-confirm">Confirm encryption passphrase</label><input class="input" id="cloud-secret-confirm" type="password" maxlength="256" autocomplete="new-password" placeholder="Type it again"><p class="hint">This protects the Kid diary. It is encrypted with the account password so login can unlock the diary without asking again.</p>' : ''}
         ${authMode === 'login' && !(window.GullakNative && typeof window.GullakNative.onCloudReady === 'function') ? '<label class="check-row mt"><input id="cloud-stay-logged-in" type="checkbox"> <span>Stay logged in on this device</span></label><p class="hint">Keeps this device signed in while your secure 7-day cloud session is valid. You can still log out from Settings.</p>' : ''}
         <button class="btn primary block big" data-act="cloud-connect">${authMode === 'register' ? (registerRole === 'supervisor' ? 'Create Supervisor account' : 'Create Kid account') : 'Log in to Gullak'}</button>
@@ -585,10 +585,13 @@
         if (checkTimer) clearTimeout(checkTimer);
         usernameStatus.textContent = '';
         usernameStatus.style.color = '';
+        usernameStatus.style.display = value ? 'block' : 'none';
+        usernameStatus.setAttribute('aria-expanded', 'false');
         if (!value) return;
         if (!/^[a-z0-9_]{3,24}$/i.test(value)) {
           usernameStatus.textContent = '✕';
           usernameStatus.style.color = 'var(--red)';
+          usernameStatus.setAttribute('aria-label', 'Username format is invalid');
           return;
         }
         checkTimer = setTimeout(async () => {
@@ -609,7 +612,17 @@
           }
         }, 350);
       };
-      usernameInput.addEventListener('input', updateUsername);
+      const usernameHelp = G.$('#cloud-username-help', root);
+      usernameStatus.addEventListener('click', () => {
+        if (usernameStatus.textContent !== '✕' || !usernameHelp) return;
+        const reason = usernameStatus.getAttribute('aria-label') || 'This username cannot be used.';
+        usernameHelp.textContent = reason === 'Username already used' ? 'That username is already taken. Try another one.' :
+          reason === 'Username not found' ? 'No account was found with this username. Check the spelling.' :
+          'Use 3–24 letters, numbers or underscores only.';
+        usernameHelp.hidden = !usernameHelp.hidden;
+        usernameStatus.setAttribute('aria-expanded', String(!usernameHelp.hidden));
+      });
+      usernameInput.addEventListener('input', () => { if (usernameHelp) usernameHelp.hidden = true; updateUsername(); });
       updateUsername();
     }
     const input = G.$('#cloud-password', root), panel = G.$('#cloud-password-rules', root);
@@ -628,14 +641,8 @@
         passwordStatus.style.display = hasValue ? 'block' : 'none';
         passwordStatus.textContent = hasValue ? (valid ? '✓' : '✕') : '';
         passwordStatus.style.color = hasValue ? (valid ? 'var(--green)' : 'var(--red)') : '';
-        passwordStatus.setAttribute('aria-label', valid ? 'Password meets all requirements' : 'Password requirements not yet met. Tap to see what is missing.');
-        passwordStatus.title = valid ? 'Password meets all requirements' : 'Tap to see password requirements';
+        passwordStatus.setAttribute('aria-label', valid ? 'Password meets all requirements' : 'Password requirements not yet met');
       };
-      passwordStatus.addEventListener('click', () => {
-        if (passwordStatus.textContent !== '✕') return;
-        panel.hidden = !panel.hidden;
-        passwordStatus.setAttribute('aria-expanded', String(!panel.hidden));
-      });
       input.addEventListener('input', update);
       update();
     }
@@ -647,8 +654,15 @@
         match.style.color = value.length ? (matches ? 'var(--green)' : 'var(--red)') : '';
         match.setAttribute('aria-label', value.length ? (matches ? 'Passwords match' : 'Passwords do not match') : '');
       };
-      confirmation.addEventListener('input', updateMatch);
-      input?.addEventListener('input', updateMatch);
+      const matchHelp = G.$('#cloud-password-match-help', root);
+      match.addEventListener('click', () => {
+        if (match.textContent !== '✕' || !matchHelp) return;
+        matchHelp.textContent = 'The two account passwords are different. Re-enter the same password in both fields.';
+        matchHelp.hidden = !matchHelp.hidden;
+        match.setAttribute('aria-expanded', String(!matchHelp.hidden));
+      });
+      confirmation.addEventListener('input', () => { if (matchHelp) matchHelp.hidden = true; updateMatch(); });
+      input?.addEventListener('input', () => { if (matchHelp) matchHelp.hidden = true; updateMatch(); });
       updateMatch();
     }
   };
