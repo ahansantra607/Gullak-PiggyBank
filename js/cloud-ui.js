@@ -739,7 +739,7 @@
     G.screens.settings.render = q => {
       let html = settingsRenderBeforeSupervision(q);
       if (G.mode?.() !== 'family' && cloudUser?.account_type === 'individual') {
-        html = html.replace('<section class="card small muted"><h3>About Gullak</h3>', '<section class="card"><h3>🛡️ Supervisors</h3><p class="small muted">Manage Supervisor requests, share your code, or add another Supervisor.</p><button class="btn soft block" data-act="individual-supervision">Manage Supervisors</button></section><section class="card"><h3>Cloud account</h3><button class="btn ghost block" data-act="cloud-signout">Log out</button><button class="btn danger block mt" data-act="cloud-delete-account">Delete account</button></section><section class="card small muted"><h3>About Gullak</h3>');
+        html = html.replace('<section class="card small muted"><h3>About Gullak</h3>', '<section class="card"><h3>🛡️ Supervisors</h3><p class="small muted">Manage Supervisor requests, share your code, or add another Supervisor.</p><button class="btn soft block" data-act="individual-supervision">Manage Supervisors</button></section><section class="card small muted"><h3>About Gullak</h3>');
       }
       return html;
     };
