@@ -463,7 +463,7 @@
         ? '<header class="page-h"><h1>🛡️ Supervisor account</h1></header>'
         : accountPending
           ? ''
-          : '<header class="page-h"><h1>🛡️ Supervisors</h1></header>';
+          : '<header class="page-h"><button class="back" data-act="go" data-to="settings">←</button><h1>🛡️ Supervisors</h1></header>';
       if (role === 'supervisor') return `
         <div class="sup-dashboard">
           <header class="sup-dash-head">
@@ -471,6 +471,7 @@
             <div class="sup-dash-heading"><p class="sup-eyebrow">INDIVIDUAL ACCOUNT</p><h1>Supervisor dashboard</h1><p>Manage requests and the Kids you support.</p></div>
             <button class="btn ghost sup-refresh" data-act="individual-refresh" aria-label="Refresh dashboard">↻ <span>Refresh</span></button>
           </header>
+          ${cloudUser?.status === 'pending' ? '<section class="card sup-section"><div class="sup-empty"><span>⏳</span><b>Supervisor account pending</b><p>Your Supervisor account is not active yet. Once your account is approved, you can manage Kid requests and diaries here.</p></div></section>' : ''}
           <div class="sup-stat-grid">
             <div class="sup-stat"><span class="sup-stat-icon">⏳</span><strong>${pending.length}</strong><span>Pending requests</span></div>
             <div class="sup-stat"><span class="sup-stat-icon">🧒</span><strong>${accepted.length}</strong><span>Kids supervised</span></div>
