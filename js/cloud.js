@@ -114,6 +114,9 @@
     createSupervisorCode: () => request('/api/individual/supervision/code', { method: 'POST', body: '{}' }),
     requestSupervisor: code => request('/api/individual/supervision/requests', { method: 'POST', body: JSON.stringify({ code }) }),
     decideSupervisorRequest: (linkId, decision) => request('/api/individual/supervision/requests/' + encodeURIComponent(linkId), { method: 'POST', body: JSON.stringify({ decision }) }),
+    checkUsername: username => request('/api/username/check', {
+      method: 'POST', body: JSON.stringify({ username })
+    }),
     login: (username, password) => request('/api/login', {
       method: 'POST', body: JSON.stringify({ username, password })
     }),
