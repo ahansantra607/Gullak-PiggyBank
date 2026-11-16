@@ -589,7 +589,12 @@
 
   G.screens['cloud-account'].after = root => {
     const usernameInput = G.$('#cloud-username', root), usernameStatus = G.$('#cloud-username-status', root);
-    if (usernameInput && usernameStatus) {
+    if (authMode !== 'register' && usernameStatus) {
+      // Login only verifies credentials on submit; do not show availability ticks here.
+      usernameStatus.textContent = '';
+      usernameStatus.style.display = 'none';
+    }
+    if (authMode === 'register' && usernameInput && usernameStatus) {
       let checkTimer = null, checkSequence = 0;
       const updateUsername = () => {
         const value = usernameInput.value.trim();
