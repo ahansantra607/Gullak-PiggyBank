@@ -11,6 +11,7 @@
   let cloudSecret = '';
   let cloudUser = null;
   let supervisorPrivateKey = null;
+  let supervisorUnlockUsesRemaining = 0;
   let supervisorOwnState = null;
   let syncChain = Promise.resolve();
   let syncError = null;
@@ -62,6 +63,7 @@
         }
         if (remembered.user?.role === 'supervisor') {
           supervisorPrivateKey = null;
+          supervisorUnlockUsesRemaining = 0;
           if (G.setMode) G.setMode('individual');
           if (window.GullakNative && typeof window.GullakNative.onCloudReady === 'function') window.GullakNative.onCloudReady();
           return true;
@@ -93,7 +95,7 @@
         await familySyncChain.catch(() => {});
         await G.cloud.logout();
       } finally {
-        cloudSecret = ''; cloudUser = null; supervisorPrivateKey = null; syncError = null;
+        cloudSecret = ''; cloudUser = null; supervisorPrivateKey = null; supervisorUnlockUsesRemaining = 0; syncError = null;
         G.supervisedKidMode = false; G.supervisedKidId = null; G.supervisedKidSecret = null; supervisorOwnState = null;
         if (window.GullakNative && typeof window.GullakNative.onCloudLogout === 'function') window.GullakNative.onCloudLogout();
       }
@@ -102,7 +104,7 @@
       await syncChain.catch(() => {});
       await familySyncChain.catch(() => {});
       const result = await G.cloud.deleteAccount(password);
-      cloudSecret = ''; cloudUser = null; supervisorPrivateKey = null; syncError = null;
+      cloudSecret = ''; cloudUser = null; supervisorPrivateKey = null; supervisorUnlockUsesRemaining = 0; syncError = null;
       G.supervisedKidMode = false; G.supervisedKidId = null; G.supervisedKidSecret = null; supervisorOwnState = null;
       if (window.GullakNative && typeof window.GullakNative.onCloudLogout === 'function') window.GullakNative.onCloudLogout();
       return result;
@@ -110,11 +112,13 @@
   };
 
   async function ensureSupervisorPrivateKey() {
-    if (supervisorPrivateKey) return true;
+    if (supervisorPrivateKey && supervisorUnlockUsesRemaining > 0) return false;
+    supervisorPrivateKey = null;
+    supervisorUnlockUsesRemaining = 0;
     return new Promise(resolve => {
       let modal;
       modal = G.modal({
-        html: '<h2>🔐 Unlock Supervisor access</h2><p class="small muted">Enter your Supervisor account password to open a Kid diary. Your password is used only on this device to unlock your encrypted private key.</p><label class="label" for="supervisor-key-password">Account password</label><input class="input" id="supervisor-key-password" type="password" autocomplete="current-password"><button class="btn primary block mt" data-act="unlock-supervisor-key">Unlock securely</button><button class="btn ghost block" data-act="cancel-supervisor-key">Cancel</button>',
+        html: '<h2>🔐 Unlock Supervisor access</h2><p class="small muted">Enter your Supervisor account password to unlock your encrypted private key. After this, you can open Kid diaries 100 more times before Gullak asks again. This unlock is kept only in memory and resets when you log out or reload.</p><label class="label" for="supervisor-key-password">Account password</label><input class="input" id="supervisor-key-password" type="password" autocomplete="current-password"><button class="btn primary block mt" data-act="unlock-supervisor-key">Unlock securely</button><button class="btn ghost block" data-act="cancel-supervisor-key">Cancel</button>',
         handlers: {
           'unlock-supervisor-key': async button => {
             const password = G.$('#supervisor-key-password', modal.el)?.value || '';
@@ -129,6 +133,7 @@
                 result = { exists: true, key_bundle: bundle };
               }
               supervisorPrivateKey = await G.cr.unlockSupervisorPrivateKey(password, result.key_bundle);
+              supervisorUnlockUsesRemaining = 100;
               modal.close();
               resolve(true);
             } catch (error) {
@@ -604,9 +609,11 @@
     handlers: () => ({
       'open-supervised-kid': async el => {
         try {
-          if (!(await ensureSupervisorPrivateKey())) return;
+          const freshlyUnlocked = await ensureSupervisorPrivateKey();
+          if (freshlyUnlocked === null) return;
           const loaded = await G.cloud.loadSupervisedKid(el.dataset.id, supervisorPrivateKey);
           if (!loaded.state || !loaded.secret) throw new Error('This Kid has not created their diary yet.');
+          if (!freshlyUnlocked) supervisorUnlockUsesRemaining = Math.max(0, supervisorUnlockUsesRemaining - 1);
           supervisorOwnState = G.S ? JSON.parse(JSON.stringify(G.S)) : G.fresh();
           G.supervisedKidId = el.dataset.id;
           G.supervisedKidName = el.dataset.name || 'Kid';
