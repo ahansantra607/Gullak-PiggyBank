@@ -453,7 +453,8 @@
     bare: true,
     render: () => {
       const role = cloudUser?.role || 'kid';
-      const accountPending = cloudUser?.role === 'kid' && (cloudUser?.status === 'pending' || supervisionData?.status === 'pending');
+      const kidActive = role === 'kid' && (supervisionData?.status || cloudUser?.status) === 'active';
+      const accountPending = role === 'kid' && !kidActive;
       const links = supervisionData?.links || [];
       const pending = links.filter(x => x.status === 'pending');
       const accepted = links.filter(x => x.status === 'accepted');
@@ -489,30 +490,23 @@
           </section>
           <footer class="sup-account-actions"><button class="btn ghost" data-act="individual-logout">Log out</button><button class="btn danger" data-act="cloud-delete-account">Delete Supervisor account</button></footer>
         </div>`;
-      if (accountPending) return `
+      if (role === 'kid') return `
         <main class="kid-pending">
           <section class="kid-pending-hero">
-            <div class="kid-pending-art" aria-hidden="true"><span>🛡️</span><i>⌛</i></div>
-            <p class="sup-eyebrow">KID ACCOUNT · SETUP IN PROGRESS</p>
-            <h1>Waiting for a Supervisor</h1>
-            <p>Your account is created. A Supervisor needs to accept your request before your Gullak diary can open.</p>
-            <div class="kid-pending-status"><span></span> Diary locked until approved</div>
-            <button class="btn primary block kid-pending-refresh" data-act="individual-refresh">↻ Check approval status</button>
+            <div class="kid-pending-art" aria-hidden="true"><span>🐷</span><i>${kidActive ? '✓' : '⌛'}</i></div>
+            <p class="sup-eyebrow">YOUR INDIVIDUAL GULLAK</p>
+            <h1>${kidActive ? 'Your Gullak is ready!' : 'Your Gullak is almost ready'}</h1>
+            <p>${kidActive ? 'A Supervisor has approved your account. You can now create and open your Gullak diary.' : 'Your account has been created. As soon as one Supervisor accepts your request, you can create and open your Gullak diary.'}</p>
+            <div class="kid-pending-status ${kidActive ? 'is-ready' : ''}"><span></span>${kidActive ? 'Account activated' : 'Waiting for Supervisor approval'}</div>
+            <button class="btn primary block kid-create-button" data-act="individual-continue" ${accountPending ? 'disabled aria-disabled="true"' : ''}>Create your Gullak</button>
+            ${accountPending ? '<button class="btn ghost block kid-pending-refresh" data-act="individual-refresh">↻ Check approval status</button>' : ''}
           </section>
-          <section class="card kid-pending-card">
-            <div class="kid-pending-title"><div><p class="sup-eyebrow">YOUR REQUESTS</p><h2>Supervisor connections</h2></div><span class="sup-section-icon">👥</span></div>
-            ${accepted.length ? '<div class="kid-pending-group"><h3>Accepted</h3>' + accepted.map(x => `<div class="kid-pending-row"><span class="kid-pending-person">🛡️</span><div><b>${esc(x.other_username)}</b><small>Supervisor accepted</small></div><span class="kid-pending-tag accepted">Accepted</span></div>`).join('') + '</div>' : ''}
-            ${pending.length ? '<div class="kid-pending-group"><h3>Waiting for a reply</h3>' + pending.map(x => `<div class="kid-pending-row"><span class="kid-pending-person">⏳</span><div><b>${esc(x.other_username)}</b><small>Your request has been sent</small></div><span class="kid-pending-tag">Pending</span></div>`).join('') + '</div>' : ''}
-            ${rejected.length ? '<div class="kid-pending-group"><h3>Not accepted</h3>' + rejected.map(x => `<div class="kid-pending-row"><span class="kid-pending-person">↩️</span><div><b>${esc(x.other_username)}</b><small>You can ask another Supervisor</small></div><span class="kid-pending-tag declined">Declined</span></div>`).join('') + '</div>' : ''}
-            ${!links.length ? '<div class="kid-pending-empty"><span>📨</span><b>No requests yet</b><p>Add a Supervisor code below to send your first request.</p></div>' : ''}
-          </section>
-          <section class="card kid-pending-card kid-pending-add">
-            <div class="kid-pending-title"><div><p class="sup-eyebrow">NEED ANOTHER OPTION?</p><h2>Add a Supervisor</h2></div><span class="sup-section-icon">＋</span></div>
-            <p class="small muted">You can send requests to more than one Supervisor. Your diary unlocks when at least one accepts.</p>
+          ${accountPending ? `<section class="kid-pending-add">
+            <p class="small muted">Have another Supervisor code? You can send an additional request.</p>
             <label class="label" for="individual-add-supervisor">Supervisor code</label>
             <input class="input" id="individual-add-supervisor" maxlength="20" placeholder="Enter the 10-character code">
-            <button class="btn primary block mt" data-act="individual-add-supervisor">Send request</button>
-          </section>
+            <button class="btn ghost block mt" data-act="individual-add-supervisor">＋ Add another Supervisor</button>
+          </section>` : ''}
           <button class="btn ghost block kid-pending-logout" data-act="individual-logout">Log out</button>
         </main>`;
       return head + `
@@ -527,7 +521,7 @@
           ${pending.map(x => `<div class="kid-row"><span>⏳</span><b class="grow">${esc(x.other_username)}</b><span class="small muted">Pending</span></div>`).join('') || '<p class="small muted">No pending requests.</p>'}
           ${rejected.length ? '<h3>Declined</h3>' + rejected.map(x => `<div class="kid-row"><span>↩️</span><b class="grow">${esc(x.other_username)}</b><span class="small muted">Declined</span></div>`).join('') : ''}
         </section>
-        <button class="btn soft block" data-act="individual-continue">Continue to my Gullak</button><button class="btn ghost block" data-act="individual-logout">Log out</button>`;
+        <button class="btn soft block" data-act="individual-continue">Create your Gullak</button><button class="btn ghost block" data-act="individual-logout">Log out</button>`;
     },
     after: root => {
       if (supervisionLoading || !cloudUser) return;
@@ -582,9 +576,24 @@
       'individual-refresh': () => { supervisionData = null; G.render({ keepScroll: true }); },
       'individual-logout': signOutFlow,
       'cloud-delete-account': deleteAccountFlow,
-      'individual-continue': () => {
-        if (window.GullakNative && typeof window.GullakNative.onCloudReady === 'function') window.GullakNative.onCloudReady();
-        G.go(G.S?.profile ? 'home' : 'welcome');
+      'individual-continue': async button => {
+        if (cloudUser?.role !== 'kid') return;
+        button.disabled = true;
+        try {
+          const latest = await G.cloud.individualSupervision();
+          supervisionData = latest;
+          if (latest.status) cloudUser.status = latest.status;
+          if (latest.status !== 'active') {
+            G.render({ keepScroll: true });
+            G.toast('Your Gullak will unlock as soon as a Supervisor accepts.');
+            return;
+          }
+          if (window.GullakNative && typeof window.GullakNative.onCloudReady === 'function') window.GullakNative.onCloudReady();
+          G.go(G.S?.profile ? 'home' : 'welcome');
+        } catch (error) {
+          button.disabled = false;
+          G.toast(error.message || 'Could not verify your account approval.');
+        }
       }
     })
   };
