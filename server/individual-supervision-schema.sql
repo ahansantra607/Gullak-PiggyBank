@@ -40,6 +40,14 @@ WHERE COALESCE((SELECT account_type FROM user_account_types t WHERE t.user_id = 
   AND NOT EXISTS (SELECT 1 FROM cloud_families f WHERE f.created_by = users.user_id);
 
 
+-- Real names are private Individual profile details. Supervisors see a Kid's name on requests; Kids see a Supervisor's name only after acceptance.
+CREATE TABLE IF NOT EXISTS individual_real_names (
+  user_id TEXT PRIMARY KEY REFERENCES users(user_id) ON DELETE CASCADE,
+  real_name TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
 -- Supervisor public keys and client-side encrypted private keys.
 CREATE TABLE IF NOT EXISTS individual_supervisor_keys (
   supervisor_user_id TEXT PRIMARY KEY REFERENCES users(user_id) ON DELETE CASCADE,
