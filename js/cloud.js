@@ -104,6 +104,7 @@
         ...(sessionOnly && !window.GullakNative ? { headers: { 'X-Gullak-Session-Only': '1' } } : {})
       });
     },
+    currentUser: () => request('/api/me'),
     individualSupervision: () => request('/api/individual/supervision'),
     saveSupervisorKey: bundle => request('/api/individual/supervision/keys', { method: 'PUT', body: JSON.stringify(bundle) }),
     loadSupervisorKey: () => request('/api/individual/supervision/keys'),
