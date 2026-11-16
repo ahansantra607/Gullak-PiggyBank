@@ -249,7 +249,7 @@ export default {
           "cloud_families", "cloud_family_members",
           "cloud_family_vaults", "cloud_family_member_vaults", "user_key_wraps",
           "individual_account_roles", "individual_supervisor_codes", "individual_supervisor_links",
-          "individual_supervisor_keys", "individual_kid_key_shares"
+          "individual_supervisor_keys", "individual_kid_key_shares", "individual_kid_rules"
         ];
         const tableChecks = await Promise.all(requiredTables.map(name =>
           env.gullak_db.prepare(
@@ -587,7 +587,14 @@ export default {
         ? "SELECT l.link_id, l.status, l.created_at, l.responded_at, u.user_id AS other_user_id, u.username AS other_username, r.status AS kid_status, CASE WHEN k.supervisor_user_id IS NULL THEN 0 ELSE 1 END AS has_key_share, CASE WHEN v.user_id IS NULL THEN 0 ELSE 1 END AS has_diary FROM individual_supervisor_links l JOIN users u ON u.user_id = l.kid_user_id LEFT JOIN individual_account_roles r ON r.user_id = u.user_id LEFT JOIN individual_kid_key_shares k ON k.kid_user_id = u.user_id AND k.supervisor_user_id = l.supervisor_user_id LEFT JOIN user_vaults v ON v.user_id = u.user_id WHERE l.supervisor_user_id = ? ORDER BY l.created_at DESC"
         : "SELECT l.link_id, l.status, l.created_at, l.responded_at, u.user_id AS other_user_id, u.username AS other_username, k.public_key AS supervisor_public_key, CASE WHEN s.supervisor_user_id IS NULL THEN 0 ELSE 1 END AS has_key_share FROM individual_supervisor_links l JOIN users u ON u.user_id = l.supervisor_user_id LEFT JOIN individual_supervisor_keys k ON k.supervisor_user_id = l.supervisor_user_id LEFT JOIN individual_kid_key_shares s ON s.kid_user_id = l.kid_user_id AND s.supervisor_user_id = l.supervisor_user_id WHERE l.kid_user_id = ? ORDER BY l.created_at ASC";
       const rows = await env.gullak_db.prepare(sql).bind(user.user_id).all();
-      return json({ role: role.role, status: role.status, links: rows.results || [] });
+      let rules: Record<string, number> | null = null;
+      if (!supervisorView) {
+        const rulesRow = await env.gullak_db.prepare("SELECT rules_json FROM individual_kid_rules WHERE kid_user_id = ?").bind(user.user_id).first<{ rules_json: string }>();
+        if (rulesRow) {
+          try { rules = JSON.parse(rulesRow.rules_json) as Record<string, number>; } catch { rules = null; }
+        }
+      }
+      return json({ role: role.role, status: role.status, links: rows.results || [], rules });
     }
 
     if (path === "/api/individual/supervision/code" && request.method === "POST") {
@@ -649,14 +656,29 @@ export default {
         const body = await request.json() as { decision?: string };
         if (body.decision !== "accept" && body.decision !== "reject") return json({ error: "Choose accept or reject." }, 400);
         const linkId = supervisionDecision[1];
-        const link = await env.gullak_db.prepare("SELECT kid_user_id, status FROM individual_supervisor_links WHERE link_id = ? AND supervisor_user_id = ?").bind(linkId, user.user_id).first<{ kid_user_id: string; status: string }>();
+        const link = await env.gullak_db.prepare("SELECT l.kid_user_id, l.status, r.status AS kid_status FROM individual_supervisor_links l JOIN individual_account_roles r ON r.user_id = l.kid_user_id WHERE l.link_id = ? AND l.supervisor_user_id = ?").bind(linkId, user.user_id).first<{ kid_user_id: string; status: string; kid_status: string }>();
         if (!link) return json({ error: "This request does not belong to your account." }, 404);
         if (link.status !== "pending") return json({ error: "This request has already been answered." }, 409);
         const nextStatus = body.decision === "accept" ? "accepted" : "rejected";
         const now = new Date().toISOString();
-        const statements: D1PreparedStatement[] = [
-          env.gullak_db.prepare("UPDATE individual_supervisor_links SET status = ?, responded_at = ? WHERE link_id = ? AND supervisor_user_id = ? AND status = 'pending'").bind(nextStatus, now, linkId, user.user_id)
-        ];
+        const statements: D1PreparedStatement[] = [];
+        if (nextStatus === "accepted" && link.kid_status === "pending") {
+          const rules = body.rules;
+          const allowed: Record<string, number[]> = {
+            loanInterest: [0, 5, 10, 20],
+            matchPct: [0, 5, 10, 25, 50],
+            coolHours: [1 / 60, 1, 24, 48],
+            coolMin: [100, 200, 500, 1000],
+            reviewHours: [1 / 60, 3, 12, 24]
+          };
+          if (!rules || Object.entries(allowed).some(([key, values]) => !values.includes(Number((rules as Record<string, unknown>)[key])))) {
+            return json({ error: "Set all Grown-up Rules before approving this Kid account." }, 400);
+          }
+          statements.push(env.gullak_db.prepare(
+            "INSERT INTO individual_kid_rules (kid_user_id, rules_json, set_by_supervisor_user_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?) ON CONFLICT(kid_user_id) DO NOTHING"
+          ).bind(link.kid_user_id, JSON.stringify(Object.fromEntries(Object.keys(allowed).map(key => [key, Number((rules as Record<string, unknown>)[key])]))), user.user_id, now, now));
+        }
+        statements.push(env.gullak_db.prepare("UPDATE individual_supervisor_links SET status = ?, responded_at = ? WHERE link_id = ? AND supervisor_user_id = ? AND status = 'pending'").bind(nextStatus, now, linkId, user.user_id));
         if (nextStatus === "accepted") statements.push(env.gullak_db.prepare("UPDATE individual_account_roles SET status = 'active' WHERE user_id = ? AND role = 'kid'").bind(link.kid_user_id));
         await env.gullak_db.batch(statements);
         return json({ success: true, status: nextStatus });
