@@ -173,8 +173,10 @@ const firstSupervisorRequests = expect(await request("/api/individual/supervisio
 const firstRequest = firstSupervisorRequests.data.links.find(row => row.other_username === kidName && row.status === "pending");
 assert(firstRequest, "Supervisor did not receive the Kid's pending request.");
 expect(await request("/api/individual/supervision/requests/" + firstRequest.link_id, {
-  method: "POST", cookie: individualLogin.cookie, body: { decision: "accept" }
-}), 200, "Supervisor accepts Kid");
+  method: "POST", cookie: individualLogin.cookie, body: { decision: "accept", rules: {
+    loanInterest: 5, matchPct: 10, coolHours: 24, coolMin: 200, reviewHours: 12
+  } }
+}), 200, "Supervisor accepts Kid with first-approval Grown-up Rules");
 const kidLogin = expect(await request("/api/login", {
   method: "POST", body: { username: kidName, password: kidPassword }
 }), 200, "Kid login after approval");
@@ -183,6 +185,9 @@ assert(kidLogin.data.user.role === "kid" && kidLogin.data.user.status === "activ
 const kidLinks = expect(await request("/api/individual/supervision", { cookie: kidLogin.cookie }), 200, "Kid's Supervisor list");
 assert(kidLinks.data.links.some(row => row.other_username === individualName && row.status === "accepted"),
   "Kid does not see the accepted Supervisor relationship.");
+assert(kidLinks.data.rules && kidLinks.data.rules.loanInterest === 5 && kidLinks.data.rules.matchPct === 10 &&
+  kidLinks.data.rules.coolHours === 24 && kidLinks.data.rules.coolMin === 200 && kidLinks.data.rules.reviewHours === 12,
+  "Kid did not receive the Grown-up Rules saved during first approval.");
 const acceptedFirstLink = kidLinks.data.links.find(row => row.other_username === individualName && row.status === "accepted");
 assert(acceptedFirstLink.supervisor_public_key, "Kid cannot retrieve the accepted Supervisor's public key.");
 const testDiarySecret = b64(randomBytes(32));
