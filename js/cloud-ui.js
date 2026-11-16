@@ -258,6 +258,7 @@
         <h2>${authMode === 'register' ? 'Create your cloud account' : 'Log in to Gullak'}</h2>
         <p class="small muted">${authMode === 'register' ? 'Create a Supervisor account or a Kid account. Kid accounts become active only after a Supervisor accepts.' : 'Your account password signs you in and unlocks your encrypted diary. Your separate encryption passphrase is not requested again.'}</p>
         ${authMode === 'register' ? `<div class="seg"><button class="seg-b ${registerRole === 'supervisor' ? 'on' : ''}" data-act="individual-role" data-v="supervisor">🛡️ Supervisor</button><button class="seg-b ${registerRole === 'kid' ? 'on' : ''}" data-act="individual-role" data-v="kid">🧒 Kid</button></div><p class="hint">${registerRole === 'supervisor' ? 'Create your own account and receive a code that a Kid can use to request you as their Supervisor.' : 'Enter at least one Supervisor code. Each Supervisor must accept before your account can be used.'}</p>` : ''}
+        ${authMode === 'register' ? '<label class="label" for="cloud-real-name">Real name</label><input class="input" id="cloud-real-name" maxlength="80" autocomplete="name" placeholder="Enter your real name"><p class="hint">' + (registerRole === 'supervisor' ? 'A Kid will see your real name only after you accept their request.' : 'Supervisors you request will see your real name.') + '</p>' : ''}
         <label class="label" for="cloud-username">Username</label>
         <div style="position:relative;width:100%"><input class="input" style="width:100%;box-sizing:border-box;padding-right:44px" id="cloud-username" maxlength="24" autocomplete="username" ${authMode === 'register' ? 'placeholder="3–24 letters, numbers or _"' : ''}><button type="button" id="cloud-username-status" aria-label="Username status" aria-expanded="false" style="display:none;position:absolute;right:8px;top:50%;transform:translateY(-50%);border:0;background:transparent;padding:4px;font-size:22px;font-weight:700;cursor:pointer"></button></div><p id="cloud-username-help" class="hint" hidden></p>
         <label class="label" for="cloud-password">Account password</label>
@@ -280,9 +281,11 @@
       'cloud-delete-account': deleteAccountFlow,
       'cloud-connect': async (button) => {
         const username = G.$('#cloud-username').value.trim();
+        const realName = authMode === 'register' ? (G.$('#cloud-real-name')?.value || '').trim().replace(/\s+/g, ' ') : '';
         const password = G.$('#cloud-password').value;
         let secret = authMode === 'register' && registerRole === 'kid' ? (G.$('#cloud-secret')?.value || '') : '';
         if (!/^[a-z0-9_]{3,24}$/i.test(username)) return G.toast('Username must be 3–24 letters, numbers or underscores.');
+        if (authMode === 'register' && (realName.length < 2 || realName.length > 80 || /[\u0000-\u001f\u007f]/.test(realName))) return G.toast('Enter your real name (2–80 characters).');
         const passwordOK = password.length >= 8 && password.length <= 128 && /[a-z]/.test(password) && /[A-Z]/.test(password) && /[0-9]/.test(password) && /[^A-Za-z0-9\s]/.test(password);
         if (authMode === 'register' && !passwordOK) return G.toast('Use at least 8 characters with uppercase, lowercase, a number and a special character.');
         if (!password || password.length > 128) return G.toast('Enter your account password.');
@@ -303,7 +306,7 @@
           const supervisorKeyBundle = authMode === 'register' && role === 'supervisor'
             ? await G.cr.makeSupervisorKeyBundle(password) : null;
           const auth = authMode === 'register'
-            ? await G.cloud.registerIndividual(username, password, role, supervisorCodes, secret, supervisorKeyBundle, !stayLoggedIn && !isAndroidApp)
+            ? await G.cloud.registerIndividual(username, password, role, supervisorCodes, secret, supervisorKeyBundle, !stayLoggedIn && !isAndroidApp, realName)
             : await G.cloud.login(username, password, !stayLoggedIn && !isAndroidApp);
           supervisorPrivateKey = null;
           supervisorUnlockUsesRemaining = 0;
@@ -527,11 +530,11 @@
           </section>
           <section class="card sup-section">
             <div class="sup-section-head"><div><p class="sup-eyebrow">NEEDS YOUR ATTENTION</p><h2>Requests <span class="sup-count">${pending.length}</span></h2></div></div>
-            ${pending.length ? '<div class="sup-request-list">' + pending.map(x => `<article class="sup-request"><div class="sup-person"><span class="sup-avatar">🧒</span><div><b>${esc(x.other_username)}</b><p>Wants you to become their Supervisor</p></div></div><div class="sup-request-actions"><button class="btn good" data-act="individual-decision" data-id="${esc(x.link_id)}" data-v="accept" data-kidstatus="${esc(x.kid_status || '')}" data-kidname="${esc(x.other_username)}">Accept</button><button class="btn ghost" data-act="individual-decision" data-id="${esc(x.link_id)}" data-v="reject">Decline</button></div></article>`).join('') + '</div>' : '<div class="sup-empty"><span>📭</span><b>All caught up</b><p>New Kid requests will appear here. You can share your code to invite a Kid.</p></div>'}
+            ${pending.length ? '<div class="sup-request-list">' + pending.map(x => `<article class="sup-request"><div class="sup-person"><span class="sup-avatar">🧒</span><div><b>${esc(x.other_real_name || x.other_username)}</b><p>${esc(x.other_username)} · Wants you to become their Supervisor</p></div></div><div class="sup-request-actions"><button class="btn good" data-act="individual-decision" data-id="${esc(x.link_id)}" data-v="accept" data-kidstatus="${esc(x.kid_status || '')}" data-kidname="${esc(x.other_username)}">Accept</button><button class="btn ghost" data-act="individual-decision" data-id="${esc(x.link_id)}" data-v="reject">Decline</button></div></article>`).join('') + '</div>' : '<div class="sup-empty"><span>📭</span><b>All caught up</b><p>New Kid requests will appear here. You can share your code to invite a Kid.</p></div>'}
           </section>
           <section class="card sup-section">
             <div class="sup-section-head"><div><p class="sup-eyebrow">YOUR CONNECTIONS</p><h2>Kids you supervise <span class="sup-count">${accepted.length}</span></h2></div></div>
-            ${accepted.length ? '<div class="sup-kid-list">' + accepted.map(x => `<article class="sup-kid"><span class="sup-avatar">🧒</span><div class="sup-kid-info"><b>${esc(x.other_username)}</b><p>${!x.has_key_share ? 'Waiting for diary access to be shared' : !x.has_diary ? 'Diary not created yet' : 'Diary ready'}</p></div>${!x.has_key_share || !x.has_diary ? '<span class="sup-status-wait">Waiting</span>' : `<button class="btn small primary" data-act="open-supervised-kid" data-id="${esc(x.other_user_id)}" data-name="${esc(x.other_username)}">Open diary →</button>`}</article>`).join('') + '</div>' : '<div class="sup-empty"><span>🌱</span><b>Your list starts here</b><p>Once you accept a Kid’s request, they’ll appear in this section.</p></div>'}
+            ${accepted.length ? '<div class="sup-kid-list">' + accepted.map(x => `<article class="sup-kid"><span class="sup-avatar">🧒</span><div class="sup-kid-info"><b>${esc(x.other_real_name || x.other_username)}</b><p>${esc(x.other_username)} · ${!x.has_key_share ? 'Waiting for diary access to be shared' : !x.has_diary ? 'Diary not created yet' : 'Diary ready'}</p></div>${!x.has_key_share || !x.has_diary ? '<span class="sup-status-wait">Waiting</span>' : `<button class="btn small primary" data-act="open-supervised-kid" data-id="${esc(x.other_user_id)}" data-name="${esc(x.other_username)}">Open diary →</button>`}</article>`).join('') + '</div>' : '<div class="sup-empty"><span>🌱</span><b>Your list starts here</b><p>Once you accept a Kid’s request, they’ll appear in this section.</p></div>'}
           </section>
           <footer class="sup-account-actions"><button class="btn" data-act="individual-logout">Log out</button><button class="btn danger" data-act="cloud-delete-account">Delete Supervisor account</button></footer>
         </div>`;
@@ -557,7 +560,7 @@
             <p class="small muted">Every Supervisor request stays listed here independently. Approving one does not cancel the others.</p>
             ${links.length ? links.map(x => `<div class="kid-pending-row">
               <span class="kid-pending-person" aria-hidden="true">🛡️</span>
-              <div><b>${esc(x.other_username || 'Supervisor')}</b><small>Supervisor request</small></div>
+              <div><b>${esc(x.other_real_name || x.other_username || 'Supervisor')}</b><small>${esc(x.other_username || 'Supervisor')} · ${x.status === 'accepted' ? 'Supervisor' : 'Name shown after acceptance'}</small></div>
               <span class="kid-pending-tag ${x.status === 'accepted' ? 'accepted' : x.status === 'rejected' ? 'declined' : ''}">${x.status === 'accepted' ? 'Accepted' : x.status === 'rejected' ? 'Declined' : 'Pending'}</span>
             </div>`).join('') : '<div class="kid-pending-empty"><span>📭</span><b>No Supervisor requests yet</b><p>Add a Supervisor code above to send your first request.</p></div>'}
           </section>
