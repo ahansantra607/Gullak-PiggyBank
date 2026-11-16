@@ -610,5 +610,5 @@ select.input { appearance: auto; }
 }
 
 /* Animate only the refresh symbol while the Kid checks approval status */
-.kid-supervision-refresh .kid-refresh-spinner,.kid-pending-refresh .kid-refresh-spinner{display:inline-block;animation:kidRefreshSpin .8s linear infinite}
-@keyframes kidRefreshSpin{to{transform:rotate(360deg)}}
+.kid-supervision-refresh .kid-refresh-spinner,.kid-pending-refresh .kid-refresh-spinner{display:inline-block;transform-origin:50% 50%;animation:kidRefreshSpin .8s linear infinite}
+@keyframes kidRefreshSpin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
