@@ -626,7 +626,7 @@
           G.go('supervised-kid');
         } catch (error) { G.toast(error.message || 'Could not open this Kid diary.'); }
       },
-      'individual-copy-code': () => { if (!lastSupervisorCode) return; G.copy(lastSupervisorCode); G.toast('Supervisor code copied.'); },
+      'individual-copy-code': () => { if (!lastSupervisorCode) return; G.copy(lastSupervisorCode); },
       'individual-new-code': async button => {
         button.disabled = true;
         try { const result = await G.cloud.createSupervisorCode(); lastSupervisorCode = result.code; supervisionData = null; G.render({ keepScroll: true }); }
