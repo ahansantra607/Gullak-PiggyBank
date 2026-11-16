@@ -452,20 +452,32 @@
       const head = role === 'supervisor'
         ? '<header class="page-h"><h1>🛡️ Supervisor account</h1></header>'
         : '<header class="page-h"><button class="back" data-act="go" data-to="settings">←</button><h1>🛡️ Supervisors</h1></header>';
-      if (role === 'supervisor') return head + `
-        <section class="card"><h2>Your Supervisor code</h2>
-          ${lastSupervisorCode ? `<div class="banner good"><b>Share this code with a Kid:</b><h2>${esc(lastSupervisorCode)}</h2><p class="small">This code is shown only now. Keep it private and share it only with the Kid you agree to supervise.</p></div>` : '<p class="muted small">Generate a code and share it with a Kid. They can use it to request you as their Supervisor.</p>'}
-          <button class="btn primary block" data-act="individual-new-code">${lastSupervisorCode ? 'Generate a new code' : 'Generate Supervisor code'}</button>
-        </section>
-        <section class="card"><h3>Requests waiting for you (${pending.length})</h3>
-          ${pending.length ? pending.map(x => `<div class="req-p"><b>🧒 ${esc(x.other_username)}</b><p class="small muted">Wants you to become their Supervisor.</p><div class="row gap"><button class="btn good grow" data-act="individual-decision" data-id="${esc(x.link_id)}" data-v="accept">Accept</button><button class="btn ghost grow" data-act="individual-decision" data-id="${esc(x.link_id)}" data-v="reject">Decline</button></div></div>`).join('') : '<p class="muted small">No pending requests.</p>'}
-        </section>
-        <section class="card"><h3>Kids you supervise (${accepted.length})</h3>
-          ${accepted.length ? accepted.map(x => `<div class="kid-row"><span>🧒</span><b class="grow">${esc(x.other_username)}</b>${!x.has_key_share ? '<span class="small muted">Waiting for Kid to share diary key</span>' : !x.has_diary ? '<span class="small muted">Waiting for Kid to create their diary</span>' : `<button class="btn small primary" data-act="open-supervised-kid" data-id="${esc(x.other_user_id)}" data-name="${esc(x.other_username)}">Open diary</button>`}</div>`).join('') : '<p class="muted small">When a Kid requests you and you accept, they will appear here.</p>'}
-        </section>
-        <button class="btn soft block" data-act="individual-refresh">Refresh requests</button>
-        <button class="btn ghost block" data-act="individual-logout">Log out</button>
-        <button class="btn danger block mt" data-act="cloud-delete-account">Delete Supervisor account</button>`;
+      if (role === 'supervisor') return `
+        <div class="sup-dashboard">
+          <header class="sup-dash-head">
+            <div class="sup-dash-mark">🛡️</div>
+            <div class="sup-dash-heading"><p class="sup-eyebrow">INDIVIDUAL ACCOUNT</p><h1>Supervisor dashboard</h1><p>Manage requests and the Kids you support.</p></div>
+            <button class="btn ghost sup-refresh" data-act="individual-refresh" aria-label="Refresh dashboard">↻ <span>Refresh</span></button>
+          </header>
+          <div class="sup-stat-grid">
+            <div class="sup-stat"><span class="sup-stat-icon">⏳</span><strong>${pending.length}</strong><span>Pending requests</span></div>
+            <div class="sup-stat"><span class="sup-stat-icon">🧒</span><strong>${accepted.length}</strong><span>Kids supervised</span></div>
+          </div>
+          <section class="card sup-code-card">
+            <div class="sup-section-head"><div><p class="sup-eyebrow">INVITE A KID</p><h2>Your Supervisor code</h2></div><span class="sup-section-icon">🔑</span></div>
+            ${lastSupervisorCode ? `<div class="sup-code-reveal"><span>YOUR NEW CODE</span><strong>${esc(lastSupervisorCode)}</strong><p>Share this privately with the Kid you agree to supervise.</p></div>` : '<p class="small muted sup-code-intro">Generate a personal code. A Kid can use it to send you a supervision request.</p>'}
+            <button class="btn primary block sup-main-action" data-act="individual-new-code">${lastSupervisorCode ? 'Generate a new code' : '＋ Generate Supervisor code'}</button>
+          </section>
+          <section class="card sup-section">
+            <div class="sup-section-head"><div><p class="sup-eyebrow">NEEDS YOUR ATTENTION</p><h2>Requests <span class="sup-count">${pending.length}</span></h2></div></div>
+            ${pending.length ? '<div class="sup-request-list">' + pending.map(x => `<article class="sup-request"><div class="sup-person"><span class="sup-avatar">🧒</span><div><b>${esc(x.other_username)}</b><p>Wants you to become their Supervisor</p></div></div><div class="sup-request-actions"><button class="btn good" data-act="individual-decision" data-id="${esc(x.link_id)}" data-v="accept">Accept</button><button class="btn ghost" data-act="individual-decision" data-id="${esc(x.link_id)}" data-v="reject">Decline</button></div></article>`).join('') + '</div>' : '<div class="sup-empty"><span>📭</span><b>All caught up</b><p>New Kid requests will appear here. You can share your code to invite a Kid.</p></div>'}
+          </section>
+          <section class="card sup-section">
+            <div class="sup-section-head"><div><p class="sup-eyebrow">YOUR CONNECTIONS</p><h2>Kids you supervise <span class="sup-count">${accepted.length}</span></h2></div></div>
+            ${accepted.length ? '<div class="sup-kid-list">' + accepted.map(x => `<article class="sup-kid"><span class="sup-avatar">🧒</span><div class="sup-kid-info"><b>${esc(x.other_username)}</b><p>${!x.has_key_share ? 'Waiting for diary access to be shared' : !x.has_diary ? 'Diary not created yet' : 'Diary ready'}</p></div>${!x.has_key_share || !x.has_diary ? '<span class="sup-status-wait">Waiting</span>' : `<button class="btn small primary" data-act="open-supervised-kid" data-id="${esc(x.other_user_id)}" data-name="${esc(x.other_username)}">Open diary →</button>`}</article>`).join('') + '</div>' : '<div class="sup-empty"><span>🌱</span><b>Your list starts here</b><p>Once you accept a Kid’s request, they’ll appear in this section.</p></div>'}
+          </section>
+          <footer class="sup-account-actions"><button class="btn ghost" data-act="individual-logout">Log out</button><button class="btn danger" data-act="cloud-delete-account">Delete Supervisor account</button></footer>
+        </div>`;
       return head + `
         ${accountPending ? '<div class="banner info">⏳ Your Kid account is pending. Your diary stays locked until at least one Supervisor accepts.</div>' : ''}
         <section class="card"><h2>My Supervisors</h2>
