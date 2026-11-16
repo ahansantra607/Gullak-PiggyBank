@@ -83,8 +83,9 @@ if (!cloudUiSource.includes('Supervisor requests') || !cloudUiSource.includes('k
 if (!cloudUiSource.includes("'individual-refresh': async button") || !cloudUiSource.includes("G.cloud.individualSupervision();") || !cloudUiSource.includes("Still waiting for a Supervisor to accept your request.")) throw new Error('Check approval status must query the server and refresh the Kid account status.');
 if (cloudUiSource.includes('btn ghost block kid-pending-logout') || cloudUiSource.includes('btn ghost" data-act="individual-logout"')) throw new Error('Log out buttons should use the standard Gullak button style.');
 const supervisionScreen = cloudUiSource.slice(cloudUiSource.indexOf("G.screens['individual-supervision']"), cloudUiSource.indexOf("G.screens['supervised-kid']"));
-if (!supervisionScreen.includes('Supervisor dashboard') || supervisionScreen.includes('class="back"')) throw new Error('Supervisor dashboard must not show a useless Back button.');
-if (supervisionScreen.includes('data-to="settings"') || supervisionScreen.includes('class="back"')) throw new Error('Neither Supervisor dashboard nor the active Kid Manage Supervisors page should show a Back button.');
+const supervisorDashboard = supervisionScreen.slice(supervisionScreen.indexOf("if (role === 'supervisor')"), supervisionScreen.indexOf("if (role === 'kid' && accountPending)"));
+if (!supervisorDashboard.includes('Supervisor dashboard') || supervisorDashboard.includes('class="back"')) throw new Error('Supervisor dashboard must not show a useless Back button.');
+if (!supervisionScreen.includes('class="back" data-act="go" data-to="home"') || !supervisionScreen.includes('kid-supervision-active') || !supervisionScreen.includes("if (role === 'kid' && accountPending)")) throw new Error('Active Kid Manage Supervisors must have its own screen and retain its Back button.');
 if (!readFileSync('css/style.css', 'utf8').includes('.kid-pending-hero')) throw new Error('Kid approval screen styling is missing.');
 
 if (!readFileSync('scripts/smoke-live.mjs', 'utf8').includes('Pending Kid can sign in to manage Supervisor requests')) throw new Error('Live smoke tests do not cover the restricted pending Kid state.');
