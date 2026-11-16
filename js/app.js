@@ -75,6 +75,54 @@
     G.closeAllModals(); G.render();
   });
 
+  /* Add accessible show/hide controls to every password/PIN field,
+     including fields inserted later inside dialogs. */
+  function addPasswordEye(input) {
+    if (!input || input.dataset.eyeReady === '1' || input.type !== 'password') return;
+    const parent = input.parentElement;
+    if (!parent) return;
+    const wrap = document.createElement('span');
+    wrap.className = 'gullak-password-eye-wrap';
+    input.dataset.eyeReady = '1';
+    parent.insertBefore(wrap, input);
+    wrap.appendChild(input);
+    input.style.paddingRight = '48px';
+    const eye = document.createElement('button');
+    eye.type = 'button';
+    eye.className = 'gullak-password-eye';
+    eye.setAttribute('aria-label', 'Show password');
+    eye.setAttribute('aria-pressed', 'false');
+    eye.title = 'Show password';
+    eye.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/><path class="eye-slash" d="M4 4 20 20"/></svg>';
+    wrap.appendChild(eye);
+    Array.from(parent.children).forEach(sibling => {
+      if (sibling !== wrap && sibling.style && sibling.style.position === 'absolute' && sibling.style.right) sibling.style.right = '44px';
+    });
+  }
+  function scanPasswordEyes(root) {
+    if (root.matches && root.matches('input[type="password"]')) addPasswordEye(root);
+    if (root.querySelectorAll) root.querySelectorAll('input[type="password"]').forEach(addPasswordEye);
+  }
+  scanPasswordEyes(document);
+  document.addEventListener('click', event => {
+    const eye = event.target.closest && event.target.closest('.gullak-password-eye');
+    if (!eye) return;
+    const input = eye.parentElement.querySelector('input');
+    if (!input) return;
+    const visible = input.type === 'password';
+    input.type = visible ? 'text' : 'password';
+    eye.classList.toggle('is-visible', visible);
+    eye.setAttribute('aria-label', visible ? 'Hide password' : 'Show password');
+    eye.setAttribute('aria-pressed', String(visible));
+    eye.title = visible ? 'Hide password' : 'Show password';
+  });
+  const passwordEyeObserver = new MutationObserver(records => {
+    records.forEach(record => record.addedNodes.forEach(node => {
+      if (node.nodeType === 1) scanPasswordEyes(node);
+    }));
+  });
+  passwordEyeObserver.observe(document.documentElement, { childList: true, subtree: true });
+
   /* boot */
   Promise.resolve(G.bootReady).then(() => { // family mode may need to unlock (async) before the first render
     const m = G.S.meta; m.prevOpen = m.lastOpen || G.now(); m.lastOpen = G.now(); G.save();
