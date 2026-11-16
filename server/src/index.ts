@@ -302,13 +302,15 @@ export default {
     if ((path === "/api/register" || path === "/api/family/register") && request.method === "POST") {
       const accountType = path === "/api/family/register" ? "family" : "individual";
       try {
-        const body = await request.json() as { username?: string; password?: string; role?: string; supervisor_codes?: string[]; key_wrap?: { wrapped_secret?: string; salt?: string; iterations?: number }; supervisor_key?: { public_key?: string; encrypted_private_key?: string; salt?: string; iterations?: number } };
+        const body = await request.json() as { username?: string; password?: string; role?: string; real_name?: string; supervisor_codes?: string[]; key_wrap?: { wrapped_secret?: string; salt?: string; iterations?: number }; supervisor_key?: { public_key?: string; encrypted_private_key?: string; salt?: string; iterations?: number } };
         const username = body.username?.trim().toLowerCase() || "";
         const password = body.password || "";
         const role = accountType === "individual" ? body.role : undefined;
         if (!/^[a-z0-9_]{3,24}$/.test(username)) return json({ error: "Username must be 3–24 characters using letters, numbers or underscores." }, 400);
         if (password.length < 8 || password.length > 128 || !/[a-z]/.test(password) || !/[A-Z]/.test(password) || !/[0-9]/.test(password) || !/[^A-Za-z0-9 ]/.test(password)) return json({ error: "Password must be at least 8 characters and include uppercase, lowercase, a number and a special character." }, 400);
         if (accountType === "individual" && role !== "supervisor" && role !== "kid") return json({ error: "Choose Supervisor or Kid account." }, 400);
+        const realName = accountType === "individual" ? String(body.real_name || "").trim().replace(/\s+/g, " ") : "";
+        if (accountType === "individual" && (realName.length < 2 || realName.length > 80 || Array.from(realName).some(ch => ch.charCodeAt(0) < 32 || ch.charCodeAt(0) === 127))) return json({ error: "Enter your real name (2–80 characters)." }, 400);
 
         const supervisors: string[] = [];
         if (role === "kid") {
@@ -358,6 +360,7 @@ export default {
         const statements: D1PreparedStatement[] = [
           env.gullak_db.prepare("INSERT INTO users (user_id, username, password_salt, password_hash, password_iterations, created_at) VALUES (?, ?, ?, ?, ?, ?)")
             .bind(userId, username, toBase64(salt), passwordHash, ITERATIONS, now),
+          ...(accountType === "individual" ? [env.gullak_db.prepare("INSERT INTO individual_real_names (user_id, real_name, created_at, updated_at) VALUES (?, ?, ?, ?)").bind(userId, realName, now, now)] : []),
           env.gullak_db.prepare("INSERT INTO user_account_types (user_id, account_type, created_at) VALUES (?, ?, ?)")
             .bind(userId, accountType, now)
         ];
@@ -584,8 +587,8 @@ export default {
       if (!role) return json({ error: "Individual role not found." }, 403);
       const supervisorView = role.role === "supervisor";
       const sql = supervisorView
-        ? "SELECT l.link_id, l.status, l.created_at, l.responded_at, u.user_id AS other_user_id, u.username AS other_username, r.status AS kid_status, CASE WHEN k.supervisor_user_id IS NULL THEN 0 ELSE 1 END AS has_key_share, CASE WHEN v.user_id IS NULL THEN 0 ELSE 1 END AS has_diary FROM individual_supervisor_links l JOIN users u ON u.user_id = l.kid_user_id LEFT JOIN individual_account_roles r ON r.user_id = u.user_id LEFT JOIN individual_kid_key_shares k ON k.kid_user_id = u.user_id AND k.supervisor_user_id = l.supervisor_user_id LEFT JOIN user_vaults v ON v.user_id = u.user_id WHERE l.supervisor_user_id = ? ORDER BY l.created_at DESC"
-        : "SELECT l.link_id, l.status, l.created_at, l.responded_at, u.user_id AS other_user_id, u.username AS other_username, k.public_key AS supervisor_public_key, CASE WHEN s.supervisor_user_id IS NULL THEN 0 ELSE 1 END AS has_key_share FROM individual_supervisor_links l JOIN users u ON u.user_id = l.supervisor_user_id LEFT JOIN individual_supervisor_keys k ON k.supervisor_user_id = l.supervisor_user_id LEFT JOIN individual_kid_key_shares s ON s.kid_user_id = l.kid_user_id AND s.supervisor_user_id = l.supervisor_user_id WHERE l.kid_user_id = ? ORDER BY l.created_at ASC";
+        ? "SELECT l.link_id, l.status, l.created_at, l.responded_at, u.user_id AS other_user_id, u.username AS other_username, n.real_name AS other_real_name, r.status AS kid_status, CASE WHEN k.supervisor_user_id IS NULL THEN 0 ELSE 1 END AS has_key_share, CASE WHEN v.user_id IS NULL THEN 0 ELSE 1 END AS has_diary FROM individual_supervisor_links l JOIN users u ON u.user_id = l.kid_user_id LEFT JOIN individual_real_names n ON n.user_id = u.user_id LEFT JOIN individual_account_roles r ON r.user_id = u.user_id LEFT JOIN individual_kid_key_shares k ON k.kid_user_id = u.user_id AND k.supervisor_user_id = l.supervisor_user_id LEFT JOIN user_vaults v ON v.user_id = u.user_id WHERE l.supervisor_user_id = ? ORDER BY l.created_at DESC"
+        : "SELECT l.link_id, l.status, l.created_at, l.responded_at, u.user_id AS other_user_id, u.username AS other_username, CASE WHEN l.status = 'accepted' THEN n.real_name ELSE NULL END AS other_real_name, k.public_key AS supervisor_public_key, CASE WHEN s.supervisor_user_id IS NULL THEN 0 ELSE 1 END AS has_key_share FROM individual_supervisor_links l JOIN users u ON u.user_id = l.supervisor_user_id LEFT JOIN individual_real_names n ON n.user_id = u.user_id LEFT JOIN individual_supervisor_keys k ON k.supervisor_user_id = u.user_id LEFT JOIN individual_kid_key_shares s ON s.kid_user_id = l.kid_user_id AND s.supervisor_user_id = u.user_id WHERE l.kid_user_id = ? ORDER BY l.created_at ASC";
       const rows = await env.gullak_db.prepare(sql).bind(user.user_id).all();
       let rules: Record<string, number> | null = null;
       if (!supervisorView) {
