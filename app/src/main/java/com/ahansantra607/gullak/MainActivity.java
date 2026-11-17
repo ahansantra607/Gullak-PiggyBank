@@ -63,6 +63,7 @@ public class MainActivity extends Activity {
     private boolean showingUpdate;
     private static final int REQUEST_FILE_CHOOSER = 2101;
     private static final int REQUEST_SAVE_BACKUP = 2102;
+    private static final int REQUEST_INSTALL_APK = 2103;
     private ValueCallback<Uri[]> filePathCallback;
     private byte[] pendingBackupBytes;
     private static final String API_URL = "https://server.ahansantra607.workers.dev";
@@ -499,7 +500,6 @@ public class MainActivity extends Activity {
                     try { startActivityForResult(create, REQUEST_SAVE_BACKUP); }
                     catch (Exception error) {
                         pendingBackupBytes = null;
-        if (downloadedUpdateApk != null) { downloadedUpdateApk.delete(); downloadedUpdateApk = null; }
                         Toast.makeText(MainActivity.this, "Unable to open the save dialog.", Toast.LENGTH_LONG).show();
                     }
                 });
@@ -597,7 +597,7 @@ public class MainActivity extends Activity {
             Intent install = new Intent(Intent.ACTION_VIEW);
             install.setDataAndType(apkUri, "application/vnd.android.package-archive");
             install.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_ACTIVITY_NEW_TASK);
-            startActivity(install);
+            startActivityForResult(install, REQUEST_INSTALL_APK);
         } catch (Exception error) {
             Toast.makeText(this, "Android could not open the installer. The downloaded update is kept temporarily.", Toast.LENGTH_LONG).show();
         }
@@ -626,6 +626,10 @@ public class MainActivity extends Activity {
 
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        if (requestCode == REQUEST_INSTALL_APK) {
+            if (downloadedUpdateApk != null) { downloadedUpdateApk.delete(); downloadedUpdateApk = null; }
+            return;
+        }
         if (requestCode == REQUEST_FILE_CHOOSER) {
             if (filePathCallback != null) {
                 Uri[] result = resultCode == RESULT_OK && data != null && data.getData() != null
