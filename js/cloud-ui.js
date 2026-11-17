@@ -70,33 +70,50 @@
     });
   }
 
-  async function currentIndividualRecoveryPayload() {
+  async function askForRecoveryPassword() {
+    return new Promise(resolve => {
+      let answered = false;
+      const modal = G.modal({
+        html: '<h2>🔐 Confirm your account password</h2><p class="small muted">Enter your Supervisor account password to encrypt the private key into the new recovery code.</p><label class="label" for="recovery-account-password">Account password</label><input class="input" id="recovery-account-password" type="password" autocomplete="current-password"><div class="row gap mt"><button class="btn ghost grow" data-act="recovery-password-cancel">Cancel</button><button class="btn primary grow" data-act="recovery-password-confirm">Continue</button></div>',
+        handlers: {
+          'recovery-password-confirm': () => {
+            const value = G.$('#recovery-account-password', modal.el)?.value || '';
+            if (!value) return G.toast('Enter your account password.');
+            answered = true; modal.close(); resolve(value);
+          },
+          'recovery-password-cancel': () => { answered = true; modal.close(); resolve(null); }
+        },
+        onClose: () => { if (!answered) resolve(null); }
+      });
+    });
+  }
+
+  async function currentIndividualRecoveryPayload(accountPassword = '') {
     if (!cloudUser || cloudUser.account_type !== 'individual') throw new Error('Sign in to an Individual account first.');
     if (cloudUser.role === 'kid') {
       if (!cloudSecret) throw new Error('Unlock the Kid diary before creating its recovery code.');
       return { version: 1, role: 'kid', diary_secret: cloudSecret };
     }
     if (cloudUser.role === 'supervisor') {
-      if (!supervisorPrivateKey) {
-        const unlocked = await ensureSupervisorPrivateKey();
-        if (unlocked === null) return null;
-      }
+      const password = accountPassword || await askForRecoveryPassword();
+      if (!password) return null;
       const result = await G.cloud.loadSupervisorKey();
       if (!result.exists || !result.key_bundle?.public_key) throw new Error('The Supervisor encryption key is unavailable.');
-      const privateBytes = new Uint8Array(await crypto.subtle.exportKey('pkcs8', supervisorPrivateKey));
+      const privateBytes = await G.cr.unwrapWithSecret(password, result.key_bundle.salt, result.key_bundle.encrypted_private_key, result.key_bundle.iterations);
+      await crypto.subtle.importKey('pkcs8', privateBytes, { name: 'ECDH', namedCurve: 'P-256' }, false, ['deriveBits']);
       return { version: 1, role: 'supervisor', public_key: result.key_bundle.public_key, private_key: G.cr.b64(privateBytes) };
     }
     throw new Error('This account type does not support Individual recovery codes.');
   }
 
-  async function generateIndividualRecoveryCode(forceConfirm = true) {
+  async function generateIndividualRecoveryCode(forceConfirm = true, accountPassword = '') {
     if (!cloudUser || cloudUser.account_type !== 'individual') throw new Error('Sign in to an Individual account first.');
     const status = await G.cloud.individualRecoveryStatus();
     if (forceConfirm && status.configured) {
       const replace = await G.confirm('Replace recovery code?', 'A new recovery code will immediately invalidate the previous one. Make sure you can save the new code.', 'Generate new code', 'Keep current code');
       if (!replace) return false;
     }
-    const payload = await currentIndividualRecoveryPayload();
+    const payload = await currentIndividualRecoveryPayload(accountPassword);
     if (!payload) return false;
     const code = G.cr.makeIndividualRecoveryCode();
     const envelope = await G.cr.wrapIndividualRecovery(code, payload);
@@ -105,10 +122,10 @@
     return true;
   }
 
-  async function ensureIndividualRecoverySetup() {
+  async function ensureIndividualRecoverySetup(accountPassword = '') {
     if (!cloudUser || cloudUser.account_type !== 'individual') return;
     const status = await G.cloud.individualRecoveryStatus();
-    if (!status.configured) await generateIndividualRecoveryCode(false);
+    if (!status.configured) await generateIndividualRecoveryCode(false, accountPassword);
   }
 
   G.cloudAccount = {
@@ -395,7 +412,7 @@
             if (G.setMode) G.setMode('individual');
             if (stayLoggedIn) { try { await G.cloud.rememberDevice(cloudSecret); } catch (_) {} }
             else { try { await G.cloud.clearRememberedDevice(); await G.cloud.rememberSessionDevice(cloudSecret); } catch (_) {} }
-            try { await ensureIndividualRecoverySetup(); } catch (recoveryError) { G.toast(recoveryError.message || 'You can create a recovery code later in account settings.'); }
+            try { await ensureIndividualRecoverySetup(password); } catch (recoveryError) { G.toast(recoveryError.message || 'You can create a recovery code later in account settings.'); }
             if (window.GullakNative && typeof window.GullakNative.onCloudReady === 'function') window.GullakNative.onCloudReady();
             G.go('individual-supervision');
             G.toast('Kid account created. It is locked until at least one Supervisor accepts. You can add more Supervisor codes here while you wait.', 6500);
@@ -439,7 +456,7 @@
             }
           }
           if (authMode === 'login') {
-            try { await ensureIndividualRecoverySetup(); }
+            try { await ensureIndividualRecoverySetup(password); }
             catch (recoveryError) { G.toast(recoveryError.message || 'You can create a recovery code later in account settings.'); }
           }
           if (authMode === 'login' && auth.user?.role === 'supervisor') {
@@ -609,8 +626,7 @@
             keyMaterial = { key_wrap: { wrapped_secret: wrapped, salt, iterations: 310000 } };
           } else if (prepared.role === 'supervisor') {
             if (!payload.private_key || !payload.public_key) throw new Error('The recovered Supervisor key is incomplete.');
-            const privateKey = await crypto.subtle.importKey('pkcs8', G.cr.unb64(payload.private_key), { name: 'ECDH', namedCurve: 'P-256' }, false, ['deriveBits']);
-            keyMaterial = { supervisor_key: await G.cr.wrapSupervisorPrivateKey(password, payload.public_key, privateKey) };
+            keyMaterial = { supervisor_key: await G.cr.wrapSupervisorPrivateKeyBytes(password, payload.public_key, G.cr.unb64(payload.private_key)) };
           } else {
             throw new Error('This account role cannot use Individual recovery.');
           }
