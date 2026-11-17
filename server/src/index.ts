@@ -860,6 +860,7 @@ export default {
           env.gullak_db.prepare("UPDATE users SET password_salt = ?, password_hash = ?, password_iterations = ? WHERE user_id = ?")
             .bind(toBase64(salt), passwordHash, ITERATIONS, row.user_id),
           env.gullak_db.prepare("DELETE FROM sessions WHERE user_id = ?").bind(row.user_id),
+          env.gullak_db.prepare("DELETE FROM user_mobile_pins WHERE user_id = ?").bind(row.user_id),
           env.gullak_db.prepare("INSERT INTO individual_login_security (user_id, failed_attempts, locked_until, updated_at) VALUES (?, 0, NULL, ?) ON CONFLICT(user_id) DO UPDATE SET failed_attempts = 0, locked_until = NULL, updated_at = excluded.updated_at")
             .bind(row.user_id, now)
         ];
