@@ -46,7 +46,7 @@
         handlers: {
           'copy-individual-recovery': () => { G.copy(code); G.toast('Recovery code copied.'); },
           'download-individual-recovery': () => {
-            const fileText = 'Gullak Individual recovery code\\n\\n' + code + '\\n\\nKeep this code private.';
+            const fileText = 'Gullak Individual recovery code\n\n' + code + '\n\nKeep this code private.';
             if (window.GullakNative && typeof window.GullakNative.saveRecoveryCode === 'function') {
               window.GullakNative.saveRecoveryCode('Gullak-Recovery-Code.txt', fileText);
               return;
