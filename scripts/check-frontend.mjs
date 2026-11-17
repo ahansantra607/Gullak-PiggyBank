@@ -394,6 +394,18 @@ navG._hist.length = 0;
 navLocation.hash = '#/individual-supervision';
 navG.back();
 if (navLocation.hash !== '#/home') throw new Error('A page with no previous history did not fall back to Home.');
+navG.routeGuard = null;
+navG._hist.length = 0;
+navG.render();
+navG.go('settings');
+navG.go('individual-supervision');
+navG.routeGuard = name => name === 'settings' ? 'individual-supervision' : null;
+navG.back();
+if (navLocation.hash !== '#/individual-supervision' || navG._hist.join('|') !== '#/home|#/individual-supervision') {
+  throw new Error('A newly guarded previous page was not replaced by its canonical route.');
+}
+navG.back();
+if (navLocation.hash !== '#/home') throw new Error('A guarded previous page caused a Back loop.');
 navG.routeGuard = name => name === 'legacy-supervision' ? 'individual-supervision' : null;
 navG._hist.length = 0;
 navLocation.hash = '#/legacy-supervision';
