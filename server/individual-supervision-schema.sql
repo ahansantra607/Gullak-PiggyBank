@@ -95,3 +95,11 @@ SELECT kid_user_id, rules_json, set_by_supervisor_user_id, created_at, updated_a
 FROM individual_kid_rules;
 DROP TABLE individual_kid_rules;
 ALTER TABLE individual_kid_rules_v2 RENAME TO individual_kid_rules;
+
+
+-- Kid-selected relationship for each Individual Supervisor link.
+CREATE TABLE IF NOT EXISTS individual_supervisor_relationships (
+  link_id TEXT PRIMARY KEY REFERENCES individual_supervisor_links(link_id) ON DELETE CASCADE,
+  relationship TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
