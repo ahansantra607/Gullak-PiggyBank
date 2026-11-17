@@ -594,8 +594,8 @@ export default {
       if (!role) return json({ error: "Individual role not found." }, 403);
       const supervisorView = role.role === "supervisor";
       const sql = supervisorView
-        ? "SELECT l.link_id, l.status, l.created_at, l.responded_at, u.user_id AS other_user_id, u.username AS other_username, n.real_name AS other_real_name, r.status AS kid_status, CASE WHEN k.supervisor_user_id IS NULL THEN 0 ELSE 1 END AS has_key_share, CASE WHEN v.user_id IS NULL THEN 0 ELSE 1 END AS has_diary FROM individual_supervisor_links l JOIN users u ON u.user_id = l.kid_user_id LEFT JOIN individual_real_names n ON n.user_id = u.user_id LEFT JOIN individual_account_roles r ON r.user_id = u.user_id LEFT JOIN individual_kid_key_shares k ON k.kid_user_id = u.user_id AND k.supervisor_user_id = l.supervisor_user_id LEFT JOIN user_vaults v ON v.user_id = u.user_id WHERE l.supervisor_user_id = ? ORDER BY l.created_at DESC"
-        : "SELECT l.link_id, l.status, l.created_at, l.responded_at, u.user_id AS other_user_id, u.username AS other_username, CASE WHEN l.status = 'accepted' THEN n.real_name ELSE NULL END AS other_real_name, k.public_key AS supervisor_public_key, CASE WHEN s.supervisor_user_id IS NULL THEN 0 ELSE 1 END AS has_key_share FROM individual_supervisor_links l JOIN users u ON u.user_id = l.supervisor_user_id LEFT JOIN individual_real_names n ON n.user_id = u.user_id LEFT JOIN individual_supervisor_keys k ON k.supervisor_user_id = u.user_id LEFT JOIN individual_kid_key_shares s ON s.kid_user_id = l.kid_user_id AND s.supervisor_user_id = u.user_id WHERE l.kid_user_id = ? ORDER BY l.created_at ASC";
+        ? "SELECT l.link_id, l.status, l.created_at, l.responded_at, rel.relationship, u.user_id AS other_user_id, u.username AS other_username, n.real_name AS other_real_name, r.status AS kid_status, CASE WHEN k.supervisor_user_id IS NULL THEN 0 ELSE 1 END AS has_key_share, CASE WHEN v.user_id IS NULL THEN 0 ELSE 1 END AS has_diary FROM individual_supervisor_links l JOIN users u ON u.user_id = l.kid_user_id LEFT JOIN individual_real_names n ON n.user_id = u.user_id LEFT JOIN individual_supervisor_relationships rel ON rel.link_id = l.link_id LEFT JOIN individual_account_roles r ON r.user_id = u.user_id LEFT JOIN individual_kid_key_shares k ON k.kid_user_id = u.user_id AND k.supervisor_user_id = l.supervisor_user_id LEFT JOIN user_vaults v ON v.user_id = u.user_id WHERE l.supervisor_user_id = ? ORDER BY l.created_at DESC"
+        : "SELECT l.link_id, l.status, l.created_at, l.responded_at, rel.relationship, u.user_id AS other_user_id, u.username AS other_username, CASE WHEN l.status = 'accepted' THEN n.real_name ELSE NULL END AS other_real_name, k.public_key AS supervisor_public_key, CASE WHEN s.supervisor_user_id IS NULL THEN 0 ELSE 1 END AS has_key_share FROM individual_supervisor_links l JOIN users u ON u.user_id = l.supervisor_user_id LEFT JOIN individual_real_names n ON n.user_id = u.user_id LEFT JOIN individual_supervisor_relationships rel ON rel.link_id = l.link_id LEFT JOIN individual_supervisor_keys k ON k.supervisor_user_id = u.user_id LEFT JOIN individual_kid_key_shares s ON s.kid_user_id = l.kid_user_id AND s.supervisor_user_id = u.user_id WHERE l.kid_user_id = ? ORDER BY l.created_at ASC";
       const rows = await env.gullak_db.prepare(sql).bind(user.user_id).all();
       let rules: Record<string, number> | null = null;
       if (!supervisorView) {
@@ -632,7 +632,9 @@ export default {
         if (user.account_type !== "individual") return json({ error: "This feature is only for Individual accounts." }, 403);
         const role = await individualRole(env, user.user_id);
         if (!role || role.role !== "kid") return json({ error: "Only a Kid account can request another Supervisor." }, 403);
-        const body = await request.json() as { code?: string };
+        const body = await request.json() as { code?: string; relationship?: string };
+        const relationship = String(body.relationship || "").trim().replace(/\s+/g, " ");
+        if (relationship.length < 2 || relationship.length > 40) return json({ error: "Enter your relationship to this Supervisor (2–40 characters)." }, 400);
         const code = String(body.code || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
         if (code.length !== 10) return json({ error: "Enter a valid 10-character Supervisor code." }, 400);
         const hash = await supervisorCodeHash(code);
@@ -645,14 +647,38 @@ export default {
         if (existing?.status === "pending") return json({ error: "A request to this Supervisor is already waiting." }, 409);
         const now = new Date().toISOString();
         if (existing?.status === "rejected") {
-          await env.gullak_db.prepare("UPDATE individual_supervisor_links SET status = 'pending', created_at = ?, responded_at = NULL WHERE link_id = ?")
-            .bind(now, existing.link_id).run();
+          await env.gullak_db.batch([
+            env.gullak_db.prepare("UPDATE individual_supervisor_links SET status = 'pending', created_at = ?, responded_at = NULL WHERE link_id = ?").bind(now, existing.link_id),
+            env.gullak_db.prepare("INSERT INTO individual_supervisor_relationships (link_id, relationship, updated_at) VALUES (?, ?, ?) ON CONFLICT(link_id) DO UPDATE SET relationship = excluded.relationship, updated_at = excluded.updated_at").bind(existing.link_id, relationship, now)
+          ]);
         } else {
-          await env.gullak_db.prepare("INSERT INTO individual_supervisor_links (link_id, kid_user_id, supervisor_user_id, status, created_at, responded_at) VALUES (?, ?, ?, 'pending', ?, NULL)")
-            .bind(crypto.randomUUID(), user.user_id, supervisor.supervisor_user_id, now).run();
+          const linkId = crypto.randomUUID();
+          await env.gullak_db.batch([
+            env.gullak_db.prepare("INSERT INTO individual_supervisor_links (link_id, kid_user_id, supervisor_user_id, status, created_at, responded_at) VALUES (?, ?, ?, 'pending', ?, NULL)").bind(linkId, user.user_id, supervisor.supervisor_user_id, now),
+            env.gullak_db.prepare("INSERT INTO individual_supervisor_relationships (link_id, relationship, updated_at) VALUES (?, ?, ?)").bind(linkId, relationship, now)
+          ]);
         }
         return json({ success: true, status: "pending" }, 201);
       } catch { return json({ error: "Could not send the Supervisor request." }, 400); }
+    }
+
+    const relationshipUpdate = path.match(/^\/api\/individual\/supervision\/relationships\/([0-9a-f-]+)$/i);
+    if (relationshipUpdate && request.method === "PUT") {
+      try {
+        const user = await getCurrentUser(request, env);
+        if (!user) return json({ error: "Authentication required." }, 401);
+        const role = user.account_type === "individual" ? await individualRole(env, user.user_id) : null;
+        if (!role || role.role !== "kid") return json({ error: "Only the Kid can manage Supervisor relationships." }, 403);
+        const body = await request.json() as { relationship?: string };
+        const relationship = String(body.relationship || "").trim().replace(/\\s+/g, " ");
+        if (relationship.length < 2 || relationship.length > 40) return json({ error: "Enter a relationship (2–40 characters)." }, 400);
+        const linkId = relationshipUpdate[1];
+        const link = await env.gullak_db.prepare("SELECT link_id FROM individual_supervisor_links WHERE link_id = ? AND kid_user_id = ? AND status = 'accepted'").bind(linkId, user.user_id).first();
+        if (!link) return json({ error: "Only an accepted Supervisor relationship can be edited here." }, 404);
+        await env.gullak_db.prepare("INSERT INTO individual_supervisor_relationships (link_id, relationship, updated_at) VALUES (?, ?, ?) ON CONFLICT(link_id) DO UPDATE SET relationship = excluded.relationship, updated_at = excluded.updated_at")
+          .bind(linkId, relationship, new Date().toISOString()).run();
+        return json({ success: true });
+      } catch { return json({ error: "Could not update the Supervisor relationship." }, 400); }
     }
 
     const supervisionDecision = path.match(/^\/api\/individual\/supervision\/requests\/([0-9a-f-]+)$/i);
