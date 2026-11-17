@@ -532,7 +532,7 @@ public class MainActivity extends Activity {
                 connection.setRequestProperty("User-Agent", "Gullak-Android-Updater");
                 int status = connection.getResponseCode();
                 if (status != HttpURLConnection.HTTP_OK) throw new IllegalStateException("GitHub download failed (" + status + ").");
-                File folder = new File(getExternalFilesDir(android.os.Environment.DIRECTORY_DOWNLOADS), "updates");
+                File folder = new File(getFilesDir(), "updates");
                 if (!folder.exists() && !folder.mkdirs()) throw new IllegalStateException("Could not prepare temporary update storage.");
                 temp = new File(folder, "Gullak-" + pendingUpdateVersion + ".apk");
                 MessageDigest digest = MessageDigest.getInstance("SHA-256");
