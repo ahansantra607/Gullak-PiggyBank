@@ -41,6 +41,33 @@
     const bytes = await C.unwrapWithSecret(password, bundle.salt, bundle.encrypted_private_key, bundle.iterations);
     return crypto.subtle.importKey('pkcs8', bytes, { name: 'ECDH', namedCurve: 'P-256' }, false, ['deriveBits']);
   };
+
+  C.wrapSupervisorPrivateKey = async (password, publicKey, privateKey) => {
+    const privateBytes = new Uint8Array(await crypto.subtle.exportKey('pkcs8', privateKey));
+    const salt = C.salt();
+    const encrypted = await C.wrapWithSecret(password, salt, privateBytes, 310000);
+    return { public_key: publicKey, encrypted_private_key: encrypted, salt, iterations: 310000 };
+  };
+  C.makeIndividualRecoveryCode = () => {
+    const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    const bytes = C.rand(32);
+    let body = '';
+    for (let i = 0; i < bytes.length; i++) {
+      body += alphabet[bytes[i] & 31];
+      if ((i + 1) % 8 === 0 && i !== bytes.length - 1) body += '-';
+    }
+    return 'GULLAK-' + body;
+  };
+  C.wrapIndividualRecovery = async (code, payload) => {
+    const salt = C.salt();
+    const iterations = 310000;
+    const key = await C.deriveKey(String(code).toUpperCase().replace(/[^A-Z0-9]/g, ''), salt, iterations);
+    return { salt, iterations, encrypted_bundle: await C.encStr(key, JSON.stringify(payload)) };
+  };
+  C.unwrapIndividualRecovery = async (code, envelope) => {
+    const key = await C.deriveKey(String(code).toUpperCase().replace(/[^A-Z0-9]/g, ''), envelope.salt, envelope.iterations);
+    return JSON.parse(await C.decStr(key, envelope.encrypted_bundle));
+  };
   const sharedAesKey = async (privateKey, publicKey, salt) => {
     const bits = await crypto.subtle.deriveBits({ name: 'ECDH', public: publicKey }, privateKey, 256);
     const hkdf = await crypto.subtle.importKey('raw', bits, 'HKDF', false, ['deriveKey']);
