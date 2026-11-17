@@ -5,6 +5,14 @@ import android.animation.ObjectAnimator;
 import android.animation.PropertyValuesHolder;
 import android.animation.ValueAnimator;
 import android.content.Intent;
+import android.content.pm.PackageInfo;
+import android.content.pm.PackageManager;
+import android.os.Build;
+import android.provider.Settings;
+import androidx.core.content.FileProvider;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.security.MessageDigest;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
@@ -68,6 +76,9 @@ public class MainActivity extends Activity {
     private String pendingUpdateApkUrl = "";
     private String pendingUpdateVersion = "";
     private String pendingUpdateNotes = "";
+    private String pendingUpdateSha256 = "";
+    private File downloadedUpdateApk;
+    private boolean waitingForInstallPermission;
     private static final long INACTIVITY_LOCK_MS = 7 * 60 * 1000L;
     private final Handler inactivityHandler = new Handler(Looper.getMainLooper());
     private final Runnable inactivityLock = () -> {
@@ -116,6 +127,8 @@ public class MainActivity extends Activity {
                         JSONObject asset = assets.optJSONObject(i);
                         if (asset != null && "Gullak.apk".equals(asset.optString("name"))) {
                             apkUrl = asset.optString("browser_download_url", null);
+                            String digest = asset.optString("digest", "");
+                            pendingUpdateSha256 = digest.startsWith("sha256:") ? digest.substring(7) : "";
                             break;
                         }
                     }
@@ -217,7 +230,7 @@ public class MainActivity extends Activity {
         showingUpdate = false;
         if (!pinCheckDone) {
             String cookie = CookieManager.getInstance().getCookie(API_URL);
-            if (cookie != null && cookie.contains("gullak_session=")) {
+            if (cookie != null && cookie.contains("gullak_android_session=")) {
                 executor.execute(() -> {
                     try {
                         JSONObject status = apiRequest("GET", "/api/mobile-pin/status", null);
@@ -343,7 +356,7 @@ public class MainActivity extends Activity {
         connection.setRequestProperty("Origin", APP_ORIGIN);
         connection.setRequestProperty("X-Gullak-Android", "1");
         String cookie = CookieManager.getInstance().getCookie(API_URL);
-        if (cookie == null || !cookie.contains("gullak_session=")) throw new IllegalStateException("Your Gullak session has expired. Log in again.");
+        if (cookie == null || !cookie.contains("gullak_android_session=")) throw new IllegalStateException("Your Gullak session has expired. Log in again.");
         connection.setRequestProperty("Cookie", cookie);
         if (pin != null) {
             connection.setDoOutput(true);
@@ -460,14 +473,7 @@ public class MainActivity extends Activity {
 
         @JavascriptInterface
         public void installUpdate() {
-            runOnUiThread(() -> {
-                try {
-                    if (pendingUpdateApkUrl == null || !pendingUpdateApkUrl.startsWith("https://")) throw new IllegalStateException("The update download is unavailable.");
-                    startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(pendingUpdateApkUrl)));
-                } catch (Exception error) {
-                    Toast.makeText(MainActivity.this, "Could not open the Gullak update.", Toast.LENGTH_LONG).show();
-                }
-            });
+            runOnUiThread(() -> downloadAndInstallUpdate());
         }
 
         @JavascriptInterface
@@ -493,11 +499,119 @@ public class MainActivity extends Activity {
                     try { startActivityForResult(create, REQUEST_SAVE_BACKUP); }
                     catch (Exception error) {
                         pendingBackupBytes = null;
+        if (downloadedUpdateApk != null) { downloadedUpdateApk.delete(); downloadedUpdateApk = null; }
                         Toast.makeText(MainActivity.this, "Unable to open the save dialog.", Toast.LENGTH_LONG).show();
                     }
                 });
             } catch (Exception error) {
                 runOnUiThread(() -> Toast.makeText(MainActivity.this, "Could not prepare the encrypted backup.", Toast.LENGTH_LONG).show());
+            }
+        }
+    }
+
+    private void downloadAndInstallUpdate() {
+        if (pendingUpdateApkUrl == null || !pendingUpdateApkUrl.startsWith("https://")) {
+            Toast.makeText(this, "The update download is unavailable.", Toast.LENGTH_LONG).show();
+            return;
+        }
+        Toast.makeText(this, "Downloading Gullak update…", Toast.LENGTH_SHORT).show();
+        executor.execute(() -> {
+            File temp = null;
+            try {
+                URL url = new URL(pendingUpdateApkUrl);
+                if (!"api.github.com".equalsIgnoreCase(url.getHost()) &&
+                    !"github.com".equalsIgnoreCase(url.getHost()) &&
+                    !"objects.githubusercontent.com".equalsIgnoreCase(url.getHost()) &&
+                    !"release-assets.githubusercontent.com".equalsIgnoreCase(url.getHost())) {
+                    throw new IllegalStateException("Untrusted update download host.");
+                }
+                HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+                connection.setConnectTimeout(15000);
+                connection.setReadTimeout(30000);
+                connection.setInstanceFollowRedirects(true);
+                connection.setRequestProperty("User-Agent", "Gullak-Android-Updater");
+                int status = connection.getResponseCode();
+                if (status != HttpURLConnection.HTTP_OK) throw new IllegalStateException("GitHub download failed (" + status + ").");
+                File folder = new File(getExternalFilesDir(android.os.Environment.DIRECTORY_DOWNLOADS), "updates");
+                if (!folder.exists() && !folder.mkdirs()) throw new IllegalStateException("Could not prepare temporary update storage.");
+                temp = new File(folder, "Gullak-" + pendingUpdateVersion + ".apk");
+                MessageDigest digest = MessageDigest.getInstance("SHA-256");
+                long total = 0;
+                try (InputStream in = connection.getInputStream(); FileOutputStream out = new FileOutputStream(temp)) {
+                    byte[] buffer = new byte[32768];
+                    int count;
+                    while ((count = in.read(buffer)) != -1) {
+                        total += count;
+                        if (total > 150L * 1024L * 1024L) throw new IllegalStateException("The update file is unexpectedly large.");
+                        digest.update(buffer, 0, count);
+                        out.write(buffer, 0, count);
+                    }
+                    out.getFD().sync();
+                } finally {
+                    connection.disconnect();
+                }
+                if (total < 10000) throw new IllegalStateException("The downloaded update is incomplete.");
+                StringBuilder actual = new StringBuilder();
+                for (byte b : digest.digest()) actual.append(String.format(Locale.US, "%02x", b & 0xff));
+                if (pendingUpdateSha256 == null || pendingUpdateSha256.length() != 64 ||
+                    !actual.toString().equalsIgnoreCase(pendingUpdateSha256)) {
+                    throw new IllegalStateException("The update checksum could not be verified. Please try again later.");
+                }
+                PackageManager pm = getPackageManager();
+                PackageInfo archive = pm.getPackageArchiveInfo(temp.getAbsolutePath(), PackageManager.GET_META_DATA);
+                if (archive == null || !getPackageName().equals(archive.packageName) ||
+                    !pendingUpdateVersion.equals(archive.versionName)) {
+                    throw new IllegalStateException("The downloaded file is not the expected Gullak update.");
+                }
+                File ready = temp;
+                runOnUiThread(() -> {
+                    downloadedUpdateApk = ready;
+                    launchPackageInstaller();
+                });
+            } catch (Exception error) {
+                if (temp != null) temp.delete();
+                String message = error.getMessage() == null ? "Could not download the update." : error.getMessage();
+                runOnUiThread(() -> {
+                    Toast.makeText(this, message, Toast.LENGTH_LONG).show();
+                    if (showingUpdate && webView != null) webView.evaluateJavascript(
+                        "document.getElementById('message').textContent=" + JSONObject.quote(message), null);
+                });
+            }
+        });
+    }
+
+    private void launchPackageInstaller() {
+        if (downloadedUpdateApk == null || !downloadedUpdateApk.isFile()) {
+            Toast.makeText(this, "The downloaded update is no longer available.", Toast.LENGTH_LONG).show();
+            return;
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && !getPackageManager().canRequestPackageInstalls()) {
+            waitingForInstallPermission = true;
+            Intent settings = new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                Uri.parse("package:" + getPackageName()));
+            startActivity(settings);
+            return;
+        }
+        try {
+            Uri apkUri = FileProvider.getUriForFile(this, getPackageName() + ".fileprovider", downloadedUpdateApk);
+            Intent install = new Intent(Intent.ACTION_VIEW);
+            install.setDataAndType(apkUri, "application/vnd.android.package-archive");
+            install.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(install);
+        } catch (Exception error) {
+            Toast.makeText(this, "Android could not open the installer. The downloaded update is kept temporarily.", Toast.LENGTH_LONG).show();
+        }
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (waitingForInstallPermission) {
+            waitingForInstallPermission = false;
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O || getPackageManager().canRequestPackageInstalls()) {
+                launchPackageInstaller();
+            } else {
+                Toast.makeText(this, "Allow Gullak to install updates to continue.", Toast.LENGTH_LONG).show();
             }
         }
     }
