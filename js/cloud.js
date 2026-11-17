@@ -91,8 +91,8 @@
     register: (username, password) => request('/api/register', {
       method: 'POST', body: JSON.stringify({ username, password })
     }),
-    async registerIndividual(username, password, role, supervisorCodes, secret, supervisorKey, sessionOnly = false, realName = '') {
-      const body = { username, password, role, real_name: realName, supervisor_codes: supervisorCodes || [] };
+    async registerIndividual(username, password, role, supervisorCodes, secret, supervisorKey, sessionOnly = false, realName = '', supervisorRelationships = []) {
+      const body = { username, password, role, real_name: realName, supervisor_codes: supervisorCodes || [], supervisor_relationships: supervisorRelationships || [] };
       if (role === 'supervisor' && supervisorKey) body.supervisor_key = supervisorKey;
       if (role === 'kid') {
         const salt = C.salt();
@@ -131,7 +131,8 @@
       });
     },
     createSupervisorCode: () => request('/api/individual/supervision/code', { method: 'POST', body: '{}' }),
-    requestSupervisor: code => request('/api/individual/supervision/requests', { method: 'POST', body: JSON.stringify({ code }) }),
+    requestSupervisor: (code, relationship) => request('/api/individual/supervision/requests', { method: 'POST', body: JSON.stringify({ code, relationship }) }),
+    updateSupervisorRelationship: (linkId, relationship) => request('/api/individual/supervision/relationships/' + encodeURIComponent(linkId), { method: 'PUT', body: JSON.stringify({ relationship }) }),
     decideSupervisorRequest: (linkId, decision, rules) => request('/api/individual/supervision/requests/' + encodeURIComponent(linkId), { method: 'POST', body: JSON.stringify({ decision, ...(rules ? { rules } : {}) }) }),
     checkUsername: username => request('/api/username/check', {
       method: 'POST', body: JSON.stringify({ username })
