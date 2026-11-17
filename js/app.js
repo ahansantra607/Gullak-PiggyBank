@@ -50,6 +50,7 @@
 
   G.render = (opt = {}) => {
     if (G.timer) { clearInterval(G.timer); G.timer = null; }
+    const requestedHash = location.hash || '#/welcome';
     let { name, q } = parse();
     if (!G.screens[name]) name = 'home';
     if (G.routeGuard) { const r = G.routeGuard(name, q); if (r && G.screens[r]) name = r; }
@@ -58,12 +59,24 @@
     // Canonicalize guarded routes in-place. Leaving the blocked route in the
     // address bar makes browser Back revisit it and can create a two-page loop.
     const canonicalHash = '#/' + name + (Object.keys(q).length ? '?' + new URLSearchParams(q).toString() : '');
-    if (location.hash !== canonicalHash) {
+    if (requestedHash !== canonicalHash) {
       history.replaceState(history.state, '', location.pathname + location.search + canonicalHash);
+      // If Back landed on a route that is now guarded, replace that chain link
+      // with its canonical destination instead of adding a new forward loop.
+      const requestedIndex = H.lastIndexOf(requestedHash);
+      if (requestedIndex >= 0) {
+        const canonicalIndex = H.lastIndexOf(canonicalHash);
+        if (canonicalIndex >= 0 && canonicalIndex < requestedIndex) H.splice(canonicalIndex + 1);
+        else {
+          H[requestedIndex] = canonicalHash;
+          H.splice(requestedIndex + 1);
+        }
+      } else track(canonicalHash);
+    } else {
+      // Only record the route after guards have resolved it. A blocked/deep link
+      // must never become a Back destination and recreate a redirect loop.
+      track(canonicalHash);
     }
-    // Only record the route after guards have resolved it. A blocked/deep link
-    // must never become a Back destination and recreate a redirect loop.
-    track(canonicalHash);
     const sc = G.screens[name];
     const view = document.getElementById('view'); const y = window.scrollY;
     G.handlers = Object.assign({ go: (el) => (el.classList.contains('back') ? G.back() : G.go(el.dataset.to)), speak: (el) => G.speak(el.dataset.text, true) }, sc.handlers ? sc.handlers(q) : {});
