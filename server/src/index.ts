@@ -249,7 +249,7 @@ export default {
           "cloud_families", "cloud_family_members",
           "cloud_family_vaults", "cloud_family_member_vaults", "user_key_wraps",
           "individual_account_roles", "individual_supervisor_codes", "individual_supervisor_links",
-          "individual_supervisor_keys", "individual_kid_key_shares", "individual_kid_rules", "individual_real_names"
+          "individual_supervisor_keys", "individual_kid_key_shares", "individual_kid_rules", "individual_real_names", "individual_supervisor_relationships"
         ];
         const tableChecks = await Promise.all(requiredTables.map(name =>
           env.gullak_db.prepare(
