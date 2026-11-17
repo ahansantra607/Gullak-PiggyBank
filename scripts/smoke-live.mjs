@@ -160,7 +160,7 @@ const doubleEncodedSaltAttempt = await request("/api/register", {
 assert(doubleEncodedSaltAttempt.response.status === 400 && /encryption key/i.test(doubleEncodedSaltAttempt.data.error || ""),
   "Kid registration unexpectedly accepted a zero-length encryption salt.");
 const kidRegistration = expect(await request("/api/register", {
-  method: "POST", body: { username: kidName, password: kidPassword, role: "kid", real_name: "Test Kid " + suffix, supervisor_codes: [individual.data.supervisor_code], key_wrap: kidKeyWrap }
+  method: "POST", body: { username: kidName, password: kidPassword, role: "kid", real_name: "Test Kid " + suffix, supervisor_codes: [individual.data.supervisor_code], supervisor_relationships: ["Mum"], key_wrap: kidKeyWrap }
 }), 201, "Pending Kid registration");
 assert(kidRegistration.data.pending_approval && kidRegistration.cookie && kidRegistration.data.user.status === "pending",
   "A Kid account became active before Supervisor approval.");
@@ -174,6 +174,7 @@ const firstSupervisorRequests = expect(await request("/api/individual/supervisio
 const firstRequest = firstSupervisorRequests.data.links.find(row => row.other_username === kidName && row.status === "pending");
 assert(firstRequest, "Supervisor did not receive the Kid's pending request.");
 assert(firstRequest.other_real_name === "Test Kid " + suffix, "Supervisor request did not include the Kid real name.");
+assert(firstRequest.relationship === "Mum", "Supervisor request did not include the Kid-selected relationship.");
 expect(await request("/api/individual/supervision/requests/" + firstRequest.link_id, {
   method: "POST", cookie: individualLogin.cookie, body: { decision: "accept", rules: {
     loanInterest: 5, matchPct: 10, coolHours: 24, coolMin: 200, reviewHours: 12
@@ -187,6 +188,11 @@ assert(kidLogin.data.user.role === "kid" && kidLogin.data.user.status === "activ
 const kidLinks = expect(await request("/api/individual/supervision", { cookie: kidLogin.cookie }), 200, "Kid's Supervisor list");
 assert(kidLinks.data.links.some(row => row.other_username === individualName && row.status === "accepted"),
   "Kid does not see the accepted Supervisor relationship.");
+assert(kidLinks.data.links.find(row => row.other_username === individualName)?.relationship === "Mum", "Kid did not receive the registration relationship.");
+const firstSupervisorLink = kidLinks.data.links.find(row => row.other_username === individualName);
+expect(await request("/api/individual/supervision/relationships/" + firstSupervisorLink.link_id, { method: "PUT", cookie: kidLogin.cookie, body: { relationship: "Mother" } }), 200, "Kid changes Supervisor relationship");
+const changedLinks = expect(await request("/api/individual/supervision", { cookie: kidLogin.cookie }), 200, "Kid reads changed relationship");
+assert(changedLinks.data.links.find(row => row.other_username === individualName)?.relationship === "Mother", "Kid relationship change did not persist.");
 assert(kidLinks.data.links.find(row => row.other_username === individualName)?.other_real_name === "Test Supervisor " + suffix,
   "Kid did not see the Supervisor real name after acceptance.");
 assert(kidLinks.data.rules && kidLinks.data.rules.loanInterest === 5 && kidLinks.data.rules.matchPct === 10 &&
