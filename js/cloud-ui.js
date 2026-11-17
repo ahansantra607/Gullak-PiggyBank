@@ -8,6 +8,7 @@
   let supervisionData = null;
   let supervisionLoading = false;
   let pendingRuleSetup = null;
+  let editingSupervisorRelationship = null;
   let cloudSecret = '';
   let cloudUser = null;
   let supervisorPrivateKey = null;
@@ -552,19 +553,25 @@
             ${accountPending ? '<button class="btn ghost block kid-pending-refresh" data-act="individual-refresh">↻ Check approval status</button>' : ''}
           </section>
           <section class="kid-pending-add">
-            <p class="small muted">${kidActive ? 'You can add another Supervisor at any time.' : 'Have another Supervisor code? You can send an additional request while you wait.'}</p>
+            <p class="small muted">${kidActive ? 'Add another Supervisor using their code. Set the relationship in the list below.' : 'Have another Supervisor code? You can send an additional request while you wait. Set the relationship in the list below.'}</p>
             <label class="label" for="individual-add-supervisor">Supervisor code</label>
             <input class="input" id="individual-add-supervisor" maxlength="20" autocomplete="off" placeholder="Enter the 10-character code">
-            <label class="label" for="individual-add-supervisor-relationship">Your relationship to this Supervisor</label>
-            <input class="input" id="individual-add-supervisor-relationship" maxlength="40" autocomplete="off" placeholder="e.g. Mum, Dad, Uncle">
-            <button class="btn ${kidActive ? 'primary' : 'ghost'} block mt" data-act="individual-add-supervisor">${kidActive ? '＋ Add another Supervisor' : '＋ Add another Supervisor'}</button>
+            <button class="btn ${kidActive ? 'primary' : 'ghost'} block mt" data-act="individual-add-supervisor">＋ Add another Supervisor</button>
           </section>
           <section class="kid-pending-card">
             <h2>Supervisor requests</h2>
             <p class="small muted">Every Supervisor request stays listed here independently. Approving one does not cancel the others.</p>
             ${links.length ? links.map(x => `<div class="kid-pending-row">
               <span class="kid-pending-person" aria-hidden="true">🛡️</span>
-              <div class="kid-supervisor-details"><b>${esc(x.other_real_name || x.other_username || 'Supervisor')}</b><small>${esc(x.other_username || 'Supervisor')} · ${x.status === 'accepted' ? 'Supervisor' : 'Name shown after acceptance'}</small>${x.status === 'accepted' ? `<label class="label" for="kid-supervisor-relation-${esc(x.link_id)}">Your relationship</label><div class="kid-supervisor-relation-edit"><input class="input" id="kid-supervisor-relation-${esc(x.link_id)}" maxlength="40" value="${esc(x.relationship || '')}" placeholder="e.g. Mum, Dad, Uncle"><button class="btn soft" data-act="save-supervisor-relationship" data-id="${esc(x.link_id)}">Save</button></div>` : `<small>Your relationship: ${esc(x.relationship || '')}</small>`}</div>
+              <div class="kid-supervisor-details"><b>${esc(x.other_real_name || x.other_username || 'Supervisor')}</b><small>${esc(x.other_username || 'Supervisor')} · ${x.status === 'accepted' ? 'Supervisor' : 'Name shown after acceptance'}</small>${(() => {
+                const relationship = String(x.relationship || '').trim();
+                const canEdit = x.status === 'accepted' || x.status === 'pending';
+                if (canEdit && (!relationship || editingSupervisorRelationship === x.link_id)) {
+                  return `<div class="kid-supervisor-relation-edit"><label class="label" for="kid-supervisor-relation-${esc(x.link_id)}">${relationship ? 'Your relationship' : 'Set your relationship'}</label><div class="kid-supervisor-relation-fields"><input class="input" id="kid-supervisor-relation-${esc(x.link_id)}" maxlength="40" value="${esc(relationship)}" placeholder="e.g. Mum, Dad, Uncle"><button class="btn soft" data-act="save-supervisor-relationship" data-id="${esc(x.link_id)}">Save</button></div></div>`;
+                }
+                if (canEdit && relationship) return `<div class="kid-supervisor-relation-view"><small>Your relationship: ${esc(relationship)}</small><button class="btn ghost small" data-act="edit-supervisor-relationship" data-id="${esc(x.link_id)}">Edit</button></div>`;
+                return `<small>${relationship ? 'Your relationship: ' + esc(relationship) : 'Relationship not set'}</small>`;
+              })()}</div>
               <span class="kid-pending-tag ${x.status === 'accepted' ? 'accepted' : x.status === 'rejected' ? 'declined' : ''}">${x.status === 'accepted' ? 'Accepted' : x.status === 'rejected' ? 'Declined' : 'Pending'}</span>
             </div>`).join('') : '<div class="kid-pending-empty"><span>📭</span><b>No Supervisor requests yet</b><p>Add a Supervisor code above to send your first request.</p></div>'}
           </section>
@@ -644,9 +651,7 @@
       },
       'individual-add-supervisor': async button => {
         const code = (G.$('#individual-add-supervisor')?.value || '').trim();
-        const relationship = (G.$('#individual-add-supervisor-relationship')?.value || '').trim();
         if (!code) return G.toast('Enter a Supervisor code.');
-        if (relationship.length < 2 || relationship.length > 40) return G.toast('Enter the relationship to this Supervisor (2–40 characters).');
         button.disabled = true;
         try {
           const session = await G.cloud.currentUser();
@@ -658,9 +663,10 @@
               : 'Your signed-in account could not be verified as a Kid account. Please log out and sign in again.');
           }
           cloudUser = actual;
-          await G.cloud.requestSupervisor(code, relationship);
+          await G.cloud.requestSupervisor(code);
           supervisionData = null;
-          G.toast('Request sent with your relationship. The Supervisor must accept it.');
+          editingSupervisorRelationship = null;
+          G.toast('Supervisor request sent. Set your relationship in the list below.');
           G.render({ keepScroll: true });
         }
         catch (error) { G.toast(error.message || 'Could not send the request.'); button.disabled = false; }
@@ -697,13 +703,23 @@
           button.innerHTML = label;
         }
       },
+      'edit-supervisor-relationship': el => {
+        editingSupervisorRelationship = el.dataset.id;
+        G.render({ keepScroll: true });
+      },
       'save-supervisor-relationship': async el => {
         const field = G.$('#kid-supervisor-relation-' + el.dataset.id);
         const relationship = (field?.value || '').trim();
         if (relationship.length < 2 || relationship.length > 40) return G.toast('Enter a relationship (2–40 characters).');
         el.disabled = true;
-        try { await G.cloud.updateSupervisorRelationship(el.dataset.id, relationship); supervisionData = null; G.toast('Relationship updated.'); G.render({ keepScroll: true }); }
-        catch (error) { el.disabled = false; G.toast(error.message || 'Could not update the relationship.'); }
+        try {
+          await G.cloud.updateSupervisorRelationship(el.dataset.id, relationship);
+          const link = supervisionData?.links?.find(item => String(item.link_id) === String(el.dataset.id));
+          if (link) link.relationship = relationship;
+          editingSupervisorRelationship = null;
+          G.toast('Relationship saved.');
+          G.render({ keepScroll: true });
+        } catch (error) { el.disabled = false; G.toast(error.message || 'Could not save the relationship.'); }
       },
       'individual-logout': signOutFlow,
       'cloud-delete-account': deleteAccountFlow,
