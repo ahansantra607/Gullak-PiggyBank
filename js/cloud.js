@@ -151,6 +151,16 @@
     mobilePinStatus: () => request('/api/mobile-pin/status'),
     setupMobilePin: pin => request('/api/mobile-pin/setup', { method: 'POST', body: JSON.stringify({ pin }) }),
     verifyMobilePin: pin => request('/api/mobile-pin/verify', { method: 'POST', body: JSON.stringify({ pin }) }),
+    individualRecoveryStatus: () => request('/api/individual/recovery/status'),
+    saveIndividualRecovery: (code, envelope) => request('/api/individual/recovery', {
+      method: 'PUT', body: JSON.stringify({ code, ...envelope })
+    }),
+    prepareIndividualRecovery: (username, code) => request('/api/individual/recovery/prepare', {
+      method: 'POST', body: JSON.stringify({ username, code })
+    }),
+    completeIndividualRecovery: (username, code, newPassword, keyMaterial) => request('/api/individual/recovery/complete', {
+      method: 'POST', body: JSON.stringify({ username, code, new_password: newPassword, ...keyMaterial })
+    }),
     rememberDevice,
     rememberSessionDevice,
     readRememberedDevice,
