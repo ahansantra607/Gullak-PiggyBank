@@ -182,6 +182,10 @@ const member = expect(await request("/api/family/register", {
   method: "POST", body: { username: memberName, password: "Member-" + password }
 }), 201, "Member registration");
 assert(member.cookie, "Member registration did not issue a session cookie.");
+expect(await request("/api/family/login", { method: "POST", body: { username: supervisorName, password: password + "wrong" } }), 401, "First failed Family login remains unlocked");
+expect(await request("/api/family/login", { method: "POST", body: { username: supervisorName, password: password + "wrong" } }), 401, "Second failed Family login remains unlocked");
+expect(await request("/api/family/login", { method: "POST", body: { username: supervisorName, password: password + "wrong" } }), 401, "Third failed Family login does not apply Individual lockout");
+expect(await request("/api/family/login", { method: "POST", body: { username: supervisorName, password } }), 200, "Family account still logs in after three wrong attempts");
 
 const me = expect(await request("/api/me", { cookie: supervisor.cookie }), 200, "Family session check");
 assert(me.data.authenticated && me.data.user.username === supervisorName && me.data.user.account_type === "family", "Family account identity mismatch.");
