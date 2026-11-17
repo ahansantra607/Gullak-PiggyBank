@@ -656,3 +656,15 @@ select.input { appearance: auto; }
   transform:translateY(3px);
   box-shadow:0 1px 0 rgba(0,0,0,.08);
 }
+
+
+/* Compact relationship display and editing on the Kid's My Supervisors page */
+.kid-pending-row>.kid-supervisor-details{flex:1 1 0;min-width:0;text-align:center}
+.kid-supervisor-relation-view{display:flex;align-items:center;justify-content:center;gap:9px;flex-wrap:wrap;margin-top:7px}
+.kid-supervisor-relation-view small{display:inline-block;margin:0;color:var(--ink);font-size:12px}
+.kid-supervisor-relation-view .btn{min-height:30px;padding:5px 12px;font-size:12px}
+.kid-supervisor-relation-edit{width:100%;margin-top:8px}
+.kid-supervisor-relation-edit>.label{display:block;margin:0 0 5px;font-size:11px;text-align:center}
+.kid-supervisor-relation-fields{display:flex;align-items:center;gap:8px;width:100%}
+.kid-supervisor-relation-fields .input{flex:1 1 0;width:0;min-width:0;min-height:40px;margin:0;padding:8px 10px;box-sizing:border-box;text-align:left}
+.kid-supervisor-relation-fields .btn{flex:none;min-height:40px;padding:8px 14px}
