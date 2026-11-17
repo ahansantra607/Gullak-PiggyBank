@@ -259,8 +259,12 @@ assert(await openDiaryKeyShare(unlockedSecondSupervisorKey, secondVaultAccess.da
   "Second Supervisor could not decrypt the shared diary key.");
 expect(await request("/api/individual/supervision", { cookie: supervisor.cookie }), 403, "Family account blocked from Individual supervision APIs");
 
+const beforeDiarySupervision = expect(await request("/api/individual/supervision", { cookie: kidLogin.cookie }), 200, "Kid supervision status before diary creation");
+assert(beforeDiarySupervision.data.has_diary === false, "Kid should not be marked as having a diary before the first vault save.");
 const privateVault = encrypted();
 expect(await request("/api/vault", { method: "PUT", cookie: kidLogin.cookie, body: privateVault }), 200, "Encrypted Individual vault save");
+const afterDiarySupervision = expect(await request("/api/individual/supervision", { cookie: kidLogin.cookie }), 200, "Kid supervision status after diary creation");
+assert(afterDiarySupervision.data.has_diary === true, "Kid diary creation status was not reflected in supervision data.");
 const ownVault = expect(await request("/api/vault", { cookie: kidLogin.cookie }), 200, "Encrypted Individual vault read");
 assert(ownVault.data.exists && ownVault.data.vault.ciphertext === privateVault.ciphertext,
   "Encrypted Individual vault read did not return the saved ciphertext.");
