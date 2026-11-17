@@ -221,11 +221,12 @@ const secondSupervisorLogin = expect(await request("/api/login", {
 const secondStoredKey = expect(await request("/api/individual/supervision/keys", { cookie: secondSupervisorLogin.cookie }), 200, "Second Supervisor encrypted key retrieval");
 const unlockedSecondSupervisorKey = await unlockSupervisorKeyBundle(secondSupervisorPassword, secondStoredKey.data.key_bundle);
 expect(await request("/api/individual/supervision/requests", {
-  method: "POST", cookie: kidLogin.cookie, body: { code: secondSupervisor.data.supervisor_code }
+  method: "POST", cookie: kidLogin.cookie, body: { code: secondSupervisor.data.supervisor_code, relationship: "Aunt" }
 }), 201, "Kid requests an additional Supervisor");
 const pendingSecondLinkData = expect(await request("/api/individual/supervision", { cookie: kidLogin.cookie }), 200, "Kid pending second Supervisor link");
 const pendingSecondLink = pendingSecondLinkData.data.links.find(row => row.other_username === secondSupervisorName);
 assert(pendingSecondLink?.supervisor_public_key, "Kid cannot retrieve the second Supervisor public key.");
+assert(pendingSecondLink.relationship === "Aunt", "Additional Supervisor request did not store the Kid-selected relationship.");
 assert(pendingSecondLink.other_real_name == null, "Kid saw the second Supervisor real name before acceptance.");
 const unacceptedShare = await makeDiaryKeyShare(pendingSecondLink.supervisor_public_key, testDiarySecret);
 expect(await request("/api/individual/supervision/key-shares", { method: "PUT", cookie: kidLogin.cookie,
