@@ -129,10 +129,18 @@ async function request(path, { method = "GET", body, cookie, android = false } =
   if (body !== undefined) headers["Content-Type"] = "application/json";
   if (cookie) headers.Cookie = cookie;
   if (android) headers["X-Gullak-Android"] = "1";
-  const response = await fetch(apiUrl + path, {
-    method, headers, body: body === undefined ? undefined : JSON.stringify(body),
-    redirect: "manual", cache: "no-store"
-  });
+  console.log("[smoke] ->", method, path);
+  let response;
+  try {
+    response = await fetch(apiUrl + path, {
+      method, headers, body: body === undefined ? undefined : JSON.stringify(body),
+      redirect: "manual", cache: "no-store", signal: AbortSignal.timeout(20000)
+    });
+  } catch (error) {
+    console.error("[smoke] request failed:", method, path, error);
+    throw error;
+  }
+  console.log("[smoke] <-", response.status, method, path);
   let data = {};
   try { data = await response.json(); } catch (_) {}
   return { response, data, cookie: cookieFrom(response) };
