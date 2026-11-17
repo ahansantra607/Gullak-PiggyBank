@@ -357,7 +357,8 @@ const navG = {
     home: { nav: 'home', render: () => 'Home' },
     settings: { render: () => 'Settings' },
     report: { render: () => 'Report Card' },
-    'individual-supervision': { render: () => 'Supervisors' }
+    'individual-supervision': { render: () => 'Supervisors' },
+    'legacy-supervision': { render: () => 'Legacy route' }
   },
   FREE_ROUTES: [], S: { profile: {}, requests: [] },
   bootReady: new Promise(() => {}),
