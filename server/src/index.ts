@@ -156,6 +156,17 @@ function makeSupervisorCode(): string {
 async function supervisorCodeHash(code: string): Promise<string> {
   return sha256("gullak-individual-supervisor:" + code.toUpperCase().replace(/[^A-Z0-9]/g, ""));
 }
+function normalizeIndividualRecoveryCode(code: string): string {
+  return String(code || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+}
+async function individualRecoveryHash(userId: string, code: string): Promise<string> {
+  return sha256("gullak-individual-recovery:v1:" + userId + ":" + normalizeIndividualRecoveryCode(code));
+}
+function validIndividualPassword(password: string): boolean {
+  return password.length >= 8 && password.length <= 128 &&
+    /[a-z]/.test(password) && /[A-Z]/.test(password) &&
+    /[0-9]/.test(password) && /[^A-Za-z0-9 ]/.test(password);
+}
 
 async function getCurrentUserAccountType(env: Env, userId: string): Promise<"individual" | "family"> {
   const familyMember = await env.gullak_db.prepare(
@@ -253,7 +264,8 @@ export default {
           "cloud_families", "cloud_family_members",
           "cloud_family_vaults", "cloud_family_member_vaults", "user_key_wraps",
           "individual_account_roles", "individual_supervisor_codes", "individual_supervisor_links",
-          "individual_supervisor_keys", "individual_kid_key_shares", "individual_kid_rules", "individual_real_names", "individual_supervisor_relationships"
+          "individual_supervisor_keys", "individual_kid_key_shares", "individual_kid_rules", "individual_real_names", "individual_supervisor_relationships",
+          "individual_login_security", "individual_account_recovery"
         ];
         const tableChecks = await Promise.all(requiredTables.map(name =>
           env.gullak_db.prepare(
@@ -453,14 +465,50 @@ export default {
         if (!user) {
           return json({ error: "Invalid username or password." }, 401);
         }
+        const accountIdentity = await getCurrentUserAccountType(env, user.user_id);
+        if (expectedAccountType === "individual" && accountIdentity === "individual") {
+          const security = await env.gullak_db.prepare(
+            "SELECT failed_attempts, locked_until FROM individual_login_security WHERE user_id = ?"
+          ).bind(user.user_id).first<{ failed_attempts: number; locked_until: string | null }>();
+          if (security?.locked_until && new Date(security.locked_until).getTime() > Date.now()) {
+            return json({ error: "This account is temporarily locked after three incorrect passwords. Try again in about one minute." }, 429);
+          }
+        }
         if (!constantTimeEqual(calculatedHash, user.password_hash)) {
+          if (expectedAccountType === "individual" && accountIdentity === "individual") {
+            const now = new Date();
+            const lockedUntil = new Date(now.getTime() + 60_000).toISOString();
+            const result = await env.gullak_db.prepare(`
+              INSERT INTO individual_login_security (user_id, failed_attempts, locked_until, updated_at)
+              VALUES (?, 1, NULL, ?)
+              ON CONFLICT(user_id) DO UPDATE SET
+                failed_attempts = CASE
+                  WHEN individual_login_security.locked_until IS NOT NULL
+                    AND individual_login_security.locked_until <= excluded.updated_at
+                  THEN 1 ELSE individual_login_security.failed_attempts + 1 END,
+                locked_until = CASE
+                  WHEN (CASE
+                    WHEN individual_login_security.locked_until IS NOT NULL
+                      AND individual_login_security.locked_until <= excluded.updated_at
+                    THEN 1 ELSE individual_login_security.failed_attempts + 1 END) >= 3
+                  THEN ? ELSE NULL END,
+                updated_at = excluded.updated_at
+              RETURNING failed_attempts, locked_until
+            `).bind(user.user_id, now.toISOString(), lockedUntil)
+              .first<{ failed_attempts: number; locked_until: string | null }>();
+            if (result?.locked_until) {
+              return json({ error: "Three incorrect passwords. This account is locked for one minute." }, 429);
+            }
+          }
           return json({ error: "Invalid username or password." }, 401);
         }
-        const accountIdentity = await getCurrentUserAccountType(env, user.user_id);
         if (accountIdentity !== expectedAccountType) return json({ error: "These credentials belong to a different Gullak mode." }, 403);
         if (expectedAccountType === "individual") {
           const role = await individualRole(env, user.user_id);
           if (!role) return json({ error: "This old Individual account has been retired. Create a new Supervisor or Kid account." }, 403);
+          await env.gullak_db.prepare(
+            "INSERT INTO individual_login_security (user_id, failed_attempts, locked_until, updated_at) VALUES (?, 0, NULL, ?) ON CONFLICT(user_id) DO UPDATE SET failed_attempts = 0, locked_until = NULL, updated_at = excluded.updated_at"
+          ).bind(user.user_id, new Date().toISOString()).run();
         }
 
         const now = new Date();
@@ -726,6 +774,119 @@ export default {
       } catch { return json({ error: "Could not update this Supervisor request." }, 400); }
     }
 
+    // Individual recovery codes. The encrypted key bundle is opaque to the server.
+    if (path === "/api/individual/recovery/status" && request.method === "GET") {
+      const user = await getCurrentUser(request, env);
+      if (!user) return json({ error: "Authentication required." }, 401);
+      if (user.account_type !== "individual" || !user.role) return json({ error: "Individual account required." }, 403);
+      const row = await env.gullak_db.prepare("SELECT 1 AS configured FROM individual_account_recovery WHERE user_id = ?")
+        .bind(user.user_id).first<{ configured: number }>();
+      return json({ configured: !!row });
+    }
+    if (path === "/api/individual/recovery" && request.method === "PUT") {
+      try {
+        const user = await getCurrentUser(request, env);
+        if (!user) return json({ error: "Authentication required." }, 401);
+        if (user.account_type !== "individual" || !user.role) return json({ error: "Individual account required." }, 403);
+        const body = await request.json() as { code?: string; encrypted_bundle?: string; salt?: string; iterations?: number };
+        const code = normalizeIndividualRecoveryCode(String(body.code || ""));
+        const encryptedBundle = String(body.encrypted_bundle || "");
+        const salt = String(body.salt || "");
+        const iterations = Number(body.iterations);
+        if (code.length < 28 || code.length > 80 || encryptedBundle.length < 40 || encryptedBundle.length > 12000 ||
+            !validBase64(salt) || fromBase64(salt).length !== 16 || !Number.isInteger(iterations) || iterations < 100000 || iterations > 1000000) {
+          return json({ error: "The recovery code or encrypted recovery data is invalid." }, 400);
+        }
+        const codeHash = await individualRecoveryHash(user.user_id, code);
+        const now = new Date().toISOString();
+        await env.gullak_db.prepare(`
+          INSERT INTO individual_account_recovery (user_id, code_hash, encrypted_bundle, salt, iterations, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(user_id) DO UPDATE SET code_hash = excluded.code_hash,
+            encrypted_bundle = excluded.encrypted_bundle, salt = excluded.salt,
+            iterations = excluded.iterations, updated_at = excluded.updated_at
+        `).bind(user.user_id, codeHash, encryptedBundle, salt, iterations, now, now).run();
+        return json({ success: true, replaced: true });
+      } catch { return json({ error: "Could not save the recovery code. Your previous code remains valid." }, 400); }
+    }
+    if (path === "/api/individual/recovery/prepare" && request.method === "POST") {
+      try {
+        const body = await request.json() as { username?: string; code?: string };
+        const username = String(body.username || "").trim().toLowerCase();
+        const code = normalizeIndividualRecoveryCode(String(body.code || ""));
+        if (!/^[a-z0-9_]{3,24}$/.test(username) || code.length < 28 || code.length > 80) {
+          return json({ error: "The username or recovery code is incorrect." }, 401);
+        }
+        const row = await env.gullak_db.prepare(`
+          SELECT u.user_id, r.role, a.code_hash, a.encrypted_bundle, a.salt, a.iterations
+          FROM users u
+          JOIN individual_account_roles r ON r.user_id = u.user_id
+          JOIN individual_account_recovery a ON a.user_id = u.user_id
+          WHERE u.username = ?
+        `).bind(username).first<{ user_id: string; role: "supervisor" | "kid"; code_hash: string; encrypted_bundle: string; salt: string; iterations: number }>();
+        if (!row || !constantTimeEqual(await individualRecoveryHash(row.user_id, code), row.code_hash)) {
+          return json({ error: "The username or recovery code is incorrect." }, 401);
+        }
+        return json({ success: true, role: row.role, encrypted_bundle: row.encrypted_bundle, salt: row.salt, iterations: row.iterations });
+      } catch { return json({ error: "Could not verify the recovery code." }, 400); }
+    }
+    if (path === "/api/individual/recovery/complete" && request.method === "POST") {
+      try {
+        const body = await request.json() as {
+          username?: string; code?: string; new_password?: string;
+          key_wrap?: { wrapped_secret?: string; salt?: string; iterations?: number };
+          supervisor_key?: { public_key?: string; encrypted_private_key?: string; salt?: string; iterations?: number };
+        };
+        const username = String(body.username || "").trim().toLowerCase();
+        const code = normalizeIndividualRecoveryCode(String(body.code || ""));
+        const password = String(body.new_password || "");
+        if (!/^[a-z0-9_]{3,24}$/.test(username) || code.length < 28 || code.length > 80 || !validIndividualPassword(password)) {
+          return json({ error: "Enter a valid username, recovery code and a strong new password." }, 400);
+        }
+        const row = await env.gullak_db.prepare(`
+          SELECT u.user_id, r.role, a.code_hash
+          FROM users u
+          JOIN individual_account_roles r ON r.user_id = u.user_id
+          JOIN individual_account_recovery a ON a.user_id = u.user_id
+          WHERE u.username = ?
+        `).bind(username).first<{ user_id: string; role: "supervisor" | "kid"; code_hash: string }>();
+        if (!row || !constantTimeEqual(await individualRecoveryHash(row.user_id, code), row.code_hash)) {
+          return json({ error: "The username or recovery code is incorrect." }, 401);
+        }
+        const now = new Date().toISOString();
+        const salt = randomBytes(16);
+        const passwordHash = await derivePasswordHash(password, salt, ITERATIONS);
+        const statements: D1PreparedStatement[] = [
+          env.gullak_db.prepare("UPDATE users SET password_salt = ?, password_hash = ?, password_iterations = ? WHERE user_id = ?")
+            .bind(toBase64(salt), passwordHash, ITERATIONS, row.user_id),
+          env.gullak_db.prepare("DELETE FROM sessions WHERE user_id = ?").bind(row.user_id),
+          env.gullak_db.prepare("INSERT INTO individual_login_security (user_id, failed_attempts, locked_until, updated_at) VALUES (?, 0, NULL, ?) ON CONFLICT(user_id) DO UPDATE SET failed_attempts = 0, locked_until = NULL, updated_at = excluded.updated_at")
+            .bind(row.user_id, now)
+        ];
+        if (row.role === "kid") {
+          const wrap = body.key_wrap || {};
+          if (!String(wrap.wrapped_secret || "").includes(".") || String(wrap.wrapped_secret || "").length > 1000 ||
+              !validBase64(String(wrap.salt || "")) || !Number.isInteger(Number(wrap.iterations)) ||
+              Number(wrap.iterations) < 100000 || Number(wrap.iterations) > 1000000) {
+            return json({ error: "The recovered Kid diary key could not be secured with the new password." }, 400);
+          }
+          statements.push(env.gullak_db.prepare("UPDATE user_key_wraps SET wrapped_secret = ?, salt = ?, iterations = ?, updated_at = ? WHERE user_id = ?")
+            .bind(wrap.wrapped_secret, wrap.salt, Number(wrap.iterations), now, row.user_id));
+        } else {
+          const key = body.supervisor_key || {};
+          if (!validBase64(String(key.public_key || "")) || !String(key.encrypted_private_key || "").includes(".") ||
+              String(key.encrypted_private_key || "").length > 4000 || !validBase64(String(key.salt || "")) ||
+              !Number.isInteger(Number(key.iterations)) || Number(key.iterations) < 100000 || Number(key.iterations) > 1000000) {
+            return json({ error: "The recovered Supervisor key could not be secured with the new password." }, 400);
+          }
+          statements.push(env.gullak_db.prepare("UPDATE individual_supervisor_keys SET public_key = ?, encrypted_private_key = ?, salt = ?, iterations = ?, updated_at = ? WHERE supervisor_user_id = ?")
+            .bind(key.public_key, key.encrypted_private_key, key.salt, Number(key.iterations), now, row.user_id));
+        }
+        await env.gullak_db.batch(statements);
+        return json({ success: true, sessions_revoked: true });
+      } catch { return json({ error: "Account recovery failed. Your existing account data has not been deleted." }, 400); }
+    }
+
     // CHECK SESSION
     if (path === "/api/me" && request.method === "GET") {
       try {
@@ -781,9 +942,9 @@ export default {
         const calculated = await derivePasswordHash(pin, fromBase64(row.pin_salt), ITERATIONS);
         if (!constantTimeEqual(calculated, row.pin_hash)) {
           const failures = row.failed_attempts + 1;
-          const lockedUntil = failures >= 5 ? new Date(now.getTime() + 5 * 60_000).toISOString() : null;
-          await env.gullak_db.prepare("UPDATE user_mobile_pins SET failed_attempts = ?, locked_until = ?, updated_at = ? WHERE user_id = ?").bind(failures >= 5 ? 0 : failures, lockedUntil, now.toISOString(), user.user_id).run();
-          return json({ error: lockedUntil ? "Too many incorrect attempts. Try again in five minutes." : "That PIN is incorrect." }, lockedUntil ? 429 : 403);
+          const lockedUntil = failures >= 3 ? new Date(now.getTime() + 60_000).toISOString() : null;
+          await env.gullak_db.prepare("UPDATE user_mobile_pins SET failed_attempts = ?, locked_until = ?, updated_at = ? WHERE user_id = ?").bind(failures >= 3 ? 0 : failures, lockedUntil, now.toISOString(), user.user_id).run();
+          return json({ error: lockedUntil ? "Three incorrect PINs. Phone PIN entry is locked for one minute." : "That PIN is incorrect." }, lockedUntil ? 429 : 403);
         }
         await env.gullak_db.prepare("UPDATE user_mobile_pins SET failed_attempts = 0, locked_until = NULL, updated_at = ? WHERE user_id = ?").bind(now.toISOString(), user.user_id).run();
         return json({ success: true });
