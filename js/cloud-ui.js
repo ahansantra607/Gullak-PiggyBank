@@ -563,14 +563,14 @@
             <p class="small muted">Every Supervisor request stays listed here independently. Approving one does not cancel the others.</p>
             ${links.length ? links.map(x => `<div class="kid-pending-row">
               <span class="kid-pending-person" aria-hidden="true">🛡️</span>
-              <div class="kid-supervisor-details"><b>${esc(x.other_real_name || x.other_username || 'Supervisor')}</b><small>${esc(x.other_username || 'Supervisor')} · ${x.status === 'accepted' ? 'Supervisor' : 'Name shown after acceptance'}</small>${(() => {
+              <div class="kid-supervisor-details"><b>${esc(x.other_real_name || x.other_username || 'Supervisor')}</b><small class="kid-supervisor-meta">${esc(x.other_username || 'Supervisor')} · ${x.status === 'accepted' ? 'Supervisor' : 'Name shown after acceptance'}${String(x.relationship || '').trim() ? ' · ' + esc(String(x.relationship).trim()) : ''}</small>${(() => {
                 const relationship = String(x.relationship || '').trim();
                 const canEdit = x.status === 'accepted' || x.status === 'pending';
                 if (canEdit && (!relationship || editingSupervisorRelationship === x.link_id)) {
                   return `<div class="kid-supervisor-relation-edit"><label class="label" for="kid-supervisor-relation-${esc(x.link_id)}">${relationship ? 'Your relationship' : 'Set your relationship'}</label><div class="kid-supervisor-relation-fields"><input class="input" id="kid-supervisor-relation-${esc(x.link_id)}" maxlength="40" value="${esc(relationship)}" placeholder="e.g. Mum, Dad, Uncle"><button class="btn soft" data-act="save-supervisor-relationship" data-id="${esc(x.link_id)}">Save</button></div></div>`;
                 }
-                if (canEdit && relationship) return `<div class="kid-supervisor-relation-view"><small>Your relationship: ${esc(relationship)}</small><button class="btn ghost small" data-act="edit-supervisor-relationship" data-id="${esc(x.link_id)}">Edit</button></div>`;
-                return `<small>${relationship ? 'Your relationship: ' + esc(relationship) : 'Relationship not set'}</small>`;
+                if (canEdit && relationship) return `<div class="kid-supervisor-relation-view"><button class="btn ghost small" data-act="edit-supervisor-relationship" data-id="${esc(x.link_id)}">Edit</button></div>`;
+                return '';
               })()}</div>
               <span class="kid-pending-tag ${x.status === 'accepted' ? 'accepted' : x.status === 'rejected' ? 'declined' : ''}">${x.status === 'accepted' ? 'Accepted' : x.status === 'rejected' ? 'Declined' : 'Pending'}</span>
             </div>`).join('') : '<div class="kid-pending-empty"><span>📭</span><b>No Supervisor requests yet</b><p>Add a Supervisor code above to send your first request.</p></div>'}
