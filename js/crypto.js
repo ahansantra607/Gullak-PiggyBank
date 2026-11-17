@@ -48,6 +48,11 @@
     const encrypted = await C.wrapWithSecret(password, salt, privateBytes, 310000);
     return { public_key: publicKey, encrypted_private_key: encrypted, salt, iterations: 310000 };
   };
+  C.wrapSupervisorPrivateKeyBytes = async (password, publicKey, privateBytes) => {
+    const salt = C.salt();
+    const encrypted = await C.wrapWithSecret(password, salt, privateBytes, 310000);
+    return { public_key: publicKey, encrypted_private_key: encrypted, salt, iterations: 310000 };
+  };
   C.makeIndividualRecoveryCode = () => {
     const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
     const bytes = C.rand(32);
