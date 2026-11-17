@@ -64,6 +64,8 @@ public class MainActivity extends Activity {
     private static final int REQUEST_FILE_CHOOSER = 2101;
     private static final int REQUEST_SAVE_BACKUP = 2102;
     private static final int REQUEST_INSTALL_APK = 2103;
+    private static final int REQUEST_SAVE_RECOVERY_CODE = 2104;
+    private byte[] pendingRecoveryCodeBytes;
     private ValueCallback<Uri[]> filePathCallback;
     private byte[] pendingBackupBytes;
     private static final String API_URL = "https://server.ahansantra607.workers.dev";
@@ -546,6 +548,33 @@ public class MainActivity extends Activity {
         public void dismissUpdate() { runOnUiThread(MainActivity.this::openApp); }
 
         @JavascriptInterface
+        public void saveRecoveryCode(String filename, String text) {
+            try {
+                if (text == null || text.length() < 20 || text.length() > 2000) {
+                    runOnUiThread(() -> Toast.makeText(MainActivity.this, "The recovery code is invalid.", Toast.LENGTH_LONG).show());
+                    return;
+                }
+                pendingRecoveryCodeBytes = text.getBytes("UTF-8");
+                String safeName = filename == null ? "Gullak-Recovery-Code.txt" : filename.replaceAll("[^A-Za-z0-9._-]", "_");
+                if (!safeName.endsWith(".txt")) safeName += ".txt";
+                final String finalSafeName = safeName;
+                runOnUiThread(() -> {
+                    Intent create = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+                    create.addCategory(Intent.CATEGORY_OPENABLE);
+                    create.setType("text/plain");
+                    create.putExtra(Intent.EXTRA_TITLE, finalSafeName);
+                    try { startActivityForResult(create, REQUEST_SAVE_RECOVERY_CODE); }
+                    catch (Exception error) {
+                        pendingRecoveryCodeBytes = null;
+                        Toast.makeText(MainActivity.this, "Unable to open the save dialog.", Toast.LENGTH_LONG).show();
+                    }
+                });
+            } catch (Exception error) {
+                runOnUiThread(() -> Toast.makeText(MainActivity.this, "Could not prepare the recovery-code file.", Toast.LENGTH_LONG).show());
+            }
+        }
+
+        @JavascriptInterface
         public void saveEncryptedBackup(String filename, String mimeType, String base64) {
             try {
                 byte[] bytes = Base64.decode(base64, Base64.DEFAULT);
@@ -701,6 +730,23 @@ public class MainActivity extends Activity {
                     ? new Uri[]{data.getData()} : null;
                 filePathCallback.onReceiveValue(result);
                 filePathCallback = null;
+            }
+            return;
+        }
+        if (requestCode == REQUEST_SAVE_RECOVERY_CODE) {
+            try {
+                if (resultCode == RESULT_OK && data != null && data.getData() != null && pendingRecoveryCodeBytes != null) {
+                    try (OutputStream output = getContentResolver().openOutputStream(data.getData())) {
+                        if (output == null) throw new IllegalStateException("Unable to open the selected destination.");
+                        output.write(pendingRecoveryCodeBytes);
+                        output.flush();
+                    }
+                    Toast.makeText(this, "Gullak recovery code saved.", Toast.LENGTH_LONG).show();
+                }
+            } catch (Exception error) {
+                Toast.makeText(this, "Could not save the recovery code. Please try again.", Toast.LENGTH_LONG).show();
+            } finally {
+                pendingRecoveryCodeBytes = null;
             }
             return;
         }
