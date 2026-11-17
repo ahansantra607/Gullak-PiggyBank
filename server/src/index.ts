@@ -302,7 +302,7 @@ export default {
     if ((path === "/api/register" || path === "/api/family/register") && request.method === "POST") {
       const accountType = path === "/api/family/register" ? "family" : "individual";
       try {
-        const body = await request.json() as { username?: string; password?: string; role?: string; real_name?: string; supervisor_codes?: string[]; key_wrap?: { wrapped_secret?: string; salt?: string; iterations?: number }; supervisor_key?: { public_key?: string; encrypted_private_key?: string; salt?: string; iterations?: number } };
+        const body = await request.json() as { username?: string; password?: string; role?: string; real_name?: string; supervisor_codes?: string[]; supervisor_relationships?: string[]; key_wrap?: { wrapped_secret?: string; salt?: string; iterations?: number }; supervisor_key?: { public_key?: string; encrypted_private_key?: string; salt?: string; iterations?: number } };
         const username = body.username?.trim().toLowerCase() || "";
         const password = body.password || "";
         const role = accountType === "individual" ? body.role : undefined;
@@ -313,9 +313,12 @@ export default {
         if (accountType === "individual" && (realName.length < 2 || realName.length > 80 || Array.from(realName).some(ch => ch.charCodeAt(0) < 32 || ch.charCodeAt(0) === 127))) return json({ error: "Enter your real name (2–80 characters)." }, 400);
 
         const supervisors: string[] = [];
+        const supervisorRelationships: string[] = [];
         if (role === "kid") {
           const codes = Array.isArray(body.supervisor_codes) ? [...new Set(body.supervisor_codes.map(v => String(v || "").toUpperCase().replace(/[^A-Z0-9]/g, "")).filter(Boolean))] : [];
+          const relationships = Array.isArray(body.supervisor_relationships) ? body.supervisor_relationships.map(v => String(v || "").trim().replace(/\\s+/g, " ")) : [];
           if (!codes.length || codes.length > 5) return json({ error: "Enter at least one Supervisor code (up to five)." }, 400);
+          if (relationships.length !== codes.length || relationships.some(v => v.length < 2 || v.length > 40)) return json({ error: "Enter one relationship (2–40 characters) for each Supervisor code." }, 400);
           for (const code of codes) {
             if (code.length !== 10) return json({ error: "One of the Supervisor codes is not valid." }, 400);
             const hash = await supervisorCodeHash(code);
@@ -323,6 +326,7 @@ export default {
               .bind(hash).first<{ supervisor_user_id: string }>();
             if (!row) return json({ error: "A Supervisor code is invalid or no longer active." }, 400);
             supervisors.push(row.supervisor_user_id);
+            supervisorRelationships.push(relationships[supervisorRelationships.length]);
           }
         }
 
@@ -380,8 +384,11 @@ export default {
               status: 201, headers: { "Content-Type": "application/json", "Cache-Control": "no-store", "Set-Cookie": sessionCookie(token, request), ...CORS_HEADERS }
             });
           }
-          for (const supervisorId of supervisors) statements.push(env.gullak_db.prepare("INSERT INTO individual_supervisor_links (link_id, kid_user_id, supervisor_user_id, status, created_at, responded_at) VALUES (?, ?, ?, 'pending', ?, NULL)")
-            .bind(crypto.randomUUID(), userId, supervisorId, now));
+          for (let i = 0; i < supervisors.length; i++) {
+            const linkId = crypto.randomUUID();
+            statements.push(env.gullak_db.prepare("INSERT INTO individual_supervisor_links (link_id, kid_user_id, supervisor_user_id, status, created_at, responded_at) VALUES (?, ?, ?, 'pending', ?, NULL)").bind(linkId, userId, supervisors[i], now));
+            statements.push(env.gullak_db.prepare("INSERT INTO individual_supervisor_relationships (link_id, relationship, updated_at) VALUES (?, ?, ?)").bind(linkId, supervisorRelationships[i], now));
+          }
           statements.push(env.gullak_db.prepare("INSERT INTO user_key_wraps (user_id, wrapped_secret, salt, iterations, updated_at) VALUES (?, ?, ?, ?, ?)")
             .bind(userId, keyWrap!.wrapped_secret, keyWrap!.salt, keyWrap!.iterations, now));
           statements.push(env.gullak_db.prepare("INSERT INTO sessions (session_id_hash, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)")
