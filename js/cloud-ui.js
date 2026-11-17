@@ -38,7 +38,10 @@
 
   function showIndividualRecoveryCode(code) {
     return new Promise(resolve => {
+      let finished = false;
       const modal = G.modal({
+        topBtn: { act: 'later', label: 'Later' },
+        onClose: () => { if (!finished) resolve(false); },
         html: '<h2>🔐 Save your Gullak recovery code</h2><p class="small muted">This code can reset your Individual account password and restore access to its encrypted key. Keep it private. Anyone who gets it can take over your account.</p><div class="sup-code-reveal"><span>YOUR NEW RECOVERY CODE</span><strong style="overflow-wrap:anywhere">' + esc(code) + '</strong><button class="btn soft block mt" data-act="copy-individual-recovery">📋 Copy recovery code</button><button class="btn ghost block mt" data-act="download-individual-recovery">⬇ Save as text file</button></div><label class="check-row mt"><input type="checkbox" id="individual-recovery-saved"> <span>I have saved this code somewhere safe.</span></label><button class="btn primary block mt" data-act="finish-individual-recovery">Continue</button>',
         handlers: {
           'copy-individual-recovery': () => { G.copy(code); G.toast('Recovery code copied.'); },
@@ -52,9 +55,10 @@
               setTimeout(() => URL.revokeObjectURL(url), 1500);
             } catch (_) { G.copy(code); G.toast('Could not download the file. The code was copied instead.'); }
           },
+          'later': () => { modal.close(); },
           'finish-individual-recovery': () => {
             if (!G.$('#individual-recovery-saved', modal.el)?.checked) return G.toast('Please copy or save the recovery code first.');
-            modal.close(); resolve(true);
+            finished = true; modal.close(); resolve(true);
           }
         }
       });
