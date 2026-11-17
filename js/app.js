@@ -16,18 +16,36 @@
     if (location.hash === h) G.render(); else location.hash = h;
   };
 
-  /* Page history so every ← back button returns to the page you came from (not always Home) */
+  /* Navigation chain: revisiting an earlier page trims everything after it. */
   const H = G._hist = [];
-  const track = () => {
-    const h = location.hash || '#/';
-    if (H[H.length - 1] === h) return;
-    if (H[H.length - 2] === h) H.pop();       // browser back, or our own back
-    else { H.push(h); if (H.length > 40) H.shift(); }
+  const routeNameFromHash = hash => {
+    const raw = String(hash || '#/welcome').replace(/^#\/?/, '');
+    const i = raw.indexOf('?');
+    return (i < 0 ? raw : raw.slice(0, i)) || 'welcome';
   };
-  G.back = (fallback = 'home') => {
+  const validHistoryEntry = hash => !!G.screens[routeNameFromHash(hash)];
+  const track = (hash = location.hash) => {
+    const h = hash || '#/welcome';
+    const existing = H.lastIndexOf(h);
+    if (existing >= 0) {
+      // A route already in the chain is a return to that point, not a new loop.
+      H.splice(existing + 1);
+      return;
+    }
+    H.push(h);
+    if (H.length > 40) H.splice(0, H.length - 40);
+  };
+  G.back = () => {
     G._forceScrollTop = true;
-    if (H.length > 1) { H.pop(); location.hash = H[H.length - 1]; }
-    else G.go(fallback);
+    const current = location.hash || '#/welcome';
+    const currentIndex = H.lastIndexOf(current);
+    if (currentIndex >= 0) H.splice(currentIndex);
+    else H.length = 0; // No trustworthy chain for this page: start from Home.
+
+    while (H.length && !validHistoryEntry(H[H.length - 1])) H.pop();
+    const target = H[H.length - 1] || '#/home';
+    if (location.hash === target) G.render();
+    else location.hash = target;
   };
 
   G.render = (opt = {}) => {
@@ -43,11 +61,11 @@
     const canonicalHash = '#/' + name + (Object.keys(q).length ? '?' + new URLSearchParams(q).toString() : '');
     if (location.hash !== canonicalHash) {
       history.replaceState(history.state, '', location.pathname + location.search + canonicalHash);
-      if (H.length) H[H.length - 1] = canonicalHash;
+      track(canonicalHash);
     }
     const sc = G.screens[name];
     const view = document.getElementById('view'); const y = window.scrollY;
-    G.handlers = Object.assign({ go: (el) => (el.classList.contains('back') ? G.back(el.dataset.to) : G.go(el.dataset.to)), speak: (el) => G.speak(el.dataset.text, true) }, sc.handlers ? sc.handlers(q) : {});
+    G.handlers = Object.assign({ go: (el) => (el.classList.contains('back') ? G.back() : G.go(el.dataset.to)), speak: (el) => G.speak(el.dataset.text, true) }, sc.handlers ? sc.handlers(q) : {});
     try { view.innerHTML = sc.render(q); }
     catch (e) { console.error(e); view.innerHTML = `<section class="card center">${G.piggy('worried', 120)}<h2>Oops, something broke 😕</h2><p class="muted small">${G.esc(e.message)}</p><a class="btn soft" href="#/home">Go home</a></section>`; }
     view.className = 'view screen-' + name;
