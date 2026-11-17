@@ -315,6 +315,87 @@ if (!androidWorkerSource.includes('request.headers.get("X-Gullak-Android") === "
 if (!androidActivitySource.includes('CookieManager.getInstance().setAcceptThirdPartyCookies(webView, true)') || !androidActivitySource.includes('CookieManager.getInstance().flush()')) throw new Error('Android WebView does not persist its cross-site cloud session cookie.');
 if (!androidPinHtml.includes('aria-label="Gullak the piggy bank"') || androidPinHtml.includes('>🐷</div>')) throw new Error('Android PIN page does not use Gullak intro piggy artwork.');
 console.log('Frontend syntax, script order, Web Crypto, verified migration and cloud-only Individual saves passed.');
+
+/* Exercise the in-app navigation chain, including revisits and missing history. */
+const navListeners = {};
+const navLocation = {
+  pathname: '/app', search: '', _hash: '#/home',
+  get hash() { return this._hash; },
+  set hash(value) {
+    if (this._hash === value) return;
+    this._hash = value;
+    (navListeners.hashchange || []).forEach(listener => listener());
+  }
+};
+const navView = { innerHTML: '', className: '' };
+const navBar = { hidden: true, innerHTML: '' };
+const navDocument = {
+  documentElement: {},
+  body: { classList: { toggle() {} } },
+  activeElement: { matches: () => false },
+  getElementById: id => id === 'view' ? navView : navBar,
+  addEventListener() {},
+  querySelectorAll: () => [],
+  querySelector: () => null
+};
+const navWindow = {
+  scrollY: 0,
+  addEventListener: (name, listener) => { (navListeners[name] ||= []).push(listener); },
+  scrollTo() {}
+};
+const navHistory = {
+  state: null,
+  replaceState(state, _title, url) {
+    this.state = state;
+    const hashIndex = String(url).indexOf('#');
+    if (hashIndex >= 0) navLocation._hash = String(url).slice(hashIndex);
+  }
+};
+class NavMutationObserver { observe() {} }
+const navG = {
+  screens: {
+    home: { nav: 'home', render: () => 'Home' },
+    settings: { render: () => 'Settings' },
+    report: { render: () => 'Report Card' },
+    'individual-supervision': { render: () => 'Supervisors' }
+  },
+  FREE_ROUTES: [], S: { profile: {}, requests: [] },
+  bootReady: new Promise(() => {}),
+  now: () => 1, save() {}, checkBadges() {}, closeAllModals() {},
+  hideNav: () => true, speak() {}, esc: value => String(value),
+  piggy: () => '', toast() {}
+};
+const navContext = vm.createContext({
+  window: navWindow, document: navDocument, location: navLocation,
+  history: navHistory, MutationObserver: NavMutationObserver,
+  setInterval: () => 1, clearInterval() {}
+});
+navContext.window.G = navG;
+vm.runInContext(readFileSync('js/app.js', 'utf8'), navContext, { filename: 'js/app.navigation-test.js' });
+navG.render();
+navG.go('settings');
+navG.go('report');
+navG.back();
+if (navLocation.hash !== '#/settings' || navG._hist.join('|') !== '#/home|#/settings') {
+  throw new Error('Back did not pop Report Card from Home → Settings → Report Card.');
+}
+navG.back();
+if (navLocation.hash !== '#/home' || navG._hist.join('|') !== '#/home') {
+  throw new Error('The second Back did not continue from Settings to Home.');
+}
+navG.go('settings');
+navG.go('report');
+navLocation.hash = '#/home';
+if (navG._hist.join('|') !== '#/home') throw new Error('Returning to an earlier route did not trim the forward chain.');
+navG.back();
+if (navLocation.hash !== '#/home') throw new Error('A trimmed chain incorrectly returned to Report Card.');
+navG._hist.length = 0;
+navLocation.hash = '#/individual-supervision';
+navG._hist.length = 1; // This page is the only known entry; there is no previous link.
+navG.back();
+if (navLocation.hash !== '#/home') throw new Error('A page with no previous history did not fall back to Home.');
+console.log('Navigation chain and Back-stack checks passed.');
+
 const refreshOnlyStyle = readFileSync('css/style.css', 'utf8');
 const cloudUiRefresh = readFileSync('js/cloud-ui.js', 'utf8');
 if (!refreshOnlyStyle.includes('.kid-supervision-refresh .kid-refresh-spinner') || !refreshOnlyStyle.includes('.kid-pending-refresh .kid-refresh-spinner') || !cloudUiRefresh.includes("button.classList.contains('kid-supervision-refresh')") || !cloudUiRefresh.includes("button.innerHTML = label;")) throw new Error('Kid approval checking should animate only the refresh icon and restore its original label on error.');
