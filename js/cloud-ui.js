@@ -426,7 +426,7 @@
             if (role === 'supervisor') {
               cloudSecret = '';
               supervisorPrivateKey = await G.cr.unlockSupervisorPrivateKey(password, supervisorKeyBundle);
-              try { await ensureIndividualRecoverySetup(); } catch (recoveryError) { G.toast(recoveryError.message || 'You can create a recovery code later in account settings.'); }
+              try { await ensureIndividualRecoverySetup(password); } catch (recoveryError) { G.toast(recoveryError.message || 'You can create a recovery code later in account settings.'); }
               if (stayLoggedIn) { try { await G.cloud.rememberDevice(''); } catch (_) {} }
               else { try { await G.cloud.clearRememberedDevice(); await G.cloud.rememberSessionDevice(''); } catch (_) {} }
               if (window.GullakNative && typeof window.GullakNative.onCloudReady === 'function') window.GullakNative.onCloudReady();
