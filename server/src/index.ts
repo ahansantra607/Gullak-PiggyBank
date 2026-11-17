@@ -865,22 +865,36 @@ export default {
         ];
         if (row.role === "kid") {
           const wrap = body.key_wrap || {};
-          if (!String(wrap.wrapped_secret || "").includes(".") || String(wrap.wrapped_secret || "").length > 1000 ||
-              !validBase64(String(wrap.salt || "")) || !Number.isInteger(Number(wrap.iterations)) ||
-              Number(wrap.iterations) < 100000 || Number(wrap.iterations) > 1000000) {
+          const wrapParts = String(wrap.wrapped_secret || "").split(".");
+          if (wrapParts.length !== 2 || !validBase64(wrapParts[0]) || !validBase64(wrapParts[1]) ||
+              fromBase64(wrapParts[0]).length !== 12 || fromBase64(wrapParts[1]).length < 16 ||
+              !validBase64(String(wrap.salt || "")) || fromBase64(String(wrap.salt || "")).length !== 16 ||
+              !Number.isInteger(Number(wrap.iterations)) || Number(wrap.iterations) < 100000 || Number(wrap.iterations) > 1000000) {
             return json({ error: "The recovered Kid diary key could not be secured with the new password." }, 400);
           }
+          const existingWrap = await env.gullak_db.prepare("SELECT 1 AS found FROM user_key_wraps WHERE user_id = ?")
+            .bind(row.user_id).first<{ found: number }>();
+          if (!existingWrap) return json({ error: "The existing Kid diary key wrapper is missing. No password change was made." }, 409);
           statements.push(env.gullak_db.prepare("UPDATE user_key_wraps SET wrapped_secret = ?, salt = ?, iterations = ?, updated_at = ? WHERE user_id = ?")
             .bind(wrap.wrapped_secret, wrap.salt, Number(wrap.iterations), now, row.user_id));
         } else {
           const key = body.supervisor_key || {};
-          if (!validBase64(String(key.public_key || "")) || !String(key.encrypted_private_key || "").includes(".") ||
+          const keyParts = String(key.encrypted_private_key || "").split(".");
+          if (!validBase64(String(key.public_key || "")) || fromBase64(String(key.public_key || "")).length < 80 ||
+              keyParts.length !== 2 || !validBase64(keyParts[0]) || !validBase64(keyParts[1]) ||
+              fromBase64(keyParts[0]).length !== 12 || fromBase64(keyParts[1]).length < 48 ||
               String(key.encrypted_private_key || "").length > 4000 || !validBase64(String(key.salt || "")) ||
+              fromBase64(String(key.salt || "")).length !== 16 ||
               !Number.isInteger(Number(key.iterations)) || Number(key.iterations) < 100000 || Number(key.iterations) > 1000000) {
             return json({ error: "The recovered Supervisor key could not be secured with the new password." }, 400);
           }
-          statements.push(env.gullak_db.prepare("UPDATE individual_supervisor_keys SET public_key = ?, encrypted_private_key = ?, salt = ?, iterations = ?, updated_at = ? WHERE supervisor_user_id = ?")
-            .bind(key.public_key, key.encrypted_private_key, key.salt, Number(key.iterations), now, row.user_id));
+          const existingKey = await env.gullak_db.prepare("SELECT public_key FROM individual_supervisor_keys WHERE supervisor_user_id = ?")
+            .bind(row.user_id).first<{ public_key: string }>();
+          if (!existingKey || existingKey.public_key !== key.public_key) {
+            return json({ error: "The recovered Supervisor key does not match the existing diary-sharing identity. No password change was made." }, 409);
+          }
+          statements.push(env.gullak_db.prepare("UPDATE individual_supervisor_keys SET encrypted_private_key = ?, salt = ?, iterations = ?, updated_at = ? WHERE supervisor_user_id = ?")
+            .bind(key.encrypted_private_key, key.salt, Number(key.iterations), now, row.user_id));
         }
         await env.gullak_db.batch(statements);
         return json({ success: true, sessions_revoked: true });
