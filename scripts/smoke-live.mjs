@@ -186,6 +186,13 @@ expect(await request("/api/family/login", { method: "POST", body: { username: su
 expect(await request("/api/family/login", { method: "POST", body: { username: supervisorName, password: password + "wrong" } }), 401, "Second failed Family login remains unlocked");
 expect(await request("/api/family/login", { method: "POST", body: { username: supervisorName, password: password + "wrong" } }), 401, "Third failed Family login does not apply Individual lockout");
 expect(await request("/api/family/login", { method: "POST", body: { username: supervisorName, password } }), 200, "Family account still logs in after three wrong attempts");
+const familyAndroidLogin = expect(await request("/api/family/login", { method: "POST", body: { username: supervisorName, password }, android: true }), 200, "Family Android session");
+expect(await request("/api/mobile-pin/setup", { method: "POST", cookie: familyAndroidLogin.cookie, android: true, body: { pin: "123456" } }), 200, "Family PIN setup remains unchanged");
+expect(await request("/api/mobile-pin/verify", { method: "POST", cookie: familyAndroidLogin.cookie, android: true, body: { pin: "000000" } }), 403, "First Family PIN failure");
+expect(await request("/api/mobile-pin/verify", { method: "POST", cookie: familyAndroidLogin.cookie, android: true, body: { pin: "000000" } }), 403, "Second Family PIN failure");
+expect(await request("/api/mobile-pin/verify", { method: "POST", cookie: familyAndroidLogin.cookie, android: true, body: { pin: "000000" } }), 403, "Third Family PIN failure remains unchanged");
+expect(await request("/api/mobile-pin/verify", { method: "POST", cookie: familyAndroidLogin.cookie, android: true, body: { pin: "000000" } }), 403, "Fourth Family PIN failure remains unchanged");
+expect(await request("/api/mobile-pin/verify", { method: "POST", cookie: familyAndroidLogin.cookie, android: true, body: { pin: "000000" } }), 429, "Fifth Family PIN failure retains its previous five-attempt lock");
 
 const me = expect(await request("/api/me", { cookie: supervisor.cookie }), 200, "Family session check");
 assert(me.data.authenticated && me.data.user.username === supervisorName && me.data.user.account_type === "family", "Family account identity mismatch.");
