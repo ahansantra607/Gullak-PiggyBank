@@ -475,7 +475,7 @@ export default {
           }
         }
         if (!constantTimeEqual(calculatedHash, user.password_hash)) {
-          if (expectedAccountType === "individual" && accountIdentity === "individual") {
+          if (accountIdentity === "individual") {
             const now = new Date();
             const lockedUntil = new Date(now.getTime() + 60_000).toISOString();
             const result = await env.gullak_db.prepare(`
