@@ -60,7 +60,7 @@
               setTimeout(() => URL.revokeObjectURL(url), 1500);
             } catch (_) { G.copy(code); G.toast('Could not download the file. The code was copied instead.'); }
           },
-          'later': () => { modal.close(); },
+          'later': () => { modal.close(); G.toast('This code will not be shown again. If you did not save it, generate a replacement from Account recovery.'); },
           'finish-individual-recovery': () => {
             if (!G.$('#individual-recovery-saved', modal.el)?.checked) return G.toast('Please copy or save the recovery code first.');
             finished = true; modal.close(); resolve(true);
