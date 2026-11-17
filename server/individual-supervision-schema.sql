@@ -113,8 +113,8 @@ CREATE TABLE IF NOT EXISTS individual_login_security (
   updated_at TEXT NOT NULL
 );
 
--- Only a salted/derived verifier and client-encrypted key bundle are stored.
--- The recovery code and decrypted diary/supervisor keys never reach the server.
+-- Only a derived verifier and client-encrypted key bundle are persisted.
+-- The plaintext code and decrypted diary/supervisor keys are never stored by the server.
 CREATE TABLE IF NOT EXISTS individual_account_recovery (
   user_id TEXT PRIMARY KEY REFERENCES users(user_id) ON DELETE CASCADE,
   code_hash TEXT NOT NULL,
