@@ -149,7 +149,7 @@ assert(individualLogin.cookie.startsWith("gullak_session="), "Browser login did 
 expect(await request("/api/me", { cookie: individualLogin.cookie, android: true }), 401,
   "Browser session rejected by Android authentication");
 const androidLogin = expect(await request("/api/login", {
-  method: "POST", body: { username: individualName, password }, android: true
+  method: "POST", body: { username: individualName, password: "Individual-" + password }, android: true
 }), 200, "Android-isolated login");
 assert(androidLogin.cookie.startsWith("gullak_android_session="),
   "Android login did not receive an Android-only session cookie.");
