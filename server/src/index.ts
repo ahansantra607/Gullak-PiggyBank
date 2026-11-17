@@ -114,21 +114,25 @@ function getCookie(request: Request, name: string): string | null {
   return entry ? entry.slice(name.length + 1) : null;
 }
 
+function sessionCookieName(request: Request): string {
+  return request.headers.get("X-Gullak-Android") === "1"
+    ? "gullak_android_session"
+    : "gullak_session";
+}
+
 function sessionCookie(token: string, request: Request): string {
   const secure = new URL(request.url).protocol === "https:" ? "; Secure" : "";
-
   const isAndroid = request.headers.get("X-Gullak-Android") === "1";
   const sameSite = isAndroid ? "None" : "Strict";
   const sessionOnly = !isAndroid && request.headers.get("X-Gullak-Session-Only") === "1";
   const lifetime = sessionOnly ? "" : `; Max-Age=${SESSION_DAYS * 86400}`;
-  return `gullak_session=${token}; HttpOnly${secure}; SameSite=${sameSite}; Path=/${lifetime}`;
+  return `${sessionCookieName(request)}=${token}; HttpOnly${secure}; SameSite=${sameSite}; Path=/${lifetime}`;
 }
 
 function clearSessionCookie(request: Request): string {
   const secure = new URL(request.url).protocol === "https:" ? "; Secure" : "";
-
   const sameSite = request.headers.get("X-Gullak-Android") === "1" ? "None" : "Strict";
-  return `gullak_session=; HttpOnly${secure}; SameSite=${sameSite}; Path=/; Max-Age=0`;
+  return `${sessionCookieName(request)}=; HttpOnly${secure}; SameSite=${sameSite}; Path=/; Max-Age=0`;
 }
 
 function validOrigin(request: Request): boolean {
@@ -168,7 +172,7 @@ async function getCurrentUser(
   request: Request,
   env: Env
 ): Promise<{ user_id: string; username: string; account_type: "individual" | "family"; role?: "supervisor" | "kid"; status?: "active" | "pending" } | null> {
-  const token = getCookie(request, "gullak_session");
+  const token = getCookie(request, sessionCookieName(request));
   if (!token || token.length > 200) return null;
 
   const tokenHash = await sha256(token);
@@ -883,7 +887,7 @@ export default {
     // LOGOUT
     if (path === "/api/logout" && request.method === "POST") {
       try {
-        const token = getCookie(request, "gullak_session");
+        const token = getCookie(request, sessionCookieName(request));
 
         if (token) {
           const tokenHash = await sha256(token);
