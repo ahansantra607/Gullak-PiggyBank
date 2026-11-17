@@ -1,0 +1,21 @@
+Gullak v3.2.0 — Android Update Experience
+
+ANDROID SELF-UPDATER
+
+- Updates download inside Gullak instead of sending you to an external browser.
+- The downloaded APK is stored in Gullak's private temporary update folder.
+- The app verifies the GitHub release asset's SHA-256 digest and checks the package and version before opening Android's installer.
+- If Android requires permission to install updates from Gullak, the app takes you to the relevant Android settings screen and resumes the installation flow when you return.
+- The temporary downloaded APK is cleaned up after the installer flow. The official GitHub release APK remains available for other devices.
+
+LOGIN AND VERSIONING
+
+- Patch updates within the same major version preserve the Android login session (for example, 3.2.0 to 3.2.1).
+- Minor updates within the same major version also preserve the Android login session (for example, 3.1.0 to 3.2.0).
+- A major-version change requires signing in again (for example, 3.2.0 to 4.0.0).
+- The major-version logout rule applies only to Android. Browser login remains separate and is not cleared by Android updates.
+
+SCOPE
+
+- This release updates the Android app experience.
+- The browser version and Family workflows are not intentionally changed by this release.
