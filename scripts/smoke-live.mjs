@@ -36,6 +36,61 @@ async function unlockSupervisorKeyBundle(password, bundle) {
   const privateBytes = await webcrypto.subtle.decrypt({ name: "AES-GCM", iv: Buffer.from(ivText, "base64") }, key, Buffer.from(cipherText, "base64"));
   return webcrypto.subtle.importKey("pkcs8", privateBytes, { name: "ECDH", namedCurve: "P-256" }, false, ["deriveBits"]);
 }
+
+function makeRecoveryCode() {
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  const bytes = randomBytes(32);
+  let body = "";
+  for (let i = 0; i < bytes.length; i++) {
+    body += alphabet[bytes[i] & 31];
+    if ((i + 1) % 8 === 0 && i !== bytes.length - 1) body += "-";
+  }
+  return "GULLAK-" + body;
+}
+async function makeRecoveryEnvelope(code, payload) {
+  const salt = randomBytes(16), iterations = 310000, iv = randomBytes(12);
+  const normalized = code.toUpperCase().replace(/[^A-Z0-9]/g, "");
+  const base = await webcrypto.subtle.importKey("raw", encoder.encode(normalized), "PBKDF2", false, ["deriveKey"]);
+  const key = await webcrypto.subtle.deriveKey({ name: "PBKDF2", hash: "SHA-256", salt, iterations }, base,
+    { name: "AES-GCM", length: 256 }, false, ["encrypt"]);
+  const ciphertext = await webcrypto.subtle.encrypt({ name: "AES-GCM", iv }, key, encoder.encode(JSON.stringify(payload)));
+  return { salt: b64(salt), iterations, encrypted_bundle: b64(iv) + "." + b64(new Uint8Array(ciphertext)) };
+}
+async function openRecoveryEnvelope(code, envelope) {
+  const [ivText, cipherText] = envelope.encrypted_bundle.split(".");
+  const salt = Buffer.from(envelope.salt, "base64");
+  const normalized = code.toUpperCase().replace(/[^A-Z0-9]/g, "");
+  const base = await webcrypto.subtle.importKey("raw", encoder.encode(normalized), "PBKDF2", false, ["deriveKey"]);
+  const key = await webcrypto.subtle.deriveKey({ name: "PBKDF2", hash: "SHA-256", salt, iterations: envelope.iterations }, base,
+    { name: "AES-GCM", length: 256 }, false, ["decrypt"]);
+  const plain = await webcrypto.subtle.decrypt({ name: "AES-GCM", iv: Buffer.from(ivText, "base64") }, key, Buffer.from(cipherText, "base64"));
+  return JSON.parse(new TextDecoder().decode(plain));
+}
+async function wrapKidDiarySecret(password, secret) {
+  const salt = randomBytes(16), iv = randomBytes(12), iterations = 310000;
+  const base = await webcrypto.subtle.importKey("raw", encoder.encode(password), "PBKDF2", false, ["deriveKey"]);
+  const key = await webcrypto.subtle.deriveKey({ name: "PBKDF2", hash: "SHA-256", salt, iterations }, base,
+    { name: "AES-GCM", length: 256 }, false, ["encrypt"]);
+  const ciphertext = await webcrypto.subtle.encrypt({ name: "AES-GCM", iv }, key, encoder.encode(secret));
+  return { wrapped_secret: b64(iv) + "." + b64(new Uint8Array(ciphertext)), salt: b64(salt), iterations };
+}
+async function wrapSupervisorPrivateKey(password, publicKey, privateKey) {
+  const privateBytes = new Uint8Array(await webcrypto.subtle.exportKey("pkcs8", privateKey));
+  const salt = randomBytes(16), iv = randomBytes(12), iterations = 310000;
+  const base = await webcrypto.subtle.importKey("raw", encoder.encode(password), "PBKDF2", false, ["deriveKey"]);
+  const key = await webcrypto.subtle.deriveKey({ name: "PBKDF2", hash: "SHA-256", salt, iterations }, base,
+    { name: "AES-GCM", length: 256 }, false, ["encrypt"]);
+  const ciphertext = await webcrypto.subtle.encrypt({ name: "AES-GCM", iv }, key, privateBytes);
+  return { public_key: publicKey, encrypted_private_key: b64(iv) + "." + b64(new Uint8Array(ciphertext)), salt: b64(salt), iterations };
+}
+async function unwrapKidDiarySecret(password, wrap) {
+  const [ivText, cipherText] = wrap.wrapped_secret.split(".");
+  const base = await webcrypto.subtle.importKey("raw", encoder.encode(password), "PBKDF2", false, ["deriveKey"]);
+  const key = await webcrypto.subtle.deriveKey({ name: "PBKDF2", hash: "SHA-256", salt: Buffer.from(wrap.salt, "base64"), iterations: wrap.iterations }, base,
+    { name: "AES-GCM", length: 256 }, false, ["decrypt"]);
+  const plain = await webcrypto.subtle.decrypt({ name: "AES-GCM", iv: Buffer.from(ivText, "base64") }, key, Buffer.from(cipherText, "base64"));
+  return new TextDecoder().decode(plain);
+}
 async function makeDiaryKeyShare(supervisorPublicKey, diarySecret) {
   const publicKey = await webcrypto.subtle.importKey("spki", Buffer.from(supervisorPublicKey, "base64"),
     { name: "ECDH", namedCurve: "P-256" }, false, []);
@@ -164,9 +219,9 @@ assert(storedSupervisorKey.data.exists && storedSupervisorKey.data.key_bundle.pu
   "Supervisor public key bundle was not stored.");
 const unlockedSupervisorPrivateKey = await unlockSupervisorKeyBundle(individualPassword, storedSupervisorKey.data.key_bundle);
 const kidName = "kidtest_" + suffix;
-const kidPassword = "Kid-test-" + randomUUID() + "!";
-const validKidSalt = b64(randomBytes(16));
-const kidKeyWrap = { wrapped_secret: b64(randomBytes(12)) + "." + b64(randomBytes(48)), salt: validKidSalt, iterations: 150000 };
+let kidPassword = "Kid-test-" + randomUUID() + "!";
+const kidRecoverySecret = b64(randomBytes(32));
+const kidKeyWrap = await wrapKidDiarySecret(kidPassword, kidRecoverySecret);
 const doubleEncodedSaltAttempt = await request("/api/register", {
   method: "POST", body: { username: "kidbad_" + suffix, password: kidPassword, role: "kid", real_name: "Invalid Kid " + suffix,
     supervisor_codes: [individual.data.supervisor_code], supervisor_relationships: ["Mum"], key_wrap: { ...kidKeyWrap, salt: b64(randomBytes(0)) } }
@@ -194,11 +249,29 @@ expect(await request("/api/individual/supervision/requests/" + firstRequest.link
     loanInterest: 5, matchPct: 10, coolHours: 24, coolMin: 200, reviewHours: 12
   } }
 }), 200, "Supervisor accepts Kid with first-approval Grown-up Rules");
-const kidLogin = expect(await request("/api/login", {
+let kidLogin = expect(await request("/api/login", {
   method: "POST", body: { username: kidName, password: kidPassword }
 }), 200, "Kid login after approval");
 assert(kidLogin.data.user.role === "kid" && kidLogin.data.user.status === "active",
   "Kid account did not activate after Supervisor approval.");
+
+// Kid recovery restores the same diary secret and re-wraps it under the new account password.
+const kidRecoveryCode = makeRecoveryCode();
+const kidRecoveryEnvelope = await makeRecoveryEnvelope(kidRecoveryCode, { version: 1, role: "kid", diary_secret: kidRecoverySecret });
+expect(await request("/api/individual/recovery", { method: "PUT", cookie: kidLogin.cookie, body: { code: kidRecoveryCode, ...kidRecoveryEnvelope } }), 200, "Save Kid recovery code");
+const kidRecoveryPrepared = expect(await request("/api/individual/recovery/prepare", { method: "POST", body: { username: kidName, code: kidRecoveryCode } }), 200, "Verify Kid recovery code");
+const recoveredKidPayload = await openRecoveryEnvelope(kidRecoveryCode, kidRecoveryPrepared.data);
+assert(recoveredKidPayload.diary_secret === kidRecoverySecret, "Kid recovery code did not decrypt the original diary key.");
+const newKidPassword = "Recovered-Kid-" + randomUUID() + "!";
+const newKidWrap = await wrapKidDiarySecret(newKidPassword, recoveredKidPayload.diary_secret);
+expect(await request("/api/individual/recovery/complete", { method: "POST", body: {
+  username: kidName, code: kidRecoveryCode, new_password: newKidPassword, key_wrap: newKidWrap
+} }), 200, "Complete Kid account recovery");
+expect(await request("/api/login", { method: "POST", body: { username: kidName, password: kidPassword } }), 401, "Old Kid password rejected after recovery");
+kidPassword = newKidPassword;
+kidLogin = expect(await request("/api/login", { method: "POST", body: { username: kidName, password: kidPassword } }), 200, "Kid login with recovered password");
+const kidWrapAfterRecovery = expect(await request("/api/key-wrap", { cookie: kidLogin.cookie }), 200, "Recovered Kid password-wrapped diary key");
+assert(await unwrapKidDiarySecret(kidPassword, kidWrapAfterRecovery.data.key_wrap) === kidRecoverySecret, "Kid's original diary key was not preserved by recovery.");
 const kidLinks = expect(await request("/api/individual/supervision", { cookie: kidLogin.cookie }), 200, "Kid's Supervisor list");
 assert(kidLinks.data.links.some(row => row.other_username === individualName && row.status === "accepted"),
   "Kid does not see the accepted Supervisor relationship.");
@@ -214,7 +287,7 @@ assert(kidLinks.data.rules && kidLinks.data.rules.loanInterest === 5 && kidLinks
   "Kid did not receive the Grown-up Rules saved during first approval.");
 const acceptedFirstLink = kidLinks.data.links.find(row => row.other_username === individualName && row.status === "accepted");
 assert(acceptedFirstLink.supervisor_public_key, "Kid cannot retrieve the accepted Supervisor's public key.");
-const testDiarySecret = b64(randomBytes(32));
+const testDiarySecret = kidRecoverySecret;
 const firstKeyShare = await makeDiaryKeyShare(acceptedFirstLink.supervisor_public_key, testDiarySecret);
 expect(await request("/api/individual/supervision/key-shares", { method: "PUT", cookie: kidLogin.cookie,
   body: { supervisor_user_id: acceptedFirstLink.other_user_id, ...firstKeyShare } }), 200, "Kid shares diary key end-to-end");
@@ -224,15 +297,54 @@ assert(await openDiaryKeyShare(unlockedSupervisorPrivateKey, firstSupervisorVaul
   "Supervisor could not decrypt the Kid's end-to-end encrypted diary key.");
 
 const secondSupervisorName = "indivsup2_" + suffix;
-const secondSupervisorPassword = "Second-Supervisor-" + randomUUID() + "!";
+let secondSupervisorPassword = "Second-Supervisor-" + randomUUID() + "!";
 const secondSupervisorKey = await makeSupervisorKeyBundle(secondSupervisorPassword);
 const secondSupervisor = expect(await request("/api/register", {
   method: "POST", body: { username: secondSupervisorName, password: secondSupervisorPassword, role: "supervisor", real_name: "Second Supervisor " + suffix, supervisor_key: secondSupervisorKey.body }
 }), 201, "Second Individual Supervisor registration");
-const secondSupervisorLogin = expect(await request("/api/login", {
+let secondSupervisorLogin = expect(await request("/api/login", {
   method: "POST", body: { username: secondSupervisorName, password: secondSupervisorPassword }
 }), 200, "Second Supervisor login");
+
+// Supervisor recovery-code rotation invalidates the previous code immediately.
+const secondPrivateBytes = b64(new Uint8Array(await webcrypto.subtle.exportKey("pkcs8", secondSupervisorKey.privateKey)));
+const oldRecoveryCode = makeRecoveryCode();
+const oldRecoveryEnvelope = await makeRecoveryEnvelope(oldRecoveryCode, {
+  version: 1, role: "supervisor", public_key: secondSupervisorKey.body.public_key, private_key: secondPrivateBytes
+});
+expect(await request("/api/individual/recovery", { method: "PUT", cookie: secondSupervisorLogin.cookie, body: { code: oldRecoveryCode, ...oldRecoveryEnvelope } }), 200, "Save Supervisor recovery code");
+const replacementRecoveryCode = makeRecoveryCode();
+const replacementRecoveryEnvelope = await makeRecoveryEnvelope(replacementRecoveryCode, {
+  version: 1, role: "supervisor", public_key: secondSupervisorKey.body.public_key, private_key: secondPrivateBytes
+});
+expect(await request("/api/individual/recovery", { method: "PUT", cookie: secondSupervisorLogin.cookie, body: { code: replacementRecoveryCode, ...replacementRecoveryEnvelope } }), 200, "Replace Supervisor recovery code");
+expect(await request("/api/individual/recovery/prepare", { method: "POST", body: { username: secondSupervisorName, code: oldRecoveryCode } }), 401, "Old Supervisor recovery code invalidated");
+const supervisorRecoveryPrepared = expect(await request("/api/individual/recovery/prepare", { method: "POST", body: { username: secondSupervisorName, code: replacementRecoveryCode } }), 200, "Verify replacement Supervisor recovery code");
+const recoveredSupervisorPayload = await openRecoveryEnvelope(replacementRecoveryCode, supervisorRecoveryPrepared.data);
+assert(recoveredSupervisorPayload.public_key === secondSupervisorKey.body.public_key && recoveredSupervisorPayload.private_key === secondPrivateBytes,
+  "Supervisor recovery code did not preserve the original ECDH key pair.");
+// Three incorrect account passwords lock the Individual account for the one-minute test window.
+expect(await request("/api/login", { method: "POST", body: { username: secondSupervisorName, password: secondSupervisorPassword + "wrong" } }), 401, "First failed Individual login");
+expect(await request("/api/login", { method: "POST", body: { username: secondSupervisorName, password: secondSupervisorPassword + "wrong" } }), 401, "Second failed Individual login");
+expect(await request("/api/login", { method: "POST", body: { username: secondSupervisorName, password: secondSupervisorPassword + "wrong" } }), 429, "Third failed Individual login locks account");
+expect(await request("/api/login", { method: "POST", body: { username: secondSupervisorName, password: secondSupervisorPassword } }), 429, "Correct password blocked during temporary account lock");
+const newSecondSupervisorPassword = "Recovered-Supervisor-" + randomUUID() + "!";
+const recoveredSupervisorKey = await wrapSupervisorPrivateKey(newSecondSupervisorPassword, recoveredSupervisorPayload.public_key,
+  await webcrypto.subtle.importKey("pkcs8", Buffer.from(recoveredSupervisorPayload.private_key, "base64"), { name: "ECDH", namedCurve: "P-256" }, false, ["deriveBits"]));
+expect(await request("/api/individual/recovery/complete", { method: "POST", body: {
+  username: secondSupervisorName, code: replacementRecoveryCode, new_password: newSecondSupervisorPassword, supervisor_key: recoveredSupervisorKey
+} }), 200, "Complete Supervisor recovery while account is locked");
+expect(await request("/api/login", { method: "POST", body: { username: secondSupervisorName, password: secondSupervisorPassword } }), 401, "Old Supervisor password rejected after recovery");
+secondSupervisorPassword = newSecondSupervisorPassword;
+secondSupervisorLogin = expect(await request("/api/login", { method: "POST", body: { username: secondSupervisorName, password: secondSupervisorPassword } }), 200, "Supervisor login with recovered password");
+const androidPinSession = expect(await request("/api/login", { method: "POST", body: { username: secondSupervisorName, password: secondSupervisorPassword }, android: true }), 200, "Android session for PIN lockout");
+expect(await request("/api/mobile-pin/setup", { method: "POST", cookie: androidPinSession.cookie, android: true, body: { pin: "123456" } }), 200, "Create Android PIN without setup lockout");
+expect(await request("/api/mobile-pin/verify", { method: "POST", cookie: androidPinSession.cookie, android: true, body: { pin: "000000" } }), 403, "First wrong Android PIN");
+expect(await request("/api/mobile-pin/verify", { method: "POST", cookie: androidPinSession.cookie, android: true, body: { pin: "000000" } }), 403, "Second wrong Android PIN");
+expect(await request("/api/mobile-pin/verify", { method: "POST", cookie: androidPinSession.cookie, android: true, body: { pin: "000000" } }), 429, "Third wrong Android PIN locks entry");
+expect(await request("/api/mobile-pin/verify", { method: "POST", cookie: androidPinSession.cookie, android: true, body: { pin: "123456" } }), 429, "Correct Android PIN blocked during temporary lock");
 const secondStoredKey = expect(await request("/api/individual/supervision/keys", { cookie: secondSupervisorLogin.cookie }), 200, "Second Supervisor encrypted key retrieval");
+assert(secondStoredKey.data.key_bundle.public_key === secondSupervisorKey.body.public_key, "Supervisor recovery changed the public key and broke existing diary shares.");
 const unlockedSecondSupervisorKey = await unlockSupervisorKeyBundle(secondSupervisorPassword, secondStoredKey.data.key_bundle);
 expect(await request("/api/individual/supervision/requests", {
   method: "POST", cookie: kidLogin.cookie, body: { code: secondSupervisor.data.supervisor_code }
