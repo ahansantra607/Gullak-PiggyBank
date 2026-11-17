@@ -345,7 +345,7 @@ expect(await request("/api/login", { method: "POST", body: { username: secondSup
 expect(await request("/api/login", { method: "POST", body: { username: secondSupervisorName, password: secondSupervisorPassword } }), 429, "Correct password blocked during temporary account lock");
 const newSecondSupervisorPassword = "Recovered-Supervisor-" + randomUUID() + "!";
 const recoveredSupervisorKey = await wrapSupervisorPrivateKey(newSecondSupervisorPassword, recoveredSupervisorPayload.public_key,
-  await webcrypto.subtle.importKey("pkcs8", Buffer.from(recoveredSupervisorPayload.private_key, "base64"), { name: "ECDH", namedCurve: "P-256" }, false, ["deriveBits"]));
+  await webcrypto.subtle.importKey("pkcs8", Buffer.from(recoveredSupervisorPayload.private_key, "base64"), { name: "ECDH", namedCurve: "P-256" }, true, ["deriveBits"]));
 expect(await request("/api/individual/recovery/complete", { method: "POST", body: {
   username: secondSupervisorName, code: replacementRecoveryCode, new_password: newSecondSupervisorPassword, supervisor_key: recoveredSupervisorKey
 } }), 200, "Complete Supervisor recovery while account is locked");
