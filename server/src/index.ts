@@ -634,7 +634,7 @@ export default {
         if (!role || role.role !== "kid") return json({ error: "Only a Kid account can request another Supervisor." }, 403);
         const body = await request.json() as { code?: string; relationship?: string };
         const relationship = String(body.relationship || "").trim().replace(/\s+/g, " ");
-        if (relationship.length < 2 || relationship.length > 40) return json({ error: "Enter your relationship to this Supervisor (2–40 characters)." }, 400);
+        if (relationship && (relationship.length < 2 || relationship.length > 40)) return json({ error: "Enter your relationship to this Supervisor (2–40 characters)." }, 400);
         const code = String(body.code || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
         if (code.length !== 10) return json({ error: "Enter a valid 10-character Supervisor code." }, 400);
         const hash = await supervisorCodeHash(code);
@@ -673,8 +673,8 @@ export default {
         const relationship = String(body.relationship || "").trim().replace(/\s+/g, " ");
         if (relationship.length < 2 || relationship.length > 40) return json({ error: "Enter a relationship (2–40 characters)." }, 400);
         const linkId = relationshipUpdate[1];
-        const link = await env.gullak_db.prepare("SELECT link_id FROM individual_supervisor_links WHERE link_id = ? AND kid_user_id = ? AND status = 'accepted'").bind(linkId, user.user_id).first();
-        if (!link) return json({ error: "Only an accepted Supervisor relationship can be edited here." }, 404);
+        const link = await env.gullak_db.prepare("SELECT link_id FROM individual_supervisor_links WHERE link_id = ? AND kid_user_id = ? AND status IN ('pending', 'accepted')").bind(linkId, user.user_id).first();
+        if (!link) return json({ error: "Only your current Supervisor requests can be edited here." }, 404);
         await env.gullak_db.prepare("INSERT INTO individual_supervisor_relationships (link_id, relationship, updated_at) VALUES (?, ?, ?) ON CONFLICT(link_id) DO UPDATE SET relationship = excluded.relationship, updated_at = excluded.updated_at")
           .bind(linkId, relationship, new Date().toISOString()).run();
         return json({ success: true });
