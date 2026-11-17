@@ -670,7 +670,7 @@ export default {
         const role = user.account_type === "individual" ? await individualRole(env, user.user_id) : null;
         if (!role || role.role !== "kid") return json({ error: "Only the Kid can manage Supervisor relationships." }, 403);
         const body = await request.json() as { relationship?: string };
-        const relationship = String(body.relationship || "").trim().replace(/\\s+/g, " ");
+        const relationship = String(body.relationship || "").trim().replace(/\s+/g, " ");
         if (relationship.length < 2 || relationship.length > 40) return json({ error: "Enter a relationship (2–40 characters)." }, 400);
         const linkId = relationshipUpdate[1];
         const link = await env.gullak_db.prepare("SELECT link_id FROM individual_supervisor_links WHERE link_id = ? AND kid_user_id = ? AND status = 'accepted'").bind(linkId, user.user_id).first();
