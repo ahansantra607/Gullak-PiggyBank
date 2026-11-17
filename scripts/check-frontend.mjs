@@ -391,9 +391,16 @@ navG.back();
 if (navLocation.hash !== '#/home') throw new Error('A trimmed chain incorrectly returned to Report Card.');
 navG._hist.length = 0;
 navLocation.hash = '#/individual-supervision';
-navG._hist.length = 1; // This page is the only known entry; there is no previous link.
 navG.back();
 if (navLocation.hash !== '#/home') throw new Error('A page with no previous history did not fall back to Home.');
+navG.routeGuard = name => name === 'legacy-supervision' ? 'individual-supervision' : null;
+navG._hist.length = 0;
+navLocation.hash = '#/legacy-supervision';
+if (navLocation.hash !== '#/individual-supervision' || navG._hist.join('|') !== '#/individual-supervision') {
+  throw new Error('A guarded legacy route was incorrectly kept in the Back chain.');
+}
+navG.back();
+if (navLocation.hash !== '#/home') throw new Error('Backing out of a guarded deep link did not return Home.');
 console.log('Navigation chain and Back-stack checks passed.');
 
 const refreshOnlyStyle = readFileSync('css/style.css', 'utf8');
