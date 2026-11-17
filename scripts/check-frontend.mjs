@@ -38,6 +38,7 @@ const individualSchemaSource = readFileSync('server/individual-supervision-schem
 const screensAskSource = readFileSync('js/screens-ask.js', 'utf8');
 
 if (!serverSource.includes('individual_login_security') || !serverSource.includes('individual_login_security.failed_attempts + 1') || !serverSource.includes('60_000') || !serverSource.includes('if (accountIdentity === "individual")')) throw new Error('Individual account login must lock after three failed passwords for one minute without changing Family login.');
+if (!serverSource.includes('DELETE FROM user_mobile_pins WHERE user_id = ?')) throw new Error('Verified Individual account recovery must reset the Android PIN so the user can create a new one.');
 if (!serverSource.includes('failed_attempts + 1') || !serverSource.includes('Three incorrect PINs') || !serverSource.includes('individual_account_recovery')) throw new Error('Android PIN lockout or Individual recovery endpoints are missing.');
 if (!individualSchemaSource.includes('individual_login_security') || !individualSchemaSource.includes('individual_account_recovery')) throw new Error('Individual login lockout and recovery tables are missing.');
 if (!cloudSource.includes('saveIndividualRecovery') || !cloudSource.includes('prepareIndividualRecovery') || !cloudSource.includes('completeIndividualRecovery')) throw new Error('Individual recovery API client methods are missing.');
