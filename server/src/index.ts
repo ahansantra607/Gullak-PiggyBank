@@ -597,6 +597,7 @@ export default {
         ? "SELECT l.link_id, l.status, l.created_at, l.responded_at, rel.relationship, u.user_id AS other_user_id, u.username AS other_username, n.real_name AS other_real_name, r.status AS kid_status, CASE WHEN k.supervisor_user_id IS NULL THEN 0 ELSE 1 END AS has_key_share, CASE WHEN v.user_id IS NULL THEN 0 ELSE 1 END AS has_diary FROM individual_supervisor_links l JOIN users u ON u.user_id = l.kid_user_id LEFT JOIN individual_real_names n ON n.user_id = u.user_id LEFT JOIN individual_supervisor_relationships rel ON rel.link_id = l.link_id LEFT JOIN individual_account_roles r ON r.user_id = u.user_id LEFT JOIN individual_kid_key_shares k ON k.kid_user_id = u.user_id AND k.supervisor_user_id = l.supervisor_user_id LEFT JOIN user_vaults v ON v.user_id = u.user_id WHERE l.supervisor_user_id = ? ORDER BY l.created_at DESC"
         : "SELECT l.link_id, l.status, l.created_at, l.responded_at, rel.relationship, u.user_id AS other_user_id, u.username AS other_username, CASE WHEN l.status = 'accepted' THEN n.real_name ELSE NULL END AS other_real_name, k.public_key AS supervisor_public_key, CASE WHEN s.supervisor_user_id IS NULL THEN 0 ELSE 1 END AS has_key_share FROM individual_supervisor_links l JOIN users u ON u.user_id = l.supervisor_user_id LEFT JOIN individual_real_names n ON n.user_id = u.user_id LEFT JOIN individual_supervisor_relationships rel ON rel.link_id = l.link_id LEFT JOIN individual_supervisor_keys k ON k.supervisor_user_id = u.user_id LEFT JOIN individual_kid_key_shares s ON s.kid_user_id = l.kid_user_id AND s.supervisor_user_id = u.user_id WHERE l.kid_user_id = ? ORDER BY l.created_at ASC";
       const rows = await env.gullak_db.prepare(sql).bind(user.user_id).all();
+      const kidVault = supervisorView ? null : await env.gullak_db.prepare("SELECT 1 AS found FROM user_vaults WHERE user_id = ? LIMIT 1").bind(user.user_id).first();
       let rules: Record<string, number> | null = null;
       if (!supervisorView) {
         const rulesRow = await env.gullak_db.prepare("SELECT rules_json FROM individual_kid_rules WHERE kid_user_id = ?").bind(user.user_id).first<{ rules_json: string }>();
@@ -604,7 +605,7 @@ export default {
           try { rules = JSON.parse(rulesRow.rules_json) as Record<string, number>; } catch { rules = null; }
         }
       }
-      return json({ role: role.role, status: role.status, links: rows.results || [], rules });
+      return json({ role: role.role, status: role.status, links: rows.results || [], rules, ...(supervisorView ? {} : { has_diary: !!kidVault }) });
     }
 
     if (path === "/api/individual/supervision/code" && request.method === "POST") {
