@@ -318,7 +318,7 @@ expect(await request("/api/individual/supervision/key-shares", { method: "PUT", 
   body: { supervisor_user_id: acceptedFirstLink.other_user_id, ...firstKeyShare } }), 200, "Kid shares diary key end-to-end");
 const firstSupervisorVaultAfterRecovery = expect(await request("/api/individual/supervision/kids/" + kidLogin.data.user.user_id + "/vault", { cookie: individualLogin.cookie }), 200, "Supervisor can access linked Kid vault after recovery");
 assert(firstSupervisorVaultAfterRecovery.data.exists && firstSupervisorVaultAfterRecovery.data.key_share, "Supervisor could not access the existing Kid diary and key share after recovery.");
-assert(await openDiaryKeyShare(unlockedSupervisorPrivateKey, firstSupervisorVaultBeforeDiary.data.key_share) === testDiarySecret,
+assert(await openDiaryKeyShare(unlockedSupervisorPrivateKey, firstSupervisorVaultAfterRecovery.data.key_share) === testDiarySecret,
   "Supervisor could not decrypt the Kid's end-to-end encrypted diary key.");
 
 const secondSupervisorName = "indivsup2_" + suffix;
