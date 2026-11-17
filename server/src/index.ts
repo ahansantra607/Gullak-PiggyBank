@@ -941,10 +941,25 @@ export default {
         if (row.locked_until && new Date(row.locked_until).getTime() > now.getTime()) return json({ error: "Too many incorrect attempts. Try again in a few minutes." }, 429);
         const calculated = await derivePasswordHash(pin, fromBase64(row.pin_salt), ITERATIONS);
         if (!constantTimeEqual(calculated, row.pin_hash)) {
-          const failures = row.failed_attempts + 1;
-          const lockedUntil = failures >= 3 ? new Date(now.getTime() + 60_000).toISOString() : null;
-          await env.gullak_db.prepare("UPDATE user_mobile_pins SET failed_attempts = ?, locked_until = ?, updated_at = ? WHERE user_id = ?").bind(failures >= 3 ? 0 : failures, lockedUntil, now.toISOString(), user.user_id).run();
-          return json({ error: lockedUntil ? "Three incorrect PINs. Phone PIN entry is locked for one minute." : "That PIN is incorrect." }, lockedUntil ? 429 : 403);
+          const nowIso = now.toISOString();
+          const lockedUntil = new Date(now.getTime() + 60_000).toISOString();
+          const updated = await env.gullak_db.prepare(`
+            UPDATE user_mobile_pins SET
+              failed_attempts = CASE
+                WHEN locked_until IS NOT NULL AND locked_until <= ? THEN 1
+                ELSE failed_attempts + 1 END,
+              locked_until = CASE
+                WHEN (CASE
+                  WHEN locked_until IS NOT NULL AND locked_until <= ? THEN 1
+                  ELSE failed_attempts + 1 END) >= 3
+                THEN ? ELSE NULL END,
+              updated_at = ?
+            WHERE user_id = ? AND (locked_until IS NULL OR locked_until <= ?)
+            RETURNING failed_attempts, locked_until
+          `).bind(nowIso, nowIso, lockedUntil, nowIso, user.user_id, nowIso)
+            .first<{ failed_attempts: number; locked_until: string | null }>();
+          if (!updated) return json({ error: "Phone PIN entry is locked. Try again in about one minute." }, 429);
+          return json({ error: updated.locked_until ? "Three incorrect PINs. Phone PIN entry is locked for one minute." : "That PIN is incorrect." }, updated.locked_until ? 429 : 403);
         }
         await env.gullak_db.prepare("UPDATE user_mobile_pins SET failed_attempts = 0, locked_until = NULL, updated_at = ? WHERE user_id = ?").bind(now.toISOString(), user.user_id).run();
         return json({ success: true });
