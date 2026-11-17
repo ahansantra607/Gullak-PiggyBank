@@ -265,7 +265,7 @@
         <div style="position:relative;width:100%"><input class="input" style="width:100%;box-sizing:border-box;padding-right:44px" id="cloud-password" type="password" maxlength="128" autocomplete="${authMode === 'register' ? 'new-password' : 'current-password'}" ${authMode === 'register' ? 'placeholder="8+ chars: upper, lower, number & symbol"' : ''}><span id="cloud-password-status" aria-live="polite" style="display:none;position:absolute;right:12px;top:50%;transform:translateY(-50%);pointer-events:none;font-size:22px;font-weight:700"></span></div>
         ${authMode === 'register' ? '<div id="cloud-password-rules" class="password-rules" aria-live="polite"><div class="password-rules-title">Password strength checklist</div><div data-rule="length"><span>○</span> At least 8 characters</div><div data-rule="upper"><span>○</span> One uppercase letter</div><div data-rule="lower"><span>○</span> One lowercase letter</div><div data-rule="number"><span>○</span> One number</div><div data-rule="special"><span>○</span> One special character</div></div>' : ''}
         ${authMode === 'register' ? '<label class="label" for="cloud-password-confirm">Re-enter account password</label><div style="position:relative;width:100%"><input class="input" style="width:100%;box-sizing:border-box;padding-right:44px" id="cloud-password-confirm" type="password" maxlength="128" autocomplete="new-password" placeholder="Type the account password again"><button type="button" id="cloud-password-match" aria-label="Password confirmation status" aria-expanded="false" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);border:0;background:transparent;padding:4px;font-size:22px;font-weight:700;cursor:pointer"></button></div><p id="cloud-password-match-help" class="hint" hidden></p>' : ''}
-        ${authMode === 'register' && registerRole === 'kid' ? '<label class="label" for="individual-supervisor-codes">Supervisor code(s)</label><input class="input" id="individual-supervisor-codes" maxlength="80" placeholder="Enter one or more codes, separated by commas"><p class="hint">Ask each Supervisor for their 10-character code. You can add more Supervisors later in Settings.</p>' : ''}
+        ${authMode === 'register' && registerRole === 'kid' ? '<label class="label" for="individual-supervisor-codes">Supervisor code(s)</label><input class="input" id="individual-supervisor-codes" maxlength="80" placeholder="Enter one or more codes, separated by commas"><label class="label" for="individual-supervisor-relationships">Your relationship to each Supervisor</label><input class="input" id="individual-supervisor-relationships" maxlength="200" placeholder="Mum, Dad, Uncle"><p class="hint">Enter one relationship for each code, in the same order, separated by commas. You can edit them later in My Supervisors.</p>' : ''}
         ${authMode === 'register' && registerRole === 'kid' ? '<label class="label" for="cloud-secret">Separate encryption passphrase</label><div style="position:relative;width:100%"><input class="input" style="width:100%;box-sizing:border-box;padding-right:44px" id="cloud-secret" type="password" maxlength="256" autocomplete="new-password" placeholder="Choose a different passphrase"><span id="cloud-secret-status" aria-live="polite" style="display:none;position:absolute;right:12px;top:50%;transform:translateY(-50%);pointer-events:none;font-size:22px;font-weight:700"></span></div><div id="cloud-secret-rules" class="password-rules" aria-live="polite"><div class="password-rules-title">Encryption passphrase check</div><div data-rule="secret-length"><span>○</span> At least 10 characters</div><div data-rule="secret-different"><span>○</span> Different from account password</div></div><label class="label" for="cloud-secret-confirm">Re-enter encryption passphrase</label><div style="position:relative;width:100%"><input class="input" style="width:100%;box-sizing:border-box;padding-right:44px" id="cloud-secret-confirm" type="password" maxlength="256" autocomplete="new-password" placeholder="Type it again"><span id="cloud-secret-match-status" aria-live="polite" style="display:none;position:absolute;right:12px;top:50%;transform:translateY(-50%);pointer-events:none;font-size:22px;font-weight:700"></span></div><p class="hint">This protects the Kid diary. Use at least 10 characters and make it different from your account password. The encrypted diary is unlocked automatically after login.</p>' : ''}
         ${authMode === 'login' && !(window.GullakNative && typeof window.GullakNative.onCloudReady === 'function') ? '<label class="check-row mt"><input id="cloud-stay-logged-in" type="checkbox"> <span>Stay logged in on this device</span></label><p class="hint">Keeps this device signed in while your secure 7-day cloud session is valid. You can still log out from Settings.</p>' : ''}
         <button class="btn primary block big" data-act="cloud-connect">${authMode === 'register' ? (registerRole === 'supervisor' ? 'Create Supervisor account' : 'Create Kid account') : 'Log in to Gullak'}</button>
@@ -302,11 +302,13 @@
           const supervisorCodes = role === 'kid'
             ? (G.$('#individual-supervisor-codes')?.value || '').split(/[ ,;\n]+/).map(v => v.trim()).filter(Boolean)
             : [];
+          const supervisorRelationships = role === 'kid' ? (G.$('#individual-supervisor-relationships')?.value || '').split(',').map(v => v.trim()).filter(Boolean) : [];
           if (authMode === 'register' && role === 'kid' && !supervisorCodes.length) throw new Error('Enter at least one Supervisor code to create a Kid account.');
+          if (authMode === 'register' && role === 'kid' && (supervisorRelationships.length !== supervisorCodes.length || supervisorRelationships.some(v => v.length < 2 || v.length > 40))) throw new Error('Enter one relationship (2–40 characters) for each Supervisor code, in the same order.');
           const supervisorKeyBundle = authMode === 'register' && role === 'supervisor'
             ? await G.cr.makeSupervisorKeyBundle(password) : null;
           const auth = authMode === 'register'
-            ? await G.cloud.registerIndividual(username, password, role, supervisorCodes, secret, supervisorKeyBundle, !stayLoggedIn && !isAndroidApp, realName)
+            ? await G.cloud.registerIndividual(username, password, role, supervisorCodes, secret, supervisorKeyBundle, !stayLoggedIn && !isAndroidApp, realName, supervisorRelationships)
             : await G.cloud.login(username, password, !stayLoggedIn && !isAndroidApp);
           supervisorPrivateKey = null;
           supervisorUnlockUsesRemaining = 0;
@@ -553,6 +555,8 @@
             <p class="small muted">${kidActive ? 'You can add another Supervisor at any time.' : 'Have another Supervisor code? You can send an additional request while you wait.'}</p>
             <label class="label" for="individual-add-supervisor">Supervisor code</label>
             <input class="input" id="individual-add-supervisor" maxlength="20" autocomplete="off" placeholder="Enter the 10-character code">
+            <label class="label" for="individual-add-supervisor-relationship">Your relationship to this Supervisor</label>
+            <input class="input" id="individual-add-supervisor-relationship" maxlength="40" autocomplete="off" placeholder="e.g. Mum, Dad, Uncle">
             <button class="btn ${kidActive ? 'primary' : 'ghost'} block mt" data-act="individual-add-supervisor">${kidActive ? '＋ Add another Supervisor' : '＋ Add another Supervisor'}</button>
           </section>
           <section class="kid-pending-card">
@@ -560,7 +564,7 @@
             <p class="small muted">Every Supervisor request stays listed here independently. Approving one does not cancel the others.</p>
             ${links.length ? links.map(x => `<div class="kid-pending-row">
               <span class="kid-pending-person" aria-hidden="true">🛡️</span>
-              <div><b>${esc(x.other_real_name || x.other_username || 'Supervisor')}</b><small>${esc(x.other_username || 'Supervisor')} · ${x.status === 'accepted' ? 'Supervisor' : 'Name shown after acceptance'}</small></div>
+              <div class="kid-supervisor-details"><b>${esc(x.other_real_name || x.other_username || 'Supervisor')}</b><small>${esc(x.other_username || 'Supervisor')} · ${x.status === 'accepted' ? 'Supervisor' : 'Name shown after acceptance'}</small>${x.status === 'accepted' ? `<label class="label" for="kid-supervisor-relation-${esc(x.link_id)}">Your relationship</label><div class="kid-supervisor-relation-edit"><input class="input" id="kid-supervisor-relation-${esc(x.link_id)}" maxlength="40" value="${esc(x.relationship || '')}" placeholder="e.g. Mum, Dad, Uncle"><button class="btn soft" data-act="save-supervisor-relationship" data-id="${esc(x.link_id)}">Save</button></div>` : `<small>Your relationship: ${esc(x.relationship || '')}</small>`}</div>
               <span class="kid-pending-tag ${x.status === 'accepted' ? 'accepted' : x.status === 'rejected' ? 'declined' : ''}">${x.status === 'accepted' ? 'Accepted' : x.status === 'rejected' ? 'Declined' : 'Pending'}</span>
             </div>`).join('') : '<div class="kid-pending-empty"><span>📭</span><b>No Supervisor requests yet</b><p>Add a Supervisor code above to send your first request.</p></div>'}
           </section>
@@ -640,7 +644,9 @@
       },
       'individual-add-supervisor': async button => {
         const code = (G.$('#individual-add-supervisor')?.value || '').trim();
+        const relationship = (G.$('#individual-add-supervisor-relationship')?.value || '').trim();
         if (!code) return G.toast('Enter a Supervisor code.');
+        if (relationship.length < 2 || relationship.length > 40) return G.toast('Enter the relationship to this Supervisor (2–40 characters).');
         button.disabled = true;
         try {
           const session = await G.cloud.currentUser();
@@ -652,9 +658,9 @@
               : 'Your signed-in account could not be verified as a Kid account. Please log out and sign in again.');
           }
           cloudUser = actual;
-          await G.cloud.requestSupervisor(code);
+          await G.cloud.requestSupervisor(code, relationship);
           supervisionData = null;
-          G.toast('Request sent. The Supervisor must accept it.');
+          G.toast('Request sent with your relationship. The Supervisor must accept it.');
           G.render({ keepScroll: true });
         }
         catch (error) { G.toast(error.message || 'Could not send the request.'); button.disabled = false; }
@@ -690,6 +696,14 @@
           button.disabled = false;
           button.innerHTML = label;
         }
+      },
+      'save-supervisor-relationship': async el => {
+        const field = G.$('#kid-supervisor-relation-' + el.dataset.id);
+        const relationship = (field?.value || '').trim();
+        if (relationship.length < 2 || relationship.length > 40) return G.toast('Enter a relationship (2–40 characters).');
+        el.disabled = true;
+        try { await G.cloud.updateSupervisorRelationship(el.dataset.id, relationship); supervisionData = null; G.toast('Relationship updated.'); G.render({ keepScroll: true }); }
+        catch (error) { el.disabled = false; G.toast(error.message || 'Could not update the relationship.'); }
       },
       'individual-logout': signOutFlow,
       'cloud-delete-account': deleteAccountFlow,
