@@ -316,7 +316,7 @@ export default {
         const supervisorRelationships: string[] = [];
         if (role === "kid") {
           const codes = Array.isArray(body.supervisor_codes) ? [...new Set(body.supervisor_codes.map(v => String(v || "").toUpperCase().replace(/[^A-Z0-9]/g, "")).filter(Boolean))] : [];
-          const relationships = Array.isArray(body.supervisor_relationships) ? body.supervisor_relationships.map(v => String(v || "").trim().replace(/\\s+/g, " ")) : [];
+          const relationships = Array.isArray(body.supervisor_relationships) ? body.supervisor_relationships.map(v => String(v || "").trim().replace(/\s+/g, " ")) : [];
           if (!codes.length || codes.length > 5) return json({ error: "Enter at least one Supervisor code (up to five)." }, 400);
           if (relationships.length !== codes.length || relationships.some(v => v.length < 2 || v.length > 40)) return json({ error: "Enter one relationship (2–40 characters) for each Supervisor code." }, 400);
           for (const code of codes) {
