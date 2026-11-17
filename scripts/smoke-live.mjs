@@ -274,6 +274,9 @@ let kidLogin = expect(await request("/api/login", {
 assert(kidLogin.data.user.role === "kid" && kidLogin.data.user.status === "active",
   "Kid account did not activate after Supervisor approval.");
 
+// Recovery must preserve existing encrypted diary data as well as its key.
+const recoveryPreservedVault = encrypted();
+expect(await request("/api/vault", { method: "PUT", cookie: kidLogin.cookie, body: recoveryPreservedVault }), 200, "Save Kid diary before recovery");
 // Kid recovery restores the same diary secret and re-wraps it under the new account password.
 const kidRecoveryCode = makeRecoveryCode();
 const kidRecoveryEnvelope = await makeRecoveryEnvelope(kidRecoveryCode, { version: 1, role: "kid", diary_secret: kidRecoverySecret });
@@ -289,6 +292,9 @@ expect(await request("/api/individual/recovery/complete", { method: "POST", body
 expect(await request("/api/login", { method: "POST", body: { username: kidName, password: kidPassword } }), 401, "Old Kid password rejected after recovery");
 kidPassword = newKidPassword;
 kidLogin = expect(await request("/api/login", { method: "POST", body: { username: kidName, password: kidPassword } }), 200, "Kid login with recovered password");
+const vaultAfterRecovery = expect(await request("/api/vault", { cookie: kidLogin.cookie }), 200, "Read Kid diary after account recovery");
+assert(vaultAfterRecovery.data.exists && vaultAfterRecovery.data.vault.ciphertext === recoveryPreservedVault.ciphertext,
+  "Account recovery did not preserve the existing encrypted Kid diary.");
 const kidWrapAfterRecovery = expect(await request("/api/key-wrap", { cookie: kidLogin.cookie }), 200, "Recovered Kid password-wrapped diary key");
 assert(await unwrapKidDiarySecret(kidPassword, kidWrapAfterRecovery.data.key_wrap) === kidRecoverySecret, "Kid's original diary key was not preserved by recovery.");
 const kidLinks = expect(await request("/api/individual/supervision", { cookie: kidLogin.cookie }), 200, "Kid's Supervisor list");
