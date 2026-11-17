@@ -300,7 +300,7 @@
         try {
           const role = registerRole;
           const supervisorCodes = role === 'kid'
-            ? (G.$('#individual-supervisor-codes')?.value || '').split(/[ ,;\n]+/).map(v => v.trim()).filter(Boolean)
+            ? (G.$('#individual-supervisor-codes')?.value || '').split(/[ ,;\n]+/).map(v => v.trim()).filter((v, i, all) => all.indexOf(v) === i)
             : [];
           const supervisorRelationships = role === 'kid' ? (G.$('#individual-supervisor-relationships')?.value || '').split(',').map(v => v.trim()).filter(Boolean) : [];
           if (authMode === 'register' && role === 'kid' && !supervisorCodes.length) throw new Error('Enter at least one Supervisor code to create a Kid account.');
