@@ -46,8 +46,13 @@
         handlers: {
           'copy-individual-recovery': () => { G.copy(code); G.toast('Recovery code copied.'); },
           'download-individual-recovery': () => {
+            const fileText = 'Gullak Individual recovery code\\n\\n' + code + '\\n\\nKeep this code private.';
+            if (window.GullakNative && typeof window.GullakNative.saveRecoveryCode === 'function') {
+              window.GullakNative.saveRecoveryCode('Gullak-Recovery-Code.txt', fileText);
+              return;
+            }
             try {
-              const blob = new Blob(['Gullak Individual recovery code\\n\\n' + code + '\\n\\nKeep this code private.'], { type: 'text/plain;charset=utf-8' });
+              const blob = new Blob([fileText], { type: 'text/plain;charset=utf-8' });
               const url = URL.createObjectURL(blob);
               const link = document.createElement('a');
               link.href = url; link.download = 'Gullak-Recovery-Code.txt';
