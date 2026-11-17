@@ -50,7 +50,6 @@
 
   G.render = (opt = {}) => {
     if (G.timer) { clearInterval(G.timer); G.timer = null; }
-    track();
     let { name, q } = parse();
     if (!G.screens[name]) name = 'home';
     if (G.routeGuard) { const r = G.routeGuard(name, q); if (r && G.screens[r]) name = r; }
@@ -61,8 +60,10 @@
     const canonicalHash = '#/' + name + (Object.keys(q).length ? '?' + new URLSearchParams(q).toString() : '');
     if (location.hash !== canonicalHash) {
       history.replaceState(history.state, '', location.pathname + location.search + canonicalHash);
-      track(canonicalHash);
     }
+    // Only record the route after guards have resolved it. A blocked/deep link
+    // must never become a Back destination and recreate a redirect loop.
+    track(canonicalHash);
     const sc = G.screens[name];
     const view = document.getElementById('view'); const y = window.scrollY;
     G.handlers = Object.assign({ go: (el) => (el.classList.contains('back') ? G.back() : G.go(el.dataset.to)), speak: (el) => G.speak(el.dataset.text, true) }, sc.handlers ? sc.handlers(q) : {});
