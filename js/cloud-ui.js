@@ -632,6 +632,10 @@
           }
           await G.cloud.completeIndividualRecovery(username, code, password, keyMaterial);
           await G.cloud.clearRememberedDevice().catch(() => {});
+          cloudSecret = ''; cloudUser = null; supervisorPrivateKey = null; supervisorUnlockUsesRemaining = 0; syncError = null;
+          G.supervisedKidMode = false; G.supervisedKidId = null; G.supervisedKidSecret = null; supervisorOwnState = null;
+          G.S = G.fresh();
+          if (window.GullakNative && typeof window.GullakNative.onCloudLogout === 'function') window.GullakNative.onCloudLogout();
           authMode = 'login';
           G.go('cloud-account');
           G.toast('Account password reset successfully. Your existing diary is preserved. Log in with your new password.');
