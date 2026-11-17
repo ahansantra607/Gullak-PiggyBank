@@ -2,6 +2,10 @@ plugins {
     id 'com.android.application'
 }
 
+dependencies {
+    implementation 'androidx.core:core:1.15.0'
+}
+
 def appVersion = System.getenv("GULLAK_VERSION") ?: "1.0.0"
 def ciRunNumber = (System.getenv("GITHUB_RUN_NUMBER") ?: "1").toInteger()
 
