@@ -316,8 +316,8 @@ const testDiarySecret = kidRecoverySecret;
 const firstKeyShare = await makeDiaryKeyShare(acceptedFirstLink.supervisor_public_key, testDiarySecret);
 expect(await request("/api/individual/supervision/key-shares", { method: "PUT", cookie: kidLogin.cookie,
   body: { supervisor_user_id: acceptedFirstLink.other_user_id, ...firstKeyShare } }), 200, "Kid shares diary key end-to-end");
-const firstSupervisorVaultBeforeDiary = expect(await request("/api/individual/supervision/kids/" + kidLogin.data.user.user_id + "/vault", { cookie: individualLogin.cookie }), 200, "Supervisor can access linked Kid vault");
-assert(!firstSupervisorVaultBeforeDiary.data.exists && firstSupervisorVaultBeforeDiary.data.key_share, "Supervisor key share was not returned for an empty Kid diary.");
+const firstSupervisorVaultAfterRecovery = expect(await request("/api/individual/supervision/kids/" + kidLogin.data.user.user_id + "/vault", { cookie: individualLogin.cookie }), 200, "Supervisor can access linked Kid vault after recovery");
+assert(firstSupervisorVaultAfterRecovery.data.exists && firstSupervisorVaultAfterRecovery.data.key_share, "Supervisor could not access the existing Kid diary and key share after recovery.");
 assert(await openDiaryKeyShare(unlockedSupervisorPrivateKey, firstSupervisorVaultBeforeDiary.data.key_share) === testDiarySecret,
   "Supervisor could not decrypt the Kid's end-to-end encrypted diary key.");
 
@@ -417,7 +417,7 @@ assert(await openDiaryKeyShare(unlockedSecondSupervisorKey, secondVaultAccess.da
 expect(await request("/api/individual/supervision", { cookie: supervisor.cookie }), 403, "Family account blocked from Individual supervision APIs");
 
 const beforeDiarySupervision = expect(await request("/api/individual/supervision", { cookie: kidLogin.cookie }), 200, "Kid supervision status before diary creation");
-assert(beforeDiarySupervision.data.has_diary === false, "Kid should not be marked as having a diary before the first vault save.");
+assert(beforeDiarySupervision.data.has_diary === true, "Kid's existing diary was not preserved after account recovery.");
 const privateVault = encrypted();
 expect(await request("/api/vault", { method: "PUT", cookie: kidLogin.cookie, body: privateVault }), 200, "Encrypted Individual vault save");
 const afterDiarySupervision = expect(await request("/api/individual/supervision", { cookie: kidLogin.cookie }), 200, "Kid supervision status after diary creation");
