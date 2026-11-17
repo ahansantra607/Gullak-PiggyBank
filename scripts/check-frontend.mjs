@@ -88,6 +88,13 @@ const supervisionScreen = cloudUiSource.slice(cloudUiSource.indexOf("G.screens['
 const supervisorDashboard = supervisionScreen.slice(supervisionScreen.indexOf("if (role === 'supervisor')"), supervisionScreen.indexOf("if (role === 'kid')"));
 if (!supervisorDashboard.includes('Supervisor dashboard') || supervisorDashboard.includes('class="back"')) throw new Error('Supervisor dashboard must not show a useless Back button.');
 if (!supervisionScreen.includes("if (role === 'kid')") || !supervisionScreen.includes('kid-supervision-kid') || !supervisionScreen.includes('Create your Gullak')) throw new Error('Kid approval and active states must retain one stable screen with the Create button.');
+if (!supervisionScreen.includes("data-act=\"edit-supervisor-relationship\"") || !supervisionScreen.includes("editingSupervisorRelationship === x.link_id") || !supervisionScreen.includes("!relationship || editingSupervisorRelationship === x.link_id") || !supervisionScreen.includes("data-act=\"save-supervisor-relationship\"")) throw new Error('Kid relationship rows must show saved text with Edit, and keep the field visible until an unset relationship is saved.');
+const kidAddSupervisorSection = supervisionScreen.slice(supervisionScreen.indexOf('<section class="kid-pending-add">'), supervisionScreen.indexOf('<section class="kid-pending-card">'));
+if (kidAddSupervisorSection.includes('individual-add-supervisor-relationship')) throw new Error('Additional Supervisors should have their relationship set from the per-Supervisor list, not during the add-code step.');
+if (!supervisionScreen.includes("G.cloud.requestSupervisor(code)")) throw new Error('Additional Supervisor requests must be creatable before their relationship is set.');
+if (supervisorDashboard.includes('relationship')) throw new Error('The Supervisor dashboard must remain unchanged and must not display Kid-selected relationship labels.');
+const relationshipCss = readFileSync('css/style.css', 'utf8');
+if (!relationshipCss.includes('.kid-supervisor-relation-fields') || !relationshipCss.includes('.kid-supervisor-relation-view')) throw new Error('Kid relationship editor must use the compact saved/view states.');
 if (!readFileSync('css/style.css', 'utf8').includes('.kid-pending-hero')) throw new Error('Kid approval screen styling is missing.');
 
 if (!readFileSync('scripts/smoke-live.mjs', 'utf8').includes('Pending Kid can sign in to manage Supervisor requests')) throw new Error('Live smoke tests do not cover the restricted pending Kid state.');
