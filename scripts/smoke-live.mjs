@@ -323,6 +323,10 @@ const supervisorRecoveryPrepared = expect(await request("/api/individual/recover
 const recoveredSupervisorPayload = await openRecoveryEnvelope(replacementRecoveryCode, supervisorRecoveryPrepared.data);
 assert(recoveredSupervisorPayload.public_key === secondSupervisorKey.body.public_key && recoveredSupervisorPayload.private_key === secondPrivateBytes,
   "Supervisor recovery code did not preserve the original ECDH key pair.");
+const androidPinBeforeRecovery = expect(await request("/api/login", {
+  method: "POST", body: { username: secondSupervisorName, password: secondSupervisorPassword }, android: true
+}), 200, "Android session before account recovery");
+expect(await request("/api/mobile-pin/setup", { method: "POST", cookie: androidPinBeforeRecovery.cookie, android: true, body: { pin: "123456" } }), 200, "Set existing Android PIN before recovery");
 // Three incorrect account passwords lock the Individual account for the one-minute test window.
 expect(await request("/api/login", { method: "POST", body: { username: secondSupervisorName, password: secondSupervisorPassword + "wrong" } }), 401, "First failed Individual login");
 expect(await request("/api/login", { method: "POST", body: { username: secondSupervisorName, password: secondSupervisorPassword + "wrong" } }), 401, "Second failed Individual login");
@@ -338,11 +342,13 @@ expect(await request("/api/login", { method: "POST", body: { username: secondSup
 secondSupervisorPassword = newSecondSupervisorPassword;
 secondSupervisorLogin = expect(await request("/api/login", { method: "POST", body: { username: secondSupervisorName, password: secondSupervisorPassword } }), 200, "Supervisor login with recovered password");
 const androidPinSession = expect(await request("/api/login", { method: "POST", body: { username: secondSupervisorName, password: secondSupervisorPassword }, android: true }), 200, "Android session for PIN lockout");
-expect(await request("/api/mobile-pin/setup", { method: "POST", cookie: androidPinSession.cookie, android: true, body: { pin: "123456" } }), 200, "Create Android PIN without setup lockout");
+const pinStatusAfterRecovery = expect(await request("/api/mobile-pin/status", { cookie: androidPinSession.cookie, android: true }), 200, "Android PIN status after account recovery");
+assert(pinStatusAfterRecovery.data.configured === false, "Account recovery did not clear the old Android PIN.");
+expect(await request("/api/mobile-pin/setup", { method: "POST", cookie: androidPinSession.cookie, android: true, body: { pin: "654321" } }), 200, "Create replacement Android PIN without setup lockout");
 expect(await request("/api/mobile-pin/verify", { method: "POST", cookie: androidPinSession.cookie, android: true, body: { pin: "000000" } }), 403, "First wrong Android PIN");
 expect(await request("/api/mobile-pin/verify", { method: "POST", cookie: androidPinSession.cookie, android: true, body: { pin: "000000" } }), 403, "Second wrong Android PIN");
 expect(await request("/api/mobile-pin/verify", { method: "POST", cookie: androidPinSession.cookie, android: true, body: { pin: "000000" } }), 429, "Third wrong Android PIN locks entry");
-expect(await request("/api/mobile-pin/verify", { method: "POST", cookie: androidPinSession.cookie, android: true, body: { pin: "123456" } }), 429, "Correct Android PIN blocked during temporary lock");
+expect(await request("/api/mobile-pin/verify", { method: "POST", cookie: androidPinSession.cookie, android: true, body: { pin: "654321" } }), 429, "Correct Android PIN blocked during temporary lock");
 const secondStoredKey = expect(await request("/api/individual/supervision/keys", { cookie: secondSupervisorLogin.cookie }), 200, "Second Supervisor encrypted key retrieval");
 assert(secondStoredKey.data.key_bundle.public_key === secondSupervisorKey.body.public_key, "Supervisor recovery changed the public key and broke existing diary shares.");
 const unlockedSecondSupervisorKey = await unlockSupervisorKeyBundle(secondSupervisorPassword, secondStoredKey.data.key_bundle);
