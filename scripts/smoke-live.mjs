@@ -221,12 +221,18 @@ const secondSupervisorLogin = expect(await request("/api/login", {
 const secondStoredKey = expect(await request("/api/individual/supervision/keys", { cookie: secondSupervisorLogin.cookie }), 200, "Second Supervisor encrypted key retrieval");
 const unlockedSecondSupervisorKey = await unlockSupervisorKeyBundle(secondSupervisorPassword, secondStoredKey.data.key_bundle);
 expect(await request("/api/individual/supervision/requests", {
-  method: "POST", cookie: kidLogin.cookie, body: { code: secondSupervisor.data.supervisor_code, relationship: "Aunt" }
-}), 201, "Kid requests an additional Supervisor");
+  method: "POST", cookie: kidLogin.cookie, body: { code: secondSupervisor.data.supervisor_code }
+}), 201, "Kid requests an additional Supervisor without setting its relationship during registration");
 const pendingSecondLinkData = expect(await request("/api/individual/supervision", { cookie: kidLogin.cookie }), 200, "Kid pending second Supervisor link");
 const pendingSecondLink = pendingSecondLinkData.data.links.find(row => row.other_username === secondSupervisorName);
 assert(pendingSecondLink?.supervisor_public_key, "Kid cannot retrieve the second Supervisor public key.");
-assert(pendingSecondLink.relationship === "Aunt", "Additional Supervisor request did not store the Kid-selected relationship.");
+assert(!String(pendingSecondLink.relationship || "").trim(), "An additional Supervisor relationship should remain unset until the Kid sets it on the supervision page.");
+expect(await request("/api/individual/supervision/relationships/" + pendingSecondLink.link_id, {
+  method: "PUT", cookie: kidLogin.cookie, body: { relationship: "Aunt" }
+}), 200, "Kid sets an additional Supervisor relationship while the request is pending");
+const pendingRelationshipUpdate = expect(await request("/api/individual/supervision", { cookie: kidLogin.cookie }), 200, "Kid reads the newly set pending relationship");
+assert(pendingRelationshipUpdate.data.links.find(row => row.other_username === secondSupervisorName)?.relationship === "Aunt",
+  "Kid's pending Supervisor relationship did not persist.");
 assert(pendingSecondLink.other_real_name == null, "Kid saw the second Supervisor real name before acceptance.");
 const unacceptedShare = await makeDiaryKeyShare(pendingSecondLink.supervisor_public_key, testDiarySecret);
 expect(await request("/api/individual/supervision/key-shares", { method: "PUT", cookie: kidLogin.cookie,
@@ -244,6 +250,7 @@ assert(twoSupervisors.data.links.filter(row => row.status === "accepted").length
 const secondAcceptedLink = twoSupervisors.data.links.find(row => row.other_username === secondSupervisorName && row.status === "accepted");
 assert(secondAcceptedLink?.supervisor_public_key, "Second Supervisor public key was not shared with the Kid.");
 assert(secondAcceptedLink.other_real_name === "Second Supervisor " + suffix, "Kid did not see the second Supervisor real name after acceptance.");
+assert(secondAcceptedLink.relationship === "Aunt", "The relationship set on the Kid supervision page was lost when the Supervisor accepted.");
 const secondKeyShare = await makeDiaryKeyShare(secondAcceptedLink.supervisor_public_key, testDiarySecret);
 expect(await request("/api/individual/supervision/key-shares", { method: "PUT", cookie: kidLogin.cookie,
   body: { supervisor_user_id: secondAcceptedLink.other_user_id, ...secondKeyShare } }), 200, "Kid shares diary key with second Supervisor");
