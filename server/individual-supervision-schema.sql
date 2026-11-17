@@ -103,3 +103,24 @@ CREATE TABLE IF NOT EXISTS individual_supervisor_relationships (
   relationship TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
+
+
+-- Individual-only security controls. No Family authentication tables are changed.
+CREATE TABLE IF NOT EXISTS individual_login_security (
+  user_id TEXT PRIMARY KEY REFERENCES users(user_id) ON DELETE CASCADE,
+  failed_attempts INTEGER NOT NULL DEFAULT 0,
+  locked_until TEXT,
+  updated_at TEXT NOT NULL
+);
+
+-- Only a salted/derived verifier and client-encrypted key bundle are stored.
+-- The recovery code and decrypted diary/supervisor keys never reach the server.
+CREATE TABLE IF NOT EXISTS individual_account_recovery (
+  user_id TEXT PRIMARY KEY REFERENCES users(user_id) ON DELETE CASCADE,
+  code_hash TEXT NOT NULL,
+  encrypted_bundle TEXT NOT NULL,
+  salt TEXT NOT NULL,
+  iterations INTEGER NOT NULL,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
