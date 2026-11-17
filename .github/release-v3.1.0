@@ -1,0 +1,27 @@
+Gullak v3.1.0 — Individual Mode & Navigation Update
+
+This release completes the latest Individual-mode improvements and makes page navigation more predictable.
+
+INDIVIDUAL MODE
+
+- Set your relationship with each Supervisor: During Kid account creation, enter the relationship for each Supervisor you request.
+- Manage relationships separately: Each Supervisor connection keeps its own relationship label, so one connection does not overwrite another.
+- Add Supervisors later: A Kid can request another Supervisor from the My Supervisors page without having to choose the relationship as part of the code request.
+- Set or change later relationships: After requesting an additional Supervisor, set the relationship on the My Supervisors page. Existing relationship labels can be edited there at any time.
+- Cleaner relationship display: Saved relationship labels appear alongside the Supervisor account details, with a compact inline editor when a change is needed.
+- Create button follows diary state: Create your Gullak is shown only while an active Kid account has not created its diary. Once the diary exists, the button is removed and the page explains that the diary can be opened from Home.
+- Active Kid navigation: The active My Supervisors page now has a Back button to Settings. The pending/inactive account page keeps its intentionally restricted layout.
+
+NAVIGATION IMPROVEMENTS
+
+- Back now follows the actual navigation chain. For example, Home → Settings → Report Card returns to Settings, then Home.
+- Pressing Back removes the page being left from the chain, so it cannot send you forward again.
+- Navigating back to a page already in the chain trims later entries and prevents navigation loops.
+- If a page is opened directly, its previous link is missing, or a route is blocked and redirected, Back safely falls back to Home or follows the corrected destination.
+- Navigation records the page that is actually shown after route/security checks, not an invalid link.
+
+SCOPE
+
+- These feature updates focus on Individual mode.
+- No Family account, family-membership, or family-data workflow changes are included in this release.
+- No separate testing-only screens or modes are added.
