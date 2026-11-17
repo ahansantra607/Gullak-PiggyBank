@@ -489,6 +489,7 @@
     render: () => {
       const role = cloudUser?.role || 'kid';
       const kidActive = role === 'kid' && (supervisionData?.status || cloudUser?.status) === 'active';
+      const kidDiaryCreated = role === 'kid' && kidActive && supervisionData?.has_diary === true;
       const accountPending = role === 'kid' && !kidActive;
       const links = supervisionData?.links || [];
       const pending = links.filter(x => x.status === 'pending');
@@ -547,9 +548,9 @@
             <div class="kid-pending-art" aria-hidden="true">${G.piggy('happy', 112)}<i>${kidActive ? '✓' : '⌛'}</i></div>
             <p class="sup-eyebrow">YOUR INDIVIDUAL GULLAK</p>
             <h1>${kidActive ? 'Your Gullak is ready!' : 'Your Gullak is almost ready'}</h1>
-            <p>${kidActive ? 'A Supervisor has approved your account. You can now create and open your Gullak diary.' : 'Your account has been created. As soon as one Supervisor accepts your request, you can create and open your Gullak diary.'}</p>
-            <div class="kid-pending-status ${kidActive ? 'is-ready' : ''}"><span></span>${kidActive ? 'Account activated' : 'Waiting for Supervisor approval'}</div>
-            <button class="btn primary block kid-create-button" data-act="individual-continue" ${accountPending ? 'disabled aria-disabled="true"' : ''}>Create your Gullak</button>
+            <p>${kidDiaryCreated ? 'Your Gullak diary has been created. You can open it from Home.' : kidActive ? 'A Supervisor has approved your account. You can now create your Gullak diary.' : 'Your account has been created. As soon as one Supervisor accepts your request, you can create and open your Gullak diary.'}</p>
+            <div class="kid-pending-status ${kidActive ? 'is-ready' : ''}"><span></span>${kidDiaryCreated ? 'Gullak created' : kidActive ? 'Account activated' : 'Waiting for Supervisor approval'}</div>
+            ${kidDiaryCreated ? '' : '<button class="btn primary block kid-create-button" data-act="individual-continue" ' + (accountPending ? 'disabled aria-disabled="true"' : '') + '>Create your Gullak</button>'}
             ${accountPending ? '<button class="btn ghost block kid-pending-refresh" data-act="individual-refresh">↻ Check approval status</button>' : ''}
           </section>
           <section class="kid-pending-add">
