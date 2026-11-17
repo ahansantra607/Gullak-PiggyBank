@@ -65,14 +65,15 @@ async function openDiaryKeyShare(privateKey, share) {
 
 const cookieFrom = response => {
   const values = response.headers.getSetCookie?.() || [];
-  const value = values.find(item => item.startsWith("gullak_session="));
+  const value = values.find(item => item.startsWith("gullak_session=") || item.startsWith("gullak_android_session="));
   return value ? value.split(";")[0] : "";
 };
 
-async function request(path, { method = "GET", body, cookie } = {}) {
+async function request(path, { method = "GET", body, cookie, android = false } = {}) {
   const headers = { Origin: origin };
   if (body !== undefined) headers["Content-Type"] = "application/json";
   if (cookie) headers.Cookie = cookie;
+  if (android) headers["X-Gullak-Android"] = "1";
   const response = await fetch(apiUrl + path, {
     method, headers, body: body === undefined ? undefined : JSON.stringify(body),
     redirect: "manual", cache: "no-store"
@@ -143,6 +144,19 @@ assert(individual.cookie && individual.data.supervisor_code?.length === 10 && in
 const individualLogin = expect(await request("/api/login", {
   method: "POST", body: { username: individualName, password: "Individual-" + password }
 }), 200, "Individual Supervisor login");
+
+assert(individualLogin.cookie.startsWith("gullak_session="), "Browser login did not receive a browser-only session cookie.");
+expect(await request("/api/me", { cookie: individualLogin.cookie, android: true }), 401,
+  "Browser session rejected by Android authentication");
+const androidLogin = expect(await request("/api/login", {
+  method: "POST", body: { username: individualName, password }, android: true
+}), 200, "Android-isolated login");
+assert(androidLogin.cookie.startsWith("gullak_android_session="),
+  "Android login did not receive an Android-only session cookie.");
+expect(await request("/api/me", { cookie: androidLogin.cookie }), 401,
+  "Android session rejected by browser authentication");
+expect(await request("/api/me", { cookie: androidLogin.cookie, android: true }), 200,
+  "Android session accepted by Android authentication");
 assert(individualLogin.data.user.role === "supervisor" && individualLogin.data.user.status === "active",
   "Supervisor role/status was not returned after login.");
 const storedSupervisorKey = expect(await request("/api/individual/supervision/keys", { cookie: individualLogin.cookie }), 200, "Supervisor encrypted key retrieval");
