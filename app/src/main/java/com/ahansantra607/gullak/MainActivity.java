@@ -89,8 +89,73 @@ public class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        applyMajorVersionSessionPolicy();
         showLoading();
         checkForUpdate();
+    }
+
+    // Android sessions survive patch/minor updates, but are revoked when the
+    // installed app's major version changes (for example 3.x -> 4.x).
+    private void applyMajorVersionSessionPolicy() {
+        try {
+            String version = getPackageManager().getPackageInfo(getPackageName(), 0).versionName;
+            int currentMajor = majorVersion(version);
+            if (currentMajor < 0) return;
+
+            android.content.SharedPreferences prefs =
+                getSharedPreferences("gullak_update_policy", MODE_PRIVATE);
+            int previousMajor = prefs.getInt("last_seen_major", -1);
+
+            if (previousMajor >= 0 && previousMajor != currentMajor) {
+                CookieManager manager = CookieManager.getInstance();
+                String existingCookie = manager.getCookie(API_URL);
+                if (existingCookie != null && existingCookie.contains("gullak_android_session=")) {
+                    // Revoke the server-side Android session using the old cookie,
+                    // then expire only the Android API cookie. Never clear all cookies.
+                    executor.execute(() -> revokeAndroidSession(existingCookie));
+                    manager.setCookie(API_URL,
+                        "gullak_android_session=; Max-Age=0; Path=/; Secure; HttpOnly; SameSite=None",
+                        null);
+                    manager.flush();
+                }
+                pinConfigured = false;
+                pinCheckDone = false;
+                needsUnlock = false;
+            }
+
+            prefs.edit().putInt("last_seen_major", currentMajor).apply();
+        } catch (Exception ignored) {
+            // Do not block app startup if version metadata is unavailable.
+        }
+    }
+
+    private int majorVersion(String version) {
+        if (version == null) return -1;
+        try {
+            String first = version.split("\\\\.", -1)[0];
+            java.util.regex.Matcher matcher = java.util.regex.Pattern.compile("^(\\\\d+)").matcher(first);
+            return matcher.find() ? Integer.parseInt(matcher.group(1)) : -1;
+        } catch (Exception ignored) {
+            return -1;
+        }
+    }
+
+    private void revokeAndroidSession(String cookie) {
+        HttpURLConnection connection = null;
+        try {
+            connection = (HttpURLConnection) new URL(API_URL + "/api/logout").openConnection();
+            connection.setRequestMethod("POST");
+            connection.setConnectTimeout(7000);
+            connection.setReadTimeout(7000);
+            connection.setRequestProperty("Accept", "application/json");
+            connection.setRequestProperty("Origin", APP_ORIGIN);
+            connection.setRequestProperty("X-Gullak-Android", "1");
+            connection.setRequestProperty("Cookie", cookie);
+            connection.getResponseCode();
+        } catch (Exception ignored) {
+        } finally {
+            if (connection != null) connection.disconnect();
+        }
     }
 
     private void checkForUpdate() {
