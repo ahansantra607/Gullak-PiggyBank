@@ -466,7 +466,7 @@ export default {
           return json({ error: "Invalid username or password." }, 401);
         }
         const accountIdentity = await getCurrentUserAccountType(env, user.user_id);
-        if (expectedAccountType === "individual" && accountIdentity === "individual") {
+        if (accountIdentity === "individual") {
           const security = await env.gullak_db.prepare(
             "SELECT failed_attempts, locked_until FROM individual_login_security WHERE user_id = ?"
           ).bind(user.user_id).first<{ failed_attempts: number; locked_until: string | null }>();
