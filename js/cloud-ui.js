@@ -36,6 +36,72 @@
     catch (_) { lastSupervisorCode = ''; }
   }
 
+  function showIndividualRecoveryCode(code) {
+    return new Promise(resolve => {
+      const modal = G.modal({
+        html: '<h2>🔐 Save your Gullak recovery code</h2><p class="small muted">This code can reset your Individual account password and restore access to its encrypted key. Keep it private. Anyone who gets it can take over your account.</p><div class="sup-code-reveal"><span>YOUR NEW RECOVERY CODE</span><strong style="overflow-wrap:anywhere">' + esc(code) + '</strong><button class="btn soft block mt" data-act="copy-individual-recovery">📋 Copy recovery code</button><button class="btn ghost block mt" data-act="download-individual-recovery">⬇ Save as text file</button></div><label class="check-row mt"><input type="checkbox" id="individual-recovery-saved"> <span>I have saved this code somewhere safe.</span></label><button class="btn primary block mt" data-act="finish-individual-recovery">Continue</button>',
+        handlers: {
+          'copy-individual-recovery': () => { G.copy(code); G.toast('Recovery code copied.'); },
+          'download-individual-recovery': () => {
+            try {
+              const blob = new Blob(['Gullak Individual recovery code\\n\\n' + code + '\\n\\nKeep this code private.'], { type: 'text/plain;charset=utf-8' });
+              const url = URL.createObjectURL(blob);
+              const link = document.createElement('a');
+              link.href = url; link.download = 'Gullak-Recovery-Code.txt';
+              document.body.appendChild(link); link.click(); link.remove();
+              setTimeout(() => URL.revokeObjectURL(url), 1500);
+            } catch (_) { G.copy(code); G.toast('Could not download the file. The code was copied instead.'); }
+          },
+          'finish-individual-recovery': () => {
+            if (!G.$('#individual-recovery-saved', modal.el)?.checked) return G.toast('Please copy or save the recovery code first.');
+            modal.close(); resolve(true);
+          }
+        }
+      });
+    });
+  }
+
+  async function currentIndividualRecoveryPayload() {
+    if (!cloudUser || cloudUser.account_type !== 'individual') throw new Error('Sign in to an Individual account first.');
+    if (cloudUser.role === 'kid') {
+      if (!cloudSecret) throw new Error('Unlock the Kid diary before creating its recovery code.');
+      return { version: 1, role: 'kid', diary_secret: cloudSecret };
+    }
+    if (cloudUser.role === 'supervisor') {
+      if (!supervisorPrivateKey) {
+        const unlocked = await ensureSupervisorPrivateKey();
+        if (unlocked === null) return null;
+      }
+      const result = await G.cloud.loadSupervisorKey();
+      if (!result.exists || !result.key_bundle?.public_key) throw new Error('The Supervisor encryption key is unavailable.');
+      const privateBytes = new Uint8Array(await crypto.subtle.exportKey('pkcs8', supervisorPrivateKey));
+      return { version: 1, role: 'supervisor', public_key: result.key_bundle.public_key, private_key: G.cr.b64(privateBytes) };
+    }
+    throw new Error('This account type does not support Individual recovery codes.');
+  }
+
+  async function generateIndividualRecoveryCode(forceConfirm = true) {
+    if (!cloudUser || cloudUser.account_type !== 'individual') throw new Error('Sign in to an Individual account first.');
+    const status = await G.cloud.individualRecoveryStatus();
+    if (forceConfirm && status.configured) {
+      const replace = await G.confirm('Replace recovery code?', 'A new recovery code will immediately invalidate the previous one. Make sure you can save the new code.', 'Generate new code', 'Keep current code');
+      if (!replace) return false;
+    }
+    const payload = await currentIndividualRecoveryPayload();
+    if (!payload) return false;
+    const code = G.cr.makeIndividualRecoveryCode();
+    const envelope = await G.cr.wrapIndividualRecovery(code, payload);
+    await G.cloud.saveIndividualRecovery(code, envelope);
+    await showIndividualRecoveryCode(code);
+    return true;
+  }
+
+  async function ensureIndividualRecoverySetup() {
+    if (!cloudUser || cloudUser.account_type !== 'individual') return;
+    const status = await G.cloud.individualRecoveryStatus();
+    if (!status.configured) await generateIndividualRecoveryCode(false);
+  }
+
   G.cloudAccount = {
     setAuthMode(mode) { authMode = mode === 'register' ? 'register' : 'login'; G.render(); },
     get user() { return cloudUser; },
@@ -247,7 +313,7 @@
   };
 
   G.FREE_ROUTES = G.FREE_ROUTES || ['welcome', 'parent', 'reply'];
-  ['cloud-account', 'cloud-families', 'cloud-family-join', 'individual-supervision', 'supervised-kid'].forEach(route => {
+  ['cloud-account', 'cloud-recovery', 'cloud-families', 'cloud-family-join', 'individual-supervision', 'supervised-kid'].forEach(route => {
     if (!G.FREE_ROUTES.includes(route)) G.FREE_ROUTES.push(route);
   });
 
@@ -271,12 +337,14 @@
         ${authMode === 'login' && !(window.GullakNative && typeof window.GullakNative.onCloudReady === 'function') ? '<label class="check-row mt"><input id="cloud-stay-logged-in" type="checkbox"> <span>Stay logged in on this device</span></label><p class="hint">Keeps this device signed in while your secure 7-day cloud session is valid. You can still log out from Settings.</p>' : ''}
         <button class="btn primary block big" data-act="cloud-connect">${authMode === 'register' ? (registerRole === 'supervisor' ? 'Create Supervisor account' : 'Create Kid account') : 'Log in to Gullak'}</button>
         <button class="btn ghost block" data-act="cloud-mode">${authMode === 'register' ? 'I already have an account · Log in' : 'New here? · Create an account'}</button>
+        ${authMode === 'login' ? '<button class="btn ghost block" data-act="cloud-recover">Forgot password? Recover with a code</button>' : ''}
       </div>
       ${cloudUser ? '<section class="card"><h3>Account actions</h3><button class="btn ghost block" data-act="cloud-signout">Log out</button><button class="btn danger block mt" data-act="cloud-delete-account">Delete account</button></section>' : ''}
       <p class="fine">🔐 Kid diaries sync as encrypted data. Supervisor accounts manage Supervisor codes and requests separately from Kid diaries.</p>
     </section>`,
     handlers: () => ({
       'cloud-mode': () => { authMode = authMode === 'login' ? 'register' : 'login'; registerRole = 'supervisor'; G.render(); },
+      'cloud-recover': () => G.go('cloud-recovery'),
       'individual-role': el => { registerRole = el.dataset.v === 'kid' ? 'kid' : 'supervisor'; G.render(); },
       'cloud-signout': signOutFlow,
       'cloud-delete-account': deleteAccountFlow,
@@ -318,6 +386,7 @@
             if (G.setMode) G.setMode('individual');
             if (stayLoggedIn) { try { await G.cloud.rememberDevice(cloudSecret); } catch (_) {} }
             else { try { await G.cloud.clearRememberedDevice(); await G.cloud.rememberSessionDevice(cloudSecret); } catch (_) {} }
+            try { await ensureIndividualRecoverySetup(); } catch (recoveryError) { G.toast(recoveryError.message || 'You can create a recovery code later in account settings.'); }
             if (window.GullakNative && typeof window.GullakNative.onCloudReady === 'function') window.GullakNative.onCloudReady();
             G.go('individual-supervision');
             G.toast('Kid account created. It is locked until at least one Supervisor accepts. You can add more Supervisor codes here while you wait.', 6500);
@@ -331,6 +400,7 @@
             if (role === 'supervisor') {
               cloudSecret = '';
               supervisorPrivateKey = await G.cr.unlockSupervisorPrivateKey(password, supervisorKeyBundle);
+              try { await ensureIndividualRecoverySetup(); } catch (recoveryError) { G.toast(recoveryError.message || 'You can create a recovery code later in account settings.'); }
               if (stayLoggedIn) { try { await G.cloud.rememberDevice(''); } catch (_) {} }
               else { try { await G.cloud.clearRememberedDevice(); await G.cloud.rememberSessionDevice(''); } catch (_) {} }
               if (window.GullakNative && typeof window.GullakNative.onCloudReady === 'function') window.GullakNative.onCloudReady();
@@ -358,6 +428,10 @@
               await G.cloud.loadVault(cloudSecret);
               await G.cloud.saveKeyWrap(cloudSecret, password);
             }
+          }
+          if (authMode === 'login') {
+            try { await ensureIndividualRecoverySetup(); }
+            catch (recoveryError) { G.toast(recoveryError.message || 'You can create a recovery code later in account settings.'); }
           }
           if (authMode === 'login' && auth.user?.role === 'supervisor') {
             if (stayLoggedIn) { try { await G.cloud.rememberDevice(''); } catch (_) {} }
@@ -484,6 +558,67 @@
   };
 
 
+  G.screens['cloud-recovery'] = {
+    bare: true,
+    render: () => `<section class="ob">
+      <header class="page-h"><button class="back" data-act="go" data-to="cloud-account" aria-label="Back to login">←</button><h1>🔐 Recover Gullak account</h1></header>
+      <div class="card">
+        <p class="small muted">Use the recovery code you saved earlier. This works for both Individual Supervisor and Kid accounts, including accounts temporarily locked after failed logins.</p>
+        <label class="label" for="individual-recovery-username">Username</label>
+        <input class="input" id="individual-recovery-username" maxlength="24" autocomplete="username" placeholder="Your Gullak username">
+        <label class="label" for="individual-recovery-code">Recovery code</label>
+        <input class="input" id="individual-recovery-code" maxlength="64" autocomplete="off" placeholder="GULLAK-…">
+        <label class="label" for="individual-recovery-new-password">New account password</label>
+        <input class="input" id="individual-recovery-new-password" type="password" maxlength="128" autocomplete="new-password" placeholder="8+ chars: upper, lower, number & symbol">
+        <label class="label" for="individual-recovery-confirm">Re-enter new password</label>
+        <input class="input" id="individual-recovery-confirm" type="password" maxlength="128" autocomplete="new-password" placeholder="Type the new password again">
+        <p class="hint">Your recovery code also restores the encrypted key needed for your Individual diary. It does not delete your account or diary.</p>
+        <button class="btn primary block big" data-act="individual-recover-submit">Recover account</button>
+      </div>
+    </section>`,
+    handlers: () => ({
+      'individual-recover-submit': async button => {
+        const username = (G.$('#individual-recovery-username')?.value || '').trim().toLowerCase();
+        const code = (G.$('#individual-recovery-code')?.value || '').trim();
+        const password = G.$('#individual-recovery-new-password')?.value || '';
+        const confirmPassword = G.$('#individual-recovery-confirm')?.value || '';
+        const valid = password.length >= 8 && password.length <= 128 && /[a-z]/.test(password) && /[A-Z]/.test(password) && /[0-9]/.test(password) && /[^A-Za-z0-9 ]/.test(password);
+        if (!/^[a-z0-9_]{3,24}$/.test(username)) return G.toast('Enter your Gullak username.');
+        if (!code) return G.toast('Enter your recovery code.');
+        if (!valid) return G.toast('Use at least 8 characters with uppercase, lowercase, a number and a special character.');
+        if (password !== confirmPassword) return G.toast('The new passwords do not match.');
+        button.disabled = true; button.textContent = 'Recovering securely…';
+        try {
+          const prepared = await G.cloud.prepareIndividualRecovery(username, code);
+          const payload = await G.cr.unwrapIndividualRecovery(code, prepared);
+          if (!payload || payload.version !== 1 || payload.role !== prepared.role) throw new Error('This recovery code does not match the saved account key.');
+          let keyMaterial;
+          if (prepared.role === 'kid') {
+            if (!payload.diary_secret) throw new Error('The recovered Kid diary key is incomplete.');
+            const salt = G.cr.salt();
+            const wrapped = await G.cr.wrapWithSecret(password, salt, new TextEncoder().encode(payload.diary_secret), 310000);
+            keyMaterial = { key_wrap: { wrapped_secret: wrapped, salt, iterations: 310000 } };
+          } else if (prepared.role === 'supervisor') {
+            if (!payload.private_key || !payload.public_key) throw new Error('The recovered Supervisor key is incomplete.');
+            const privateKey = await crypto.subtle.importKey('pkcs8', G.cr.unb64(payload.private_key), { name: 'ECDH', namedCurve: 'P-256' }, false, ['deriveBits']);
+            keyMaterial = { supervisor_key: await G.cr.wrapSupervisorPrivateKey(password, payload.public_key, privateKey) };
+          } else {
+            throw new Error('This account role cannot use Individual recovery.');
+          }
+          await G.cloud.completeIndividualRecovery(username, code, password, keyMaterial);
+          await G.cloud.clearRememberedDevice().catch(() => {});
+          authMode = 'login';
+          G.go('cloud-account');
+          G.toast('Account password reset successfully. Your existing diary is preserved. Log in with your new password.');
+        } catch (error) {
+          G.toast(error.message || 'Recovery failed. Check your username and recovery code.');
+        } finally {
+          button.disabled = false; button.textContent = 'Recover account';
+        }
+      }
+    })
+  };
+
   G.screens['individual-supervision'] = {
     bare: true,
     render: () => {
@@ -540,7 +675,8 @@
             <div class="sup-section-head"><div><p class="sup-eyebrow">YOUR CONNECTIONS</p><h2>Kids you supervise <span class="sup-count">${accepted.length}</span></h2></div></div>
             ${accepted.length ? '<div class="sup-kid-list">' + accepted.map(x => `<article class="sup-kid"><span class="sup-avatar">🧒</span><div class="sup-kid-info"><b>${esc(x.other_real_name || x.other_username)}</b><p>${esc(x.other_username)} · ${!x.has_key_share ? 'Waiting for diary access to be shared' : !x.has_diary ? 'Diary not created yet' : 'Diary ready'}</p></div>${!x.has_key_share || !x.has_diary ? '<span class="sup-status-wait">Waiting</span>' : `<button class="btn small primary" data-act="open-supervised-kid" data-id="${esc(x.other_user_id)}" data-name="${esc(x.other_username)}">Open diary →</button>`}</article>`).join('') + '</div>' : '<div class="sup-empty"><span>🌱</span><b>Your list starts here</b><p>Once you accept a Kid’s request, they’ll appear in this section.</p></div>'}
           </section>
-          <footer class="sup-account-actions"><button class="btn" data-act="individual-logout">Log out</button><button class="btn danger" data-act="cloud-delete-account">Delete Supervisor account</button></footer>
+          <section class="card"><h2>🔐 Account recovery</h2><p class="small muted">Keep a recovery code somewhere safe. Replacing it invalidates the previous code.</p><button class="btn soft block" data-act="individual-recovery-code">Generate / replace recovery code</button></section>
+                    <footer class="sup-account-actions"><button class="btn" data-act="individual-logout">Log out</button><button class="btn danger" data-act="cloud-delete-account">Delete Supervisor account</button></footer>
         </div>`;
       if (role === 'kid') return `
         <main class="kid-pending kid-supervision-kid">
@@ -577,7 +713,8 @@
               <span class="kid-pending-tag ${x.status === 'accepted' ? 'accepted' : x.status === 'rejected' ? 'declined' : ''}">${x.status === 'accepted' ? 'Accepted' : x.status === 'rejected' ? 'Declined' : 'Pending'}</span>
             </div>`).join('') : '<div class="kid-pending-empty"><span>📭</span><b>No Supervisor requests yet</b><p>Add a Supervisor code above to send your first request.</p></div>'}
           </section>
-          <button class="btn block kid-pending-logout" data-act="individual-logout">Log out</button>
+          <section class="card"><h2>🔐 Account recovery</h2><p class="small muted">Keep a recovery code somewhere safe. Replacing it invalidates the previous code.</p><button class="btn soft block" data-act="individual-recovery-code">Generate / replace recovery code</button></section>
+                    <button class="btn block kid-pending-logout" data-act="individual-logout">Log out</button>
         </main>`;
     },
     after: root => {
@@ -617,6 +754,12 @@
         } catch (error) { G.toast(error.message || 'Could not open this Kid diary.'); }
       },
       'individual-copy-code': () => { if (!lastSupervisorCode) return; G.copy(lastSupervisorCode); },
+      'individual-recovery-code': async button => {
+        button.disabled = true;
+        try { await generateIndividualRecoveryCode(true); }
+        catch (error) { G.toast(error.message || 'Could not generate a recovery code.'); }
+        finally { button.disabled = false; }
+      },
       'individual-new-code': async button => {
         button.disabled = true;
         try { const result = await G.cloud.createSupervisorCode(); rememberSupervisorCode(result.code); supervisionData = null; G.render({ keepScroll: true }); }
@@ -774,12 +917,18 @@
     G.screens.settings.render = q => {
       let html = settingsRenderBeforeSupervision(q);
       if (G.mode?.() !== 'family' && cloudUser?.account_type === 'individual') {
-        html = html.replace('<section class="card small muted"><h3>About Gullak</h3>', '<section class="card"><h3>🛡️ Supervisors</h3><p class="small muted">Manage Supervisor requests, share your code, or add another Supervisor.</p><button class="btn soft block" data-act="individual-supervision">Manage Supervisors</button></section><section class="card small muted"><h3>About Gullak</h3>');
+        html = html.replace('<section class="card small muted"><h3>About Gullak</h3>', '<section class="card"><h3>🔐 Account recovery</h3><p class="small muted">Create a recovery code or replace the current one. Replacing it immediately invalidates the previous code.</p><button class="btn soft block" data-act="individual-recovery-code">Generate / replace recovery code</button></section><section class="card"><h3>🛡️ Supervisors</h3><p class="small muted">Manage Supervisor requests, share your code, or add another Supervisor.</p><button class="btn soft block" data-act="individual-supervision">Manage Supervisors</button></section><section class="card small muted"><h3>About Gullak</h3>');
       }
       return html;
     };
     G.screens.settings.handlers = q => Object.assign(settingsHandlersBeforeSupervision(q), {
       'individual-supervision': () => G.go('individual-supervision'),
+      'individual-recovery-code': async button => {
+        button.disabled = true;
+        try { await generateIndividualRecoveryCode(true); }
+        catch (error) { G.toast(error.message || 'Could not generate a recovery code.'); }
+        finally { button.disabled = false; }
+      },
       'cloud-signout': signOutFlow,
       'cloud-delete-account': deleteAccountFlow
     });
