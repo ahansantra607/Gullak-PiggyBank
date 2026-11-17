@@ -544,6 +544,7 @@
         </div>`;
       if (role === 'kid') return `
         <main class="kid-pending kid-supervision-kid">
+          ${kidActive ? '<header class="page-h"><button class="back" data-act="go" data-to="settings" aria-label="Back to Settings">←</button><h1>🛡️ Supervisors</h1></header>' : ''}
           <section class="kid-pending-hero">
             <div class="kid-pending-art" aria-hidden="true">${G.piggy('happy', 112)}<i>${kidActive ? '✓' : '⌛'}</i></div>
             <p class="sup-eyebrow">YOUR INDIVIDUAL GULLAK</p>
