@@ -751,3 +751,11 @@ button.recovery-login-link.individual-recovery-action:active {
   font-weight:750!important;
   margin:7px 0 9px!important;
 }
+
+/* Keep the recovery copy action in its original blue accent. */
+.recovery-save-modal .recovery-copy {
+  background:#1769aa!important;
+  color:#fff!important;
+  border:2px solid #0d4f86!important;
+  box-shadow:0 4px 0 #0d4f86!important;
+}
