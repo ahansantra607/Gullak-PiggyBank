@@ -761,32 +761,32 @@ button.recovery-login-link.individual-recovery-action:active {
 }
 
 
-/* Recovery popup actions: first two share a clearer blue; Continue stays distinct. */
+/* Recovery popup actions: Copy and Download share Gullak blue; Continue uses Gullak purple. */
 .recovery-save-modal .recovery-copy,
 .recovery-save-modal .recovery-download {
-  background:#d5e7f2!important;
-  color:#294e66!important;
-  border:1px solid #a9c7da!important;
-  box-shadow:0 3px 0 #b8d1e0!important;
+  background:#1769aa!important;
+  color:#fff!important;
+  border:2px solid #0d4f86!important;
+  box-shadow:0 4px 0 #0d4f86!important;
   font-weight:750!important;
 }
 .recovery-save-modal .recovery-continue {
-  background:#e4dcef!important;
-  color:#51406c!important;
-  border:1px solid #c7b6d9!important;
-  box-shadow:0 3px 0 #d1c2e0!important;
+  background:#7651a8!important;
+  color:#fff!important;
+  border:2px solid #56377f!important;
+  box-shadow:0 4px 0 #56377f!important;
   font-weight:750!important;
 }
 .recovery-save-modal .recovery-copy:active,
 .recovery-save-modal .recovery-download:active {
-  background:#c7deed!important;
-  color:#24465d!important;
+  background:#12588f!important;
+  color:#fff!important;
   transform:translateY(2px);
-  box-shadow:0 1px 0 #b8d1e0!important;
+  box-shadow:0 1px 0 #0d4f86!important;
 }
 .recovery-save-modal .recovery-continue:active {
-  background:#d9cde8!important;
-  color:#49385f!important;
+  background:#65438f!important;
+  color:#fff!important;
   transform:translateY(2px);
-  box-shadow:0 1px 0 #d1c2e0!important;
+  box-shadow:0 1px 0 #56377f!important;
 }
