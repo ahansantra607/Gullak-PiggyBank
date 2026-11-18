@@ -79,7 +79,7 @@
     }
     const sc = G.screens[name];
     const view = document.getElementById('view'); const y = window.scrollY;
-    G.handlers = Object.assign({ go: (el) => (el.classList.contains('back') ? G.back() : G.go(el.dataset.to)), speak: (el) => G.speak(el.dataset.text, true) }, sc.handlers ? sc.handlers(q) : {});
+    G.handlers = Object.assign({ go: (el) => (el.classList.contains('back') && !(el.dataset.to && !G.S.profile) ? G.back() : G.go(el.dataset.to)), speak: (el) => G.speak(el.dataset.text, true) }, sc.handlers ? sc.handlers(q) : {});
     try { view.innerHTML = sc.render(q); }
     catch (e) { console.error(e); view.innerHTML = `<section class="card center">${G.piggy('worried', 120)}<h2>Oops, something broke 😕</h2><p class="muted small">${G.esc(e.message)}</p><a class="btn soft" href="#/home">Go home</a></section>`; }
     view.className = 'view screen-' + name;
