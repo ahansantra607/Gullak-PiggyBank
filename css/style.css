@@ -668,3 +668,18 @@ select.input { appearance: auto; }
 .kid-supervisor-relation-fields{display:flex;align-items:center;gap:8px;width:100%}
 .kid-supervisor-relation-fields .input{flex:1 1 0;width:0;min-width:0;min-height:40px;margin:0;padding:8px 10px;box-sizing:border-box;text-align:left}
 .kid-supervisor-relation-fields .btn{flex:none;min-height:40px;padding:8px 14px}
+
+
+/* Individual recovery and registration actions: compact, high-contrast controls */
+.recovery-save-modal .sup-code-reveal{padding:14px;border-radius:16px}
+.recovery-save-modal .recovery-copy{background:var(--pri);color:#fff;box-shadow:0 4px 0 var(--pri-d);font-size:15px;min-height:44px;white-space:nowrap}
+.recovery-save-modal .recovery-download{background:var(--blue);color:#fff;box-shadow:0 4px 0 #2f78b8;font-size:14px;min-height:44px;padding:10px 12px;white-space:nowrap}
+.recovery-save-modal .recovery-continue{font-size:15px;min-height:46px;white-space:nowrap}
+.cloud-register-submit{font-size:15px!important;padding:10px 12px!important;min-height:48px!important;white-space:nowrap}
+.individual-recovery-action{font-size:14px!important;padding:10px 12px!important;min-height:44px!important;white-space:nowrap}
+@media(max-width:420px){
+ .recovery-save-modal .sup-code-reveal{padding:12px}
+ .recovery-save-modal .recovery-copy,.recovery-save-modal .recovery-download{font-size:13px;padding:9px 10px;min-height:42px}
+ .cloud-register-submit{font-size:14px!important;padding:9px 10px!important}
+ .individual-recovery-action{font-size:13px!important;padding:9px 10px!important}
+}
