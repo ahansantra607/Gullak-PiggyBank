@@ -41,7 +41,6 @@
       let finished = false;
       const saveControl = '<button class="btn block mt recovery-download" data-act="download-individual-recovery">⬇ Download recovery file (.txt)</button>';
       const modal = G.modal({
-        topBtn: { act: 'later', label: 'Later' },
         onClose: () => { if (!finished) resolve(false); },
         html: '<div class="recovery-save-modal"><h2>🔐 Save your Gullak recovery code</h2><p class="small muted">This code can reset your Individual account password and restore access to its encrypted key. Keep it private. Anyone who gets it can take over your account.</p><div class="sup-code-reveal"><span>YOUR NEW RECOVERY CODE</span><strong style="overflow-wrap:anywhere">' + esc(code) + '</strong><button class="btn primary block mt recovery-copy" data-act="copy-individual-recovery">📋 Copy code</button>' + saveControl + '</div><label class="check-row mt"><input type="checkbox" id="individual-recovery-saved"> <span>I have saved this code somewhere safe.</span></label><button class="btn primary block mt recovery-continue" data-act="finish-individual-recovery">Continue</button></div>',
         handlers: {
@@ -61,7 +60,6 @@
               setTimeout(() => URL.revokeObjectURL(url), 1500);
             } catch (_) { G.copy(code); G.toast('Could not download the file. The code was copied instead.'); }
           },
-          'later': () => { modal.close(); G.toast('This code will not be shown again. If you did not save it, generate a replacement from Account recovery.'); },
           'finish-individual-recovery': () => {
             if (!G.$('#individual-recovery-saved', modal.el)?.checked) return G.toast('Please copy or save the recovery code first.');
             finished = true; modal.close(); resolve(true);
@@ -363,7 +361,7 @@
         ${authMode === 'register' && registerRole === 'kid' ? '<label class="label" for="cloud-secret">Separate encryption passphrase</label><div style="position:relative;width:100%"><input class="input" style="width:100%;box-sizing:border-box;padding-right:44px" id="cloud-secret" type="password" maxlength="256" autocomplete="new-password" placeholder="Choose a different passphrase"><span id="cloud-secret-status" aria-live="polite" style="display:none;position:absolute;right:12px;top:50%;transform:translateY(-50%);pointer-events:none;font-size:22px;font-weight:700"></span></div><div id="cloud-secret-rules" class="password-rules" aria-live="polite"><div class="password-rules-title">Encryption passphrase check</div><div data-rule="secret-length"><span>○</span> At least 10 characters</div><div data-rule="secret-different"><span>○</span> Different from account password</div></div><label class="label" for="cloud-secret-confirm">Re-enter encryption passphrase</label><div style="position:relative;width:100%"><input class="input" style="width:100%;box-sizing:border-box;padding-right:44px" id="cloud-secret-confirm" type="password" maxlength="256" autocomplete="new-password" placeholder="Type it again"><span id="cloud-secret-match-status" aria-live="polite" style="display:none;position:absolute;right:12px;top:50%;transform:translateY(-50%);pointer-events:none;font-size:22px;font-weight:700"></span></div><p class="hint">This protects the Kid diary. Use at least 10 characters and make it different from your account password. The encrypted diary is unlocked automatically after login.</p>' : ''}
         ${authMode === 'login' && !(window.GullakNative && typeof window.GullakNative.onCloudReady === 'function') ? '<label class="check-row mt"><input id="cloud-stay-logged-in" type="checkbox"> <span>Stay logged in on this device</span></label><p class="hint">Keeps this device signed in while your secure 7-day cloud session is valid. You can still log out from Settings.</p>' : ''}
         <button class="btn primary block big ${authMode === 'register' ? 'cloud-register-submit' : ''}" data-act="cloud-connect">${authMode === 'register' ? (registerRole === 'supervisor' ? 'Create Supervisor' : 'Create Kid account') : 'Log in to Gullak'}</button>
-        <button class="btn ghost block" data-act="cloud-mode">${authMode === 'register' ? 'I already have an account · Log in' : 'New here? · Create an account'}</button>
+        <button class="btn ghost block" data-act="cloud-mode">${authMode === 'register' ? 'I already have an account · Log in' : 'Create account'}</button>
         ${authMode === 'login' ? '<button class="btn ghost block" data-act="cloud-recover">Forgot password? Recover with a code</button>' : ''}
       </div>
       ${cloudUser ? '<section class="card"><h3>Account actions</h3><button class="btn ghost block" data-act="cloud-signout">Log out</button><button class="btn danger block mt" data-act="cloud-delete-account">Delete account</button></section>' : ''}
