@@ -761,21 +761,32 @@ button.recovery-login-link.individual-recovery-action:active {
 }
 
 
-/* Recovery popup actions: a quieter, coordinated Gullak palette. */
+/* Recovery popup actions: first two share a clearer blue; Continue stays distinct. */
 .recovery-save-modal .recovery-copy,
-.recovery-save-modal .recovery-download,
+.recovery-save-modal .recovery-download {
+  background:#d5e7f2!important;
+  color:#294e66!important;
+  border:1px solid #a9c7da!important;
+  box-shadow:0 3px 0 #b8d1e0!important;
+  font-weight:750!important;
+}
 .recovery-save-modal .recovery-continue {
-  background:#eaf1f5!important;
-  color:#365469!important;
-  border:1px solid #cbd9e2!important;
-  box-shadow:0 3px 0 #d7e2e9!important;
+  background:#e4dcef!important;
+  color:#51406c!important;
+  border:1px solid #c7b6d9!important;
+  box-shadow:0 3px 0 #d1c2e0!important;
   font-weight:750!important;
 }
 .recovery-save-modal .recovery-copy:active,
-.recovery-save-modal .recovery-download:active,
-.recovery-save-modal .recovery-continue:active {
-  background:#e1eaf0!important;
-  color:#2f4d61!important;
+.recovery-save-modal .recovery-download:active {
+  background:#c7deed!important;
+  color:#24465d!important;
   transform:translateY(2px);
-  box-shadow:0 1px 0 #d7e2e9!important;
+  box-shadow:0 1px 0 #b8d1e0!important;
+}
+.recovery-save-modal .recovery-continue:active {
+  background:#d9cde8!important;
+  color:#49385f!important;
+  transform:translateY(2px);
+  box-shadow:0 1px 0 #d1c2e0!important;
 }
