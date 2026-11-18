@@ -1393,7 +1393,7 @@
   }
 
   const routeGuardBeforeCloud = G.routeGuard;
-  G.routeGuard = (name, q) => ['cloud-account', 'cloud-families', 'cloud-family-join'].includes(name) ? null :
+  G.routeGuard = (name, q) => ['cloud-account', 'cloud-recovery', 'cloud-families', 'cloud-family-join'].includes(name) ? null :
     (routeGuardBeforeCloud ? routeGuardBeforeCloud(name, q) : null);
 
   const settings = G.screens.settings;
