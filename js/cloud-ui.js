@@ -362,7 +362,7 @@
         ${authMode === 'login' && !(window.GullakNative && typeof window.GullakNative.onCloudReady === 'function') ? '<label class="check-row mt"><input id="cloud-stay-logged-in" type="checkbox"> <span>Stay logged in on this device</span></label><p class="hint">Keeps this device signed in while your secure 7-day cloud session is valid. You can still log out from Settings.</p>' : ''}
         <button class="btn primary block big ${authMode === 'register' ? 'cloud-register-submit' : ''}" data-act="cloud-connect">${authMode === 'register' ? (registerRole === 'supervisor' ? 'Create Supervisor' : 'Create Kid account') : 'Log in to Gullak'}</button>
         <button class="btn ghost block" data-act="cloud-mode">${authMode === 'register' ? 'I already have an account · Log in' : 'Create account'}</button>
-        ${authMode === 'login' ? '<button class="btn ghost block" data-act="cloud-recover">Forgot password? Recover with a code</button>' : ''}
+        ${authMode === 'login' ? '<button class="btn block recovery-login-link" data-act="cloud-recover">Forgot password? Recover account</button>' : ''}
       </div>
       ${cloudUser ? '<section class="card"><h3>Account actions</h3><button class="btn ghost block" data-act="cloud-signout">Log out</button><button class="btn danger block mt" data-act="cloud-delete-account">Delete account</button></section>' : ''}
       <p class="fine">🔐 Kid diaries sync as encrypted data. Supervisor accounts manage Supervisor codes and requests separately from Kid diaries.</p>
