@@ -703,7 +703,7 @@
             <div class="sup-section-head"><div><p class="sup-eyebrow">YOUR CONNECTIONS</p><h2>Kids you supervise <span class="sup-count">${accepted.length}</span></h2></div></div>
             ${accepted.length ? '<div class="sup-kid-list">' + accepted.map(x => `<article class="sup-kid"><span class="sup-avatar">🧒</span><div class="sup-kid-info"><b>${esc(x.other_real_name || x.other_username)}</b><p>${esc(x.other_username)} · ${!x.has_key_share ? 'Waiting for diary access to be shared' : !x.has_diary ? 'Diary not created yet' : 'Diary ready'}</p></div>${!x.has_key_share || !x.has_diary ? '<span class="sup-status-wait">Waiting</span>' : `<button class="btn small primary" data-act="open-supervised-kid" data-id="${esc(x.other_user_id)}" data-name="${esc(x.other_username)}">Open diary →</button>`}</article>`).join('') + '</div>' : '<div class="sup-empty"><span>🌱</span><b>Your list starts here</b><p>Once you accept a Kid’s request, they’ll appear in this section.</p></div>'}
           </section>
-          <section class="card"><h2>🔐 Account recovery</h2><p class="small muted">Keep a recovery code somewhere safe. Replacing it invalidates the previous code.</p><button class="btn soft block individual-recovery-action" data-act="individual-recovery-code">Replace recovery code</button></section>
+          <section class="card"><h2>🔐 Account recovery</h2><p class="small muted">Keep a recovery code somewhere safe. Replacing it invalidates the previous code.</p><button class="btn block recovery-login-link individual-recovery-action" data-act="individual-recovery-code">Replace recovery code</button></section>
                     <footer class="sup-account-actions"><button class="btn" data-act="individual-logout">Log out</button><button class="btn danger" data-act="cloud-delete-account">Delete Supervisor account</button></footer>
         </div>`;
       if (role === 'kid') return `
@@ -741,7 +741,7 @@
               <span class="kid-pending-tag ${x.status === 'accepted' ? 'accepted' : x.status === 'rejected' ? 'declined' : ''}">${x.status === 'accepted' ? 'Accepted' : x.status === 'rejected' ? 'Declined' : 'Pending'}</span>
             </div>`).join('') : '<div class="kid-pending-empty"><span>📭</span><b>No Supervisor requests yet</b><p>Add a Supervisor code above to send your first request.</p></div>'}
           </section>
-          <section class="card"><h2>🔐 Account recovery</h2><p class="small muted">Keep a recovery code somewhere safe. Replacing it invalidates the previous code.</p><button class="btn soft block individual-recovery-action" data-act="individual-recovery-code">Replace recovery code</button></section>
+          <section class="card"><h2>🔐 Account recovery</h2><p class="small muted">Keep a recovery code somewhere safe. Replacing it invalidates the previous code.</p><button class="btn block recovery-login-link individual-recovery-action" data-act="individual-recovery-code">Replace recovery code</button></section>
                     <button class="btn block kid-pending-logout" data-act="individual-logout">Log out</button>
         </main>`;
     },
@@ -945,7 +945,7 @@
     G.screens.settings.render = q => {
       let html = settingsRenderBeforeSupervision(q);
       if (G.mode?.() !== 'family' && cloudUser?.account_type === 'individual') {
-        html = html.replace('<section class="card small muted"><h3>About Gullak</h3>', '<section class="card"><h3>🔐 Account recovery</h3><p class="small muted">Create a recovery code or replace the current one. Replacing it immediately invalidates the previous code.</p><button class="btn soft block individual-recovery-action" data-act="individual-recovery-code">Replace recovery code</button></section><section class="card"><h3>🛡️ Supervisors</h3><p class="small muted">Manage Supervisor requests, share your code, or add another Supervisor.</p><button class="btn soft block" data-act="individual-supervision">Manage Supervisors</button></section><section class="card small muted"><h3>About Gullak</h3>');
+        html = html.replace('<section class="card small muted"><h3>About Gullak</h3>', '<section class="card"><h3>🔐 Account recovery</h3><p class="small muted">Create a recovery code or replace the current one. Replacing it immediately invalidates the previous code.</p><button class="btn block recovery-login-link individual-recovery-action" data-act="individual-recovery-code">Replace recovery code</button></section><section class="card"><h3>🛡️ Supervisors</h3><p class="small muted">Manage Supervisor requests, share your code, or add another Supervisor.</p><button class="btn soft block" data-act="individual-supervision">Manage Supervisors</button></section><section class="card small muted"><h3>About Gullak</h3>');
       }
       return html;
     };
