@@ -735,3 +735,19 @@ button.recovery-login-link.individual-recovery-action:active {
     padding:9px 10px!important;
   }
 }
+
+
+/* Recovery modal: use Gullak's established purple primary palette and balanced code sizing. */
+.recovery-save-modal .recovery-copy {
+  background:var(--pri)!important;
+  color:#fff!important;
+  border:2px solid var(--pri-d)!important;
+  box-shadow:0 4px 0 var(--pri-d)!important;
+}
+.recovery-save-modal .sup-code-reveal strong {
+  font-size:clamp(18px,5vw,22px)!important;
+  line-height:1.3!important;
+  letter-spacing:1.4px!important;
+  font-weight:750!important;
+  margin:7px 0 9px!important;
+}
