@@ -363,7 +363,7 @@
         <button class="btn primary block big ${authMode === 'register' ? 'cloud-register-submit' : ''}" data-act="cloud-connect">${authMode === 'register' ? (registerRole === 'supervisor' ? 'Create Supervisor' : 'Create Kid account') : 'Log in to Gullak'}</button>
         <div class="login-secondary-actions">
           <button class="btn ghost block" data-act="cloud-mode">${authMode === 'register' ? 'I already have an account · Log in' : 'Create account'}</button>
-          ${authMode === 'login' ? '<button class="btn ghost block recovery-login-spacing" data-act="cloud-recover">Forgot password?</button>' : ''}
+          ${authMode === 'login' ? '<button class="btn ghost block recovery-login-spacing" data-act="cloud-recover">Forgot password? Recover account</button>' : ''}
         </div>
       </div>
       ${cloudUser ? '<section class="card"><h3>Account actions</h3><button class="btn ghost block" data-act="cloud-signout">Log out</button><button class="btn danger block mt" data-act="cloud-delete-account">Delete account</button></section>' : ''}
