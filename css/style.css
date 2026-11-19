@@ -795,4 +795,4 @@ button.recovery-login-link.individual-recovery-action:active {
 /* Login recovery: same full-size ghost button as Create account, with a tight gap. */
 
 /* Keep the login recovery action close to Create account without changing its size. */
-.btn.block.recovery-login-spacing { margin-top: 2px; }
+.btn.block.recovery-login-spacing { margin-top: -4px !important; }
