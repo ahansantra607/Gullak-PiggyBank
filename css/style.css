@@ -672,10 +672,10 @@ select.input { appearance: auto; }
 
 /* Individual recovery and registration actions: compact, high-contrast controls */
 .recovery-save-modal .sup-code-reveal{padding:14px;border-radius:16px}
-.recovery-save-modal .recovery-copy{background:#1769aa;color:#fff;border:2px solid #0d4f86;box-shadow:0 4px 0 #0d4f86;font-size:15px;min-height:46px;white-space:nowrap}
-.recovery-save-modal .recovery-download{background:#7651a8;color:#fff;border:2px solid #56377f;box-shadow:0 4px 0 #56377f;font-size:14px;min-height:46px;padding:10px 12px;white-space:nowrap}
+.recovery-save-modal .recovery-copy{background:var(--pri);color:#fff;border:2px solid var(--pri-d);box-shadow:0 4px 0 var(--pri-d);font-size:15px;min-height:46px;white-space:nowrap}
+.recovery-save-modal .recovery-download{background:var(--pri);color:#fff;border:2px solid var(--pri-d);box-shadow:0 4px 0 var(--pri-d);font-size:14px;min-height:46px;padding:10px 12px;white-space:nowrap}
 .recovery-save-modal .recovery-copy:focus-visible,.recovery-save-modal .recovery-download:focus-visible,.recovery-login-link:focus-visible{outline:3px solid var(--ink);outline-offset:3px}
-.recovery-login-link{margin-top:10px;background:#1769aa;color:#fff;border:2px solid #0d4f86;box-shadow:0 3px 0 #0d4f86;font-size:14px;min-height:42px;padding:9px 12px}
+.recovery-login-link{margin-top:10px;background:var(--pri);color:#fff;border:2px solid var(--pri-d);box-shadow:0 3px 0 var(--pri-d);font-size:14px;min-height:42px;padding:9px 12px}
 .recovery-save-modal .recovery-continue{font-size:15px;min-height:46px;white-space:nowrap}
 .cloud-register-submit{font-size:15px!important;padding:10px 12px!important;min-height:48px!important;white-space:nowrap}
 .individual-recovery-action{font-size:14px!important;padding:10px 12px!important;min-height:44px!important;white-space:nowrap}
@@ -695,11 +695,11 @@ button.recovery-login-link.individual-recovery-action {
   display:block!important;
   width:100%!important;
   box-sizing:border-box!important;
-  background:#1769aa!important;
+  background:var(--pri)!important;
   color:#fff!important;
-  border:2px solid #0d4f86!important;
+  border:2px solid var(--pri-d)!important;
   border-radius:14px!important;
-  box-shadow:0 3px 0 #0d4f86!important;
+  box-shadow:0 3px 0 var(--pri-d)!important;
   font-size:14px!important;
   font-weight:750!important;
   line-height:1.25!important;
@@ -711,10 +711,10 @@ button.recovery-login-link.individual-recovery-action {
 }
 button.recovery-login-link:active,
 button.recovery-login-link.individual-recovery-action:active {
-  background:#12588f!important;
+  background:var(--pri-d)!important;
   color:#fff!important;
   transform:translateY(2px);
-  box-shadow:0 1px 0 #0d4f86!important;
+  box-shadow:0 1px 0 var(--pri-d)!important;
 }
 .recovery-save-modal .recovery-copy,
 .recovery-save-modal .recovery-download {
@@ -752,43 +752,43 @@ button.recovery-login-link.individual-recovery-action:active {
   margin:7px 0 9px!important;
 }
 
-/* Keep the recovery copy action in its original blue accent. */
+/* Keep recovery actions within Gullak's established purple palette. */
 .recovery-save-modal .recovery-copy {
-  background:#1769aa!important;
+  background:var(--pri)!important;
   color:#fff!important;
-  border:2px solid #0d4f86!important;
-  box-shadow:0 4px 0 #0d4f86!important;
+  border:2px solid var(--pri-d)!important;
+  box-shadow:0 4px 0 var(--pri-d)!important;
 }
 
 
-/* Recovery popup actions: Copy and Download share Gullak blue; Continue uses Gullak purple. */
+/* Recovery popup actions: Copy, Download and Continue use Gullak's established purple palette. */
 .recovery-save-modal .recovery-copy,
 .recovery-save-modal .recovery-download {
-  background:#1769aa!important;
+  background:var(--pri)!important;
   color:#fff!important;
-  border:2px solid #0d4f86!important;
-  box-shadow:0 4px 0 #0d4f86!important;
+  border:2px solid var(--pri-d)!important;
+  box-shadow:0 4px 0 var(--pri-d)!important;
   font-weight:750!important;
 }
 .recovery-save-modal .recovery-continue {
-  background:#7651a8!important;
+  background:var(--pri)!important;
   color:#fff!important;
-  border:2px solid #56377f!important;
-  box-shadow:0 4px 0 #56377f!important;
+  border:2px solid var(--pri-d)!important;
+  box-shadow:0 4px 0 var(--pri-d)!important;
   font-weight:750!important;
 }
 .recovery-save-modal .recovery-copy:active,
 .recovery-save-modal .recovery-download:active {
-  background:#12588f!important;
+  background:var(--pri-d)!important;
   color:#fff!important;
   transform:translateY(2px);
-  box-shadow:0 1px 0 #0d4f86!important;
+  box-shadow:0 1px 0 var(--pri-d)!important;
 }
 .recovery-save-modal .recovery-continue:active {
-  background:#65438f!important;
+  background:var(--pri-d)!important;
   color:#fff!important;
   transform:translateY(2px);
-  box-shadow:0 1px 0 #56377f!important;
+  box-shadow:0 1px 0 var(--pri-d)!important;
 }
 
 
