@@ -797,3 +797,12 @@ button.recovery-login-link.individual-recovery-action:active {
 .login-secondary-actions > .btn.block { margin-top: 10px; }
 .login-secondary-actions > .btn.block:first-child { margin-bottom: -8px !important; }
 .login-secondary-actions > .btn.block.recovery-login-spacing { margin-top: 10px !important; }
+
+
+/* Move only the Forgot password button upward; do not reposition Create account. */
+.login-secondary-actions > .btn.block.recovery-login-spacing {
+  position: relative !important;
+  top: -12px !important;
+  margin-top: 10px !important;
+  margin-bottom: -12px !important;
+}
