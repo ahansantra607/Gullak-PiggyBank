@@ -792,7 +792,7 @@ button.recovery-login-link.individual-recovery-action:active {
 }
 
 
-/* Login recovery: preserve Create account placement and tighten only the recovery gap. */
-.login-secondary-actions { display: block; }
+/* Login recovery: preserve Create account placement and lift only Forgot password. */
+.login-secondary-actions { display: flex; flex-direction: column; gap: 0; }
 .login-secondary-actions > .btn.block { margin-top: 10px; }
-.login-secondary-actions > .btn.block.recovery-login-spacing { margin-top: 2px !important; }
+.login-secondary-actions > .btn.block.recovery-login-spacing { margin-top: 0 !important; }
