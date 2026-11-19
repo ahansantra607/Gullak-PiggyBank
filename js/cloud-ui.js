@@ -709,7 +709,7 @@
         upper: value => /[A-Z]/.test(value),
         lower: value => /[a-z]/.test(value),
         number: value => /[0-9]/.test(value),
-        special: value => /[^A-Za-z0-9\\s]/.test(value)
+        special: value => /[^A-Za-z0-9\s]/.test(value)
       };
       const updatePassword = () => {
         const value = password.value;
@@ -724,7 +724,12 @@
         passwordStatus.style.color = valid ? 'var(--green)' : 'var(--red)';
         passwordStatus.setAttribute('aria-label', valid ? 'Password meets all requirements' : 'Password requirements not yet met');
       };
-      password.addEventListener('input', updatePassword);
+      // Capture edits at the screen root too, so the checker remains live if the password-eye UI wraps or refreshes the field.
+      ['input', 'keyup', 'change', 'compositionend'].forEach(type => {
+        root.addEventListener(type, event => {
+          if (event.target === password) updatePassword();
+        }, true);
+      });
       updatePassword();
     }
     if (confirmation && confirmationStatus) {
