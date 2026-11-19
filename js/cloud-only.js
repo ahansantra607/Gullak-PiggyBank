@@ -108,7 +108,7 @@
     if (mode === 'family' && ['family-account', 'cloud-families', 'cloud-family-join'].includes(name)) return null;
     const prior = routeGuardCloudOnly0 ? routeGuardCloudOnly0(name, q) : null;
     if (!G.cloudAccount.unlocked && !G.backupTemporary) {
-      if (!['welcome', 'modes', 'cloud-account', 'family-account', 'cloud-families', 'cloud-family-join', 'fam-pick', 'fam-users'].includes(name) && !(mode === 'family' && name === 'fam-create')) return 'cloud-account';
+      if (!['welcome', 'modes', 'cloud-account', 'cloud-recovery', 'family-account', 'cloud-families', 'cloud-family-join', 'fam-pick', 'fam-users'].includes(name) && !(mode === 'family' && name === 'fam-create')) return 'cloud-account';
       return prior;
     }
     // Individual mode no longer uses the old local grown-up PIN or PIN-protected screen.
