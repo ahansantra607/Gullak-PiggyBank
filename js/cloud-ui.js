@@ -599,7 +599,7 @@
         <div style="position:relative;width:100%"><input class="input" style="width:100%;box-sizing:border-box;padding-right:44px" id="individual-recovery-new-password" type="password" maxlength="128" autocomplete="new-password" placeholder="8+ chars: upper, lower, number & symbol"><span id="individual-recovery-password-status" aria-live="polite" style="display:none;position:absolute;right:12px;top:50%;transform:translateY(-50%);pointer-events:none;font-size:22px;font-weight:700"></span></div>
         <div id="individual-recovery-password-rules" class="password-rules"><div data-rule="length"><span>○</span> 8+ characters</div><div data-rule="upper"><span>○</span> Uppercase letter</div><div data-rule="lower"><span>○</span> Lowercase letter</div><div data-rule="number"><span>○</span> Number</div><div data-rule="special"><span>○</span> Special character</div></div>
         <label class="label" for="individual-recovery-confirm">Re-enter new password</label>
-        <input class="input" id="individual-recovery-confirm" type="password" maxlength="128" autocomplete="new-password" placeholder="Type the new password again">
+        <div style="position:relative;width:100%"><input class="input" style="width:100%;box-sizing:border-box;padding-right:44px" id="individual-recovery-confirm" type="password" maxlength="128" autocomplete="new-password" placeholder="Type the new password again"><span id="individual-recovery-confirm-status" aria-live="polite" style="display:none;position:absolute;right:12px;top:50%;transform:translateY(-50%);pointer-events:none;font-size:22px;font-weight:700"></span></div>
         <p class="hint">Your recovery code also restores the encrypted key needed for your Individual diary. It does not delete your account or diary.</p>
         <button class="btn primary block big" data-act="individual-recover-submit">Recover account</button>
       </div>
@@ -658,6 +658,8 @@
     const password = G.$('#individual-recovery-new-password', root);
     const passwordStatus = G.$('#individual-recovery-password-status', root);
     const rulesPanel = G.$('#individual-recovery-password-rules', root);
+    const confirmation = G.$('#individual-recovery-confirm', root);
+    const confirmationStatus = G.$('#individual-recovery-confirm-status', root);
     if (username && usernameStatus) {
       let timer = null, sequence = 0;
       const updateUsername = () => {
@@ -724,6 +726,19 @@
       };
       password.addEventListener('input', updatePassword);
       updatePassword();
+    }
+    if (confirmation && confirmationStatus) {
+      const updateConfirmation = () => {
+        const value = confirmation.value;
+        const matches = value.length > 0 && value === (password?.value || '');
+        confirmationStatus.textContent = value ? (matches ? '✓' : '✕') : '';
+        confirmationStatus.style.display = value ? 'block' : 'none';
+        confirmationStatus.style.color = matches ? 'var(--green)' : 'var(--red)';
+        confirmationStatus.setAttribute('aria-label', value ? (matches ? 'Passwords match' : 'Passwords do not match') : '');
+      };
+      confirmation.addEventListener('input', updateConfirmation);
+      password?.addEventListener('input', updateConfirmation);
+      updateConfirmation();
     }
   };
 
