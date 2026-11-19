@@ -73,7 +73,7 @@
     return new Promise(resolve => {
       let answered = false;
       const modal = G.modal({
-        html: '<h2>🔐 Confirm your account password</h2><p class="small muted">Enter your Supervisor account password to encrypt the private key into the new recovery code.</p><label class="label" for="recovery-account-password">Account password</label><input class="input" id="recovery-account-password" type="password" autocomplete="current-password"><div class="row gap mt"><button class="btn ghost grow" data-act="recovery-password-cancel">Cancel</button><button class="btn primary grow" data-act="recovery-password-confirm">Continue</button></div>',
+        html: '<h2>🔐 Confirm your account password</h2><p class="small muted">Enter your account password to confirm it is you before generating or replacing your recovery code.</p><label class="label" for="recovery-account-password">Account password</label><input class="input" id="recovery-account-password" type="password" autocomplete="current-password"><div class="row gap mt"><button class="btn ghost grow" data-act="recovery-password-cancel">Cancel</button><button class="btn primary grow" data-act="recovery-password-confirm">Continue</button></div>',
         handlers: {
           'recovery-password-confirm': () => {
             const value = G.$('#recovery-account-password', modal.el)?.value || '';
@@ -89,17 +89,26 @@
 
   async function currentIndividualRecoveryPayload(accountPassword = '') {
     if (!cloudUser || cloudUser.account_type !== 'individual') throw new Error('Sign in to an Individual account first.');
+    const password = accountPassword || await askForRecoveryPassword();
+    if (!password) return null;
     if (cloudUser.role === 'kid') {
       if (!cloudSecret) throw new Error('Unlock the Kid diary before creating its recovery code.');
+      let verifiedSecret;
+      try { verifiedSecret = await G.cloud.loadKeyWrap(password); }
+      catch (_) { throw new Error('Incorrect account password. Please try again.'); }
+      if (!verifiedSecret || verifiedSecret !== cloudSecret) throw new Error('Incorrect account password. Please try again.');
       return { version: 1, role: 'kid', diary_secret: cloudSecret };
     }
     if (cloudUser.role === 'supervisor') {
-      const password = accountPassword || await askForRecoveryPassword();
-      if (!password) return null;
       const result = await G.cloud.loadSupervisorKey();
       if (!result.exists || !result.key_bundle?.public_key) throw new Error('The Supervisor encryption key is unavailable.');
-      const privateBytes = await G.cr.unwrapWithSecret(password, result.key_bundle.salt, result.key_bundle.encrypted_private_key, result.key_bundle.iterations);
-      await crypto.subtle.importKey('pkcs8', privateBytes, { name: 'ECDH', namedCurve: 'P-256' }, false, ['deriveBits']);
+      let privateBytes;
+      try {
+        privateBytes = await G.cr.unwrapWithSecret(password, result.key_bundle.salt, result.key_bundle.encrypted_private_key, result.key_bundle.iterations);
+        await crypto.subtle.importKey('pkcs8', privateBytes, { name: 'ECDH', namedCurve: 'P-256' }, false, ['deriveBits']);
+      } catch (_) {
+        throw new Error('Incorrect account password. Please try again.');
+      }
       return { version: 1, role: 'supervisor', public_key: result.key_bundle.public_key, private_key: G.cr.b64(privateBytes) };
     }
     throw new Error('This account type does not support Individual recovery codes.');
