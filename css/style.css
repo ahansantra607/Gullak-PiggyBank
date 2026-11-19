@@ -796,3 +796,9 @@ button.recovery-login-link.individual-recovery-action:active {
 
 /* Keep the login recovery action close to Create account without changing its size. */
 .btn.block.recovery-login-spacing { margin-top: -4px !important; }
+
+
+/* Login secondary actions use a controlled stack; remove the global block-button margin here. */
+.login-secondary-actions { display: flex; flex-direction: column; gap: 0; }
+.login-secondary-actions > .btn.block { margin-top: 0 !important; }
+.login-secondary-actions > .btn.block.recovery-login-spacing { margin-top: 0 !important; }
