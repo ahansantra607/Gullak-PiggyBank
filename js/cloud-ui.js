@@ -703,34 +703,24 @@
       code.addEventListener('input', updateCode);
       updateCode();
     }
-    if (password && passwordStatus && rulesPanel) {
-      const checks = {
-        length: value => value.length >= 8 && value.length <= 128,
-        upper: value => /[A-Z]/.test(value),
-        lower: value => /[a-z]/.test(value),
-        number: value => /[0-9]/.test(value),
-        special: value => /[^A-Za-z0-9\s]/.test(value)
-      };
-      const updatePassword = () => {
-        const value = password.value;
-        const valid = Object.entries(checks).every(([key, test]) => {
-          const passed = test(value);
+    if (password && rulesPanel && passwordStatus) {
+      // Keep this identical to the working Create account password checker.
+      const rules = { length: v => v.length >= 8, upper: v => /[A-Z]/.test(v), lower: v => /[a-z]/.test(v), number: v => /[0-9]/.test(v), special: v => /[^A-Za-z0-9\\s]/.test(v) };
+      const update = () => {
+        const checks = Object.entries(rules).map(([key, test]) => {
+          const good = test(password.value);
           const row = rulesPanel.querySelector('[data-rule="' + key + '"]');
-          if (row) { row.classList.toggle('passed', passed); row.querySelector('span').textContent = passed ? '✓' : '○'; }
-          return passed;
+          if (row) { row.classList.toggle('passed', good); row.querySelector('span').textContent = good ? '✓' : '○'; }
+          return good;
         });
-        passwordStatus.textContent = value ? (valid ? '✓' : '✕') : '';
-        passwordStatus.style.display = value ? 'block' : 'none';
-        passwordStatus.style.color = valid ? 'var(--green)' : 'var(--red)';
+        const hasValue = password.value.length > 0, valid = checks.every(Boolean);
+        passwordStatus.style.display = hasValue ? 'block' : 'none';
+        passwordStatus.textContent = hasValue ? (valid ? '✓' : '✕') : '';
+        passwordStatus.style.color = hasValue ? (valid ? 'var(--green)' : 'var(--red)') : '';
         passwordStatus.setAttribute('aria-label', valid ? 'Password meets all requirements' : 'Password requirements not yet met');
       };
-      // Capture edits at the screen root too, so the checker remains live if the password-eye UI wraps or refreshes the field.
-      ['input', 'keyup', 'change', 'compositionend'].forEach(type => {
-        root.addEventListener(type, event => {
-          if (event.target === password) updatePassword();
-        }, true);
-      });
-      updatePassword();
+      password.addEventListener('input', update);
+      update();
     }
     if (confirmation && confirmationStatus) {
       const updateConfirmation = () => {
