@@ -592,11 +592,12 @@
       <div class="card">
         <p class="small muted">Use the recovery code you saved earlier. This works for both Individual Supervisor and Kid accounts, including accounts temporarily locked after failed logins.</p>
         <label class="label" for="individual-recovery-username">Username</label>
-        <input class="input" id="individual-recovery-username" maxlength="24" autocomplete="username" placeholder="Your Gullak username">
+        <div style="position:relative;width:100%"><input class="input" style="width:100%;box-sizing:border-box;padding-right:44px" id="individual-recovery-username" maxlength="24" autocomplete="username" placeholder="Your Gullak username"><span id="individual-recovery-username-status" aria-live="polite" style="display:none;position:absolute;right:12px;top:50%;transform:translateY(-50%);pointer-events:none;font-size:22px;font-weight:700"></span></div>
         <label class="label" for="individual-recovery-code">Recovery code</label>
-        <input class="input" id="individual-recovery-code" maxlength="64" autocomplete="off" placeholder="GULLAK-…">
+        <div style="position:relative;width:100%"><input class="input" style="width:100%;box-sizing:border-box;padding-right:44px" id="individual-recovery-code" maxlength="64" autocomplete="off" placeholder="GULLAK-…"><span id="individual-recovery-code-status" aria-live="polite" style="display:none;position:absolute;right:12px;top:50%;transform:translateY(-50%);pointer-events:none;font-size:22px;font-weight:700"></span></div>
         <label class="label" for="individual-recovery-new-password">New account password</label>
-        <input class="input" id="individual-recovery-new-password" type="password" maxlength="128" autocomplete="new-password" placeholder="8+ chars: upper, lower, number & symbol">
+        <div style="position:relative;width:100%"><input class="input" style="width:100%;box-sizing:border-box;padding-right:44px" id="individual-recovery-new-password" type="password" maxlength="128" autocomplete="new-password" placeholder="8+ chars: upper, lower, number & symbol"><span id="individual-recovery-password-status" aria-live="polite" style="display:none;position:absolute;right:12px;top:50%;transform:translateY(-50%);pointer-events:none;font-size:22px;font-weight:700"></span></div>
+        <div id="individual-recovery-password-rules" class="password-rules"><div data-rule="length"><span>○</span> 8+ characters</div><div data-rule="upper"><span>○</span> Uppercase letter</div><div data-rule="lower"><span>○</span> Lowercase letter</div><div data-rule="number"><span>○</span> Number</div><div data-rule="special"><span>○</span> Special character</div></div>
         <label class="label" for="individual-recovery-confirm">Re-enter new password</label>
         <input class="input" id="individual-recovery-confirm" type="password" maxlength="128" autocomplete="new-password" placeholder="Type the new password again">
         <p class="hint">Your recovery code also restores the encrypted key needed for your Individual diary. It does not delete your account or diary.</p>
@@ -647,6 +648,83 @@
         }
       }
     })
+  };
+
+  G.screens['cloud-recovery'].after = root => {
+    const username = G.$('#individual-recovery-username', root);
+    const usernameStatus = G.$('#individual-recovery-username-status', root);
+    const code = G.$('#individual-recovery-code', root);
+    const codeStatus = G.$('#individual-recovery-code-status', root);
+    const password = G.$('#individual-recovery-new-password', root);
+    const passwordStatus = G.$('#individual-recovery-password-status', root);
+    const rulesPanel = G.$('#individual-recovery-password-rules', root);
+    if (username && usernameStatus) {
+      let timer = null, sequence = 0;
+      const updateUsername = () => {
+        const value = username.value.trim().toLowerCase();
+        const current = ++sequence;
+        if (timer) clearTimeout(timer);
+        usernameStatus.textContent = '';
+        usernameStatus.style.display = value ? 'block' : 'none';
+        usernameStatus.style.color = '';
+        if (!value) return;
+        if (!/^[a-z0-9_]{3,24}$/.test(value)) {
+          usernameStatus.textContent = '✕'; usernameStatus.style.color = 'var(--red)';
+          usernameStatus.setAttribute('aria-label', 'Invalid username format');
+          return;
+        }
+        timer = setTimeout(async () => {
+          try {
+            const result = await G.cloud.checkUsername(value);
+            if (current !== sequence || username.value.trim().toLowerCase() !== value) return;
+            const exists = !!result.exists;
+            usernameStatus.textContent = exists ? '✓' : '✕';
+            usernameStatus.style.color = exists ? 'var(--green)' : 'var(--red)';
+            usernameStatus.setAttribute('aria-label', exists ? 'Username found' : 'Username not found');
+          } catch (_) {
+            if (current === sequence) { usernameStatus.textContent = ''; usernameStatus.style.display = 'none'; }
+          }
+        }, 350);
+      };
+      username.addEventListener('input', updateUsername);
+      updateUsername();
+    }
+    if (code && codeStatus) {
+      const updateCode = () => {
+        const value = code.value.trim();
+        const valid = /^GULLAK-(?:[A-HJ-NP-Z2-9]{8}-){3}[A-HJ-NP-Z2-9]{8}$/i.test(value);
+        codeStatus.textContent = value ? (valid ? '✓' : '✕') : '';
+        codeStatus.style.display = value ? 'block' : 'none';
+        codeStatus.style.color = valid ? 'var(--green)' : 'var(--red)';
+        codeStatus.setAttribute('aria-label', valid ? 'Recovery code format is valid' : 'Recovery code format is invalid');
+      };
+      code.addEventListener('input', updateCode);
+      updateCode();
+    }
+    if (password && passwordStatus && rulesPanel) {
+      const checks = {
+        length: value => value.length >= 8 && value.length <= 128,
+        upper: value => /[A-Z]/.test(value),
+        lower: value => /[a-z]/.test(value),
+        number: value => /[0-9]/.test(value),
+        special: value => /[^A-Za-z0-9\\s]/.test(value)
+      };
+      const updatePassword = () => {
+        const value = password.value;
+        const valid = Object.entries(checks).every(([key, test]) => {
+          const passed = test(value);
+          const row = rulesPanel.querySelector('[data-rule="' + key + '"]');
+          if (row) { row.classList.toggle('passed', passed); row.querySelector('span').textContent = passed ? '✓' : '○'; }
+          return passed;
+        });
+        passwordStatus.textContent = value ? (valid ? '✓' : '✕') : '';
+        passwordStatus.style.display = value ? 'block' : 'none';
+        passwordStatus.style.color = valid ? 'var(--green)' : 'var(--red)';
+        passwordStatus.setAttribute('aria-label', valid ? 'Password meets all requirements' : 'Password requirements not yet met');
+      };
+      password.addEventListener('input', updatePassword);
+      updatePassword();
+    }
   };
 
   G.screens['individual-supervision'] = {
