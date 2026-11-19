@@ -792,7 +792,8 @@ button.recovery-login-link.individual-recovery-action:active {
 }
 
 
-/* Login recovery: preserve Create account placement and lift only Forgot password. */
+/* Login recovery: preserve Create account position; reduce only the space after it. */
 .login-secondary-actions { display: flex; flex-direction: column; gap: 0; }
 .login-secondary-actions > .btn.block { margin-top: 10px; }
-.login-secondary-actions > .btn.block.recovery-login-spacing { margin-top: 0 !important; }
+.login-secondary-actions > .btn.block:first-child { margin-bottom: -8px !important; }
+.login-secondary-actions > .btn.block.recovery-login-spacing { margin-top: 10px !important; }
