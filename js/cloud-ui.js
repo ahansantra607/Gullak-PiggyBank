@@ -354,7 +354,7 @@
   G.screens['cloud-account'] = {
     bare: true,
     render: () => `<section class="ob">
-      <header class="page-h"><button class="back" data-act="go" data-to="${G.S.profile ? 'settings' : 'welcome'}" aria-label="Back">←</button><h1>☁️ Gullak Cloud</h1></header>
+      <header class="page-h"><button class="back" data-act="cloud-account-back" aria-label="Back">←</button><h1>☁️ Gullak Cloud</h1></header>
       <div class="card">
         <h2>${authMode === 'register' ? 'Create your cloud account' : 'Log in to Gullak'}</h2>
         <p class="small muted">${authMode === 'register' ? 'Create a Supervisor account or a Kid account. Kid accounts become active only after a Supervisor accepts.' : 'Your account password signs you in and unlocks your encrypted diary. Your separate encryption passphrase is not requested again.'}</p>
@@ -379,6 +379,7 @@
       <p class="fine">🔐 Kid diaries sync as encrypted data. Supervisor accounts manage Supervisor codes and requests separately from Kid diaries.</p>
     </section>`,
     handlers: () => ({
+      'cloud-account-back': () => { if (authMode === 'register') { authMode = 'login'; registerRole = 'supervisor'; G.render(); } else G.go(G.S.profile ? 'settings' : 'welcome'); },
       'cloud-mode': () => { authMode = authMode === 'login' ? 'register' : 'login'; registerRole = 'supervisor'; G.render(); },
       'cloud-recover': () => G.go('cloud-recovery'),
       'individual-role': el => { registerRole = el.dataset.v === 'kid' ? 'kid' : 'supervisor'; G.render(); },
