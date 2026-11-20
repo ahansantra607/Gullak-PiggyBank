@@ -791,14 +791,14 @@ button.recovery-login-link.individual-recovery-action:active {
   box-shadow:0 1px 0 rgba(0,0,0,.08)!important;
 }
 
-/* Forgot password: simple text-link treatment, positioned just below Create account. */
+/* Forgot password: plain, neutral text and tighter spacing below Create account. */
 .login-secondary-actions { display:flex; flex-direction:column; gap:0; }
 .login-secondary-actions > .link.block.recovery-login-spacing {
   display:block!important; width:100%; text-align:center; margin:0!important;
-  position:relative; top:-8px; padding:8px 4px!important;
-  background:transparent!important; color:var(--pri)!important;
+  position:relative; top:-14px; padding:4px 4px!important;
+  background:transparent!important; color:var(--ink)!important;
   border:0!important; box-shadow:none!important; font-weight:700;
-  text-decoration:underline; min-height:0!important;
+  text-decoration:none!important; min-height:0!important;
 }
 .login-secondary-actions > .link.block.recovery-login-spacing:active {
   transform:translateY(1px); background:transparent!important; box-shadow:none!important;
