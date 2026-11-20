@@ -77,6 +77,11 @@
         }
         mode = 'individual';
         G.setMode('individual');
+        if (G.cloudAccount?.unlocked) {
+          G.go(G.S && G.S.profile ? 'home' : 'welcome');
+          return;
+        }
+        G.resetIndividualAuthToLogin?.();
         G.go('cloud-account');
       },
       'mode-fam': () => {
