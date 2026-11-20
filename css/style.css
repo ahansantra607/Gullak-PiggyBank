@@ -761,7 +761,7 @@ button.recovery-login-link.individual-recovery-action:active {
 }
 
 
-/* Recovery popup actions: Copy, Download and Continue use Gullak's established purple palette. */
+/* Recovery popup actions: Copy and Download stay purple; Continue uses the soft button styling. */
 .recovery-save-modal .recovery-copy,
 .recovery-save-modal .recovery-download {
   background:var(--pri)!important;
@@ -771,10 +771,10 @@ button.recovery-login-link.individual-recovery-action:active {
   font-weight:750!important;
 }
 .recovery-save-modal .recovery-continue {
-  background:var(--pri)!important;
-  color:#fff!important;
-  border:2px solid var(--pri-d)!important;
-  box-shadow:0 4px 0 var(--pri-d)!important;
+  background:var(--soft)!important;
+  color:var(--pri-d)!important;
+  border:0!important;
+  box-shadow:0 4px 0 rgba(0,0,0,.08)!important;
   font-weight:750!important;
 }
 .recovery-save-modal .recovery-copy:active,
@@ -785,10 +785,10 @@ button.recovery-login-link.individual-recovery-action:active {
   box-shadow:0 1px 0 var(--pri-d)!important;
 }
 .recovery-save-modal .recovery-continue:active {
-  background:var(--pri-d)!important;
-  color:#fff!important;
+  background:var(--soft)!important;
+  color:var(--pri-d)!important;
   transform:translateY(2px);
-  box-shadow:0 1px 0 var(--pri-d)!important;
+  box-shadow:0 1px 0 rgba(0,0,0,.08)!important;
 }
 
 
