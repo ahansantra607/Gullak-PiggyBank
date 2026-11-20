@@ -76,9 +76,8 @@
           mode = 'family'; G.setMode('family'); G.toast('Family accounts can only be used in Family mode.'); G.go('fam-pick'); return;
         }
         mode = 'individual';
-        if (!G.cloudAccount.unlocked) { G.go('cloud-account'); return; }
-        if (G.S && G.S.profile) { G.go('home'); return; }
-        G.setMode('individual'); G.go('welcome');
+        G.setMode('individual');
+        G.go('cloud-account');
       },
       'mode-fam': () => {
         mode = 'family'; G.setMode('family');
