@@ -351,6 +351,8 @@
     if (!G.FREE_ROUTES.includes(route)) G.FREE_ROUTES.push(route);
   });
 
+  G.resetIndividualAuthToLogin = () => { authMode = 'login'; registerRole = 'supervisor'; };
+
   G.screens['cloud-account'] = {
     bare: true,
     render: () => `<section class="ob">
