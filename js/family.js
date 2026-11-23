@@ -461,15 +461,15 @@
         <input class="input" id="c-name" maxlength="14" placeholder="…or type a nickname" value="${esc(cr.name)}">
         <div class="avatar-grid sm">${['🧑', '👩', '👨', '👵', '👴', '🧔', '👩‍🦱', '🦸', '🦁', '🐘', '🌟', '🛡️'].map(a => `<button class="av ${a === cr.avatar ? 'on' : ''}" data-act="cav" data-v="${a}">${a}</button>`).join('')}</div>
         <button class="btn primary block big" data-act="c1">Next →</button></section>`;
-      if (cr.step === 2) return `<header class="page-h"><button class="back" data-act="cancel-family-creation" aria-label="Cancel family creation">←</button><h1>➕ New family</h1></header>${dots}<section class="card">
+      if (cr.step === 2) return `<header class="page-h"><button class="back" data-act="cback" aria-label="Back to previous step">←</button><h1>➕ New family</h1></header>${dots}<section class="card">
         <h2>🔐 Shared Family PIN</h2><p class="muted small">Everyone uses this same 4–6 digit PIN to open the family and view its member list. It is not a personal account password.</p>
         <input class="input big" id="c-p1" type="password" inputmode="numeric" maxlength="6" placeholder="PIN">
         <input class="input big" id="c-p2" type="password" inputmode="numeric" maxlength="6" placeholder="Type it again">
         <button class="btn primary block big" data-act="c2">Next →</button><button class="btn ghost block" data-act="cback">← Back</button></section>`;
-      if (cr.step === 3) return `<header class="page-h"><button class="back" data-act="cancel-family-creation" aria-label="Cancel family creation">←</button><h1>➕ New family</h1></header>${dots}<section class="card"><h2>📋 Family rules</h2>
+      if (cr.step === 3) return `<header class="page-h"><button class="back" data-act="cback" aria-label="Back to previous step">←</button><h1>➕ New family</h1></header>${dots}<section class="card"><h2>📋 Family rules</h2>
         <p class="muted small">Default rules for every kid you add. You can change them per kid later.</p>${rulesHTML(cr.rules)}
         <button class="btn primary block big" data-act="c-rules">Next →</button><button class="btn ghost block" data-act="cback">← Back</button></section>`;
-      if (cr.step === 4) return `<header class="page-h"><button class="back" data-act="cancel-family-creation" aria-label="Cancel family creation">←</button><h1>➕ New family</h1></header>${dots}<section class="card">
+      if (cr.step === 4) return `<header class="page-h"><button class="back" data-act="cback" aria-label="Back to previous step">←</button><h1>➕ New family</h1></header>${dots}<section class="card">
         <h2>🛟 Security questions</h2><p class="muted small">If every supervisor forgets their PIN, these unlock the family. No school, address or real names, just fun answers.</p>
         ${[0, 1].map(i => `<select class="input" id="c-q${i}" aria-label="Question ${i + 1}">${QUESTIONS.map((t, n) => `<option value="${n}" ${cr.q[i] === n ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select>
           <input class="input" id="c-a${i}" maxlength="40" placeholder="Your answer" value="${esc(cr.a[i])}" autocomplete="off">`).join('')}
@@ -499,7 +499,7 @@
       femo: (el) => { cr.famEmoji = el.dataset.v; G.render({ keepScroll: true }); },
       cname: (el) => { cr.name = el.dataset.v; G.render({ keepScroll: true }); },
       cav: (el) => { cr.avatar = el.dataset.v; G.render({ keepScroll: true }); },
-      cback: () => { resetFamilyCreation(); G.go('fam-pick'); },
+      cback: () => { if (cr.step > 1 && cr.step < 5) { cr.step -= 1; G.render(); } else { resetFamilyCreation(); G.go('fam-pick'); } },
       'cancel-family-creation': () => { resetFamilyCreation(); G.go('fam-pick'); },
       rule: ruleClick(cr.rules),
       'c-rules': () => { cr.step = 4; G.render(); },
