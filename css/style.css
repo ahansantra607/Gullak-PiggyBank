@@ -795,7 +795,7 @@ button.recovery-login-link.individual-recovery-action:active {
 .login-secondary-actions { display:flex; flex-direction:column; gap:0; }
 .login-secondary-actions > .link.block.recovery-login-spacing {
   display:block!important; width:100%; text-align:center; margin:0!important;
-  position:relative; top:-10px; padding:4px 4px!important;
+  position:relative; top:-6px; padding:4px 4px!important;
   background:transparent!important; color:var(--muted)!important;
   border:0!important; box-shadow:none!important; font-weight:700;
   text-decoration:none!important; min-height:0!important;
