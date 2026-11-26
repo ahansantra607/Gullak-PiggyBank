@@ -499,7 +499,7 @@
       femo: (el) => { cr.famEmoji = el.dataset.v; G.render({ keepScroll: true }); },
       cname: (el) => { cr.name = el.dataset.v; G.render({ keepScroll: true }); },
       cav: (el) => { cr.avatar = el.dataset.v; G.render({ keepScroll: true }); },
-      cback: () => { if (cr.step > 1 && cr.step < 5) { cr.step -= 1; G.render(); } else { resetFamilyCreation(); G.go('fam-pick'); } },
+      cback: () => { if (cr.step > 1 && cr.step < 5) { cr.step = Math.max(1, cr.step - 1); const view = G.$('#view'); const screen = G.screens['fam-create']; if (view && screen) { view.innerHTML = screen.render(); if (screen.after) screen.after(view); } } else { resetFamilyCreation(); G.go('fam-pick'); } },
       'cancel-family-creation': () => { resetFamilyCreation(); G.go('fam-pick'); },
       rule: ruleClick(cr.rules),
       'c-rules': () => { cr.step = 4; G.render(); },
