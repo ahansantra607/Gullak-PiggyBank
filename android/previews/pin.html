@@ -98,7 +98,24 @@
         if (window.GullakNative && window.GullakNative.logoutFromPin) window.GullakNative.logoutFromPin();
         else $('hint').textContent = 'Log out is available in the Gullak Android app.';
       });
-      $('pin').addEventListener('input', () => { $('pin').value = $('pin').value.replace(/\D/g, '').slice(0, 6); });
+      // Block non-digits before they enter the field, and sanitize paste/autofill/input fallbacks.
+      pinInput.addEventListener('beforeinput', ev => {
+        if (ev.inputType === 'insertText' || ev.inputType === 'insertCompositionText') {
+          if (ev.data && /[^0-9]/.test(ev.data)) ev.preventDefault();
+        }
+      });
+      pinInput.addEventListener('paste', ev => {
+        ev.preventDefault();
+        const pasted = (ev.clipboardData || window.clipboardData).getData('text').replace(/[^0-9]/g, '');
+        const start = pinInput.selectionStart ?? pinInput.value.length;
+        const end = pinInput.selectionEnd ?? start;
+        pinInput.value = (pinInput.value.slice(0, start) + pasted + pinInput.value.slice(end)).slice(0, 6);
+        pinInput.dispatchEvent(new Event('input', { bubbles: true }));
+      });
+      pinInput.addEventListener('input', () => {
+        const clean = pinInput.value.replace(/[^0-9]/g, '').slice(0, 6);
+        if (pinInput.value !== clean) pinInput.value = clean;
+      });
     })();
   </script>
 </body>
